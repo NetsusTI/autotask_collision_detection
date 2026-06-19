@@ -4,60 +4,81 @@
   <meta charset="UTF-8" />
   <style>
     body {
-      font-family: sans-serif;
+      font-family: 'Segoe UI', sans-serif;
       width: 260px;
       padding: 16px;
       margin: 0;
-      background: #1a1a2e;
+      background: #0f1628;
       color: #eee;
     }
     h2 {
-      font-size: 14px;
-      margin: 0 0 12px;
-      color: #e67e22;
+      font-size: 13px;
+      margin: 0 0 14px;
+      color: #f97316;
+      letter-spacing: 0.02em;
     }
-    label { font-size: 12px; color: #aaa; }
+    #avatar {
+      width: 44px; height: 44px; border-radius: 50%;
+      background: linear-gradient(135deg, #f97316, #ea580c);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; font-weight: 700; margin: 0 auto 10px;
+      box-shadow: 0 4px 12px rgba(249,115,22,0.35);
+    }
+    #current {
+      text-align: center;
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+    #autoLabel {
+      text-align: center;
+      font-size: 11px;
+      color: rgba(255,255,255,0.35);
+      margin-bottom: 14px;
+    }
+    hr { border: none; border-top: 1px solid rgba(255,255,255,0.08); margin: 12px 0; }
+    label { font-size: 11px; color: rgba(255,255,255,0.45); }
     input {
       width: 100%;
       padding: 8px;
       margin-top: 4px;
-      border: 1px solid #444;
+      border: 1px solid rgba(255,255,255,0.12);
       border-radius: 6px;
-      background: #2c2c4e;
+      background: rgba(255,255,255,0.06);
       color: #fff;
-      font-size: 14px;
+      font-size: 13px;
       box-sizing: border-box;
     }
     button {
-      margin-top: 10px;
+      margin-top: 8px;
       width: 100%;
       padding: 8px;
-      background: #e67e22;
+      background: linear-gradient(135deg, #f97316, #ea580c);
       color: white;
       border: none;
       border-radius: 6px;
-      font-size: 14px;
+      font-size: 13px;
       cursor: pointer;
+      font-weight: 600;
     }
-    button:hover { background: #d35400; }
+    button:hover { opacity: 0.9; }
     #status {
       margin-top: 8px;
-      font-size: 12px;
-      color: #2ecc71;
+      font-size: 11px;
+      color: #22c55e;
       text-align: center;
       min-height: 16px;
-    }
-    #current {
-      font-size: 12px;
-      color: #aaa;
-      margin-bottom: 12px;
     }
   </style>
 </head>
 <body>
-  <h2>🔍 Autotask Collision Detection</h2>
-  <div id="current"></div>
-  <label>Tu nombre</label>
+  <h2>⚡ Autotask Collision Detection</h2>
+  <div id="avatar">?</div>
+  <div id="current">Detectando...</div>
+  <div id="autoLabel"></div>
+  <hr />
+  <label>Cambiar nombre manualmente</label>
   <input id="nameInput" type="text" placeholder="Ej: Ricardo Illanes" />
   <button id="saveBtn">Guardar</button>
   <div id="status"></div>

@@ -8,22 +8,40 @@ export default defineContentScript({
     let wasLocked = false;
 
     function getUserFromDOM(): string | null {
-      const el = document.querySelector<HTMLElement>('span.select-none.truncate');
-      return el?.textContent?.trim() || null;
+      const selectors = [
+        'span.select-none.truncate',
+        '[data-testid="user-display-name"]',
+        '.user-profile-name',
+        'nav span[title]',
+      ];
+      for (const sel of selectors) {
+        const el = document.querySelector<HTMLElement>(sel);
+        const text = el?.textContent?.trim() || el?.getAttribute('title')?.trim();
+        if (text && text.length > 2) return text;
+      }
+      return null;
     }
+
+    let userRetryCount = 0;
 
     function loadUserAndInit() {
       chrome.storage.local.get('netsus_user', ({ netsus_user }) => {
         if (netsus_user) {
           currentUser = netsus_user;
-        } else {
-          const fromDOM = getUserFromDOM();
-          if (fromDOM) {
-            currentUser = fromDOM;
-            chrome.storage.local.set({ netsus_user: fromDOM });
-          }
+          init();
+          return;
         }
-        init();
+        const fromDOM = getUserFromDOM();
+        if (fromDOM) {
+          currentUser = fromDOM;
+          chrome.storage.local.set({ netsus_user: fromDOM, netsus_user_auto: true });
+          init();
+        } else if (userRetryCount < 10) {
+          userRetryCount++;
+          setTimeout(loadUserAndInit, 1500);
+        } else {
+          init();
+        }
       });
     }
 
