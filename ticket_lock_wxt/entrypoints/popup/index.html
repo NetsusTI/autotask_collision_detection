@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    body {
+      font-family: sans-serif;
+      width: 260px;
+      padding: 16px;
+      margin: 0;
+      background: #1a1a2e;
+      color: #eee;
+    }
+    h2 {
+      font-size: 14px;
+      margin: 0 0 12px;
+      color: #e67e22;
+    }
+    label { font-size: 12px; color: #aaa; }
+    input {
+      width: 100%;
+      padding: 8px;
+      margin-top: 4px;
+      border: 1px solid #444;
+      border-radius: 6px;
+      background: #2c2c4e;
+      color: #fff;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    button {
+      margin-top: 10px;
+      width: 100%;
+      padding: 8px;
+      background: #e67e22;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    button:hover { background: #d35400; }
+    #status {
+      margin-top: 8px;
+      font-size: 12px;
+      color: #2ecc71;
+      text-align: center;
+      min-height: 16px;
+    }
+    #current {
+      font-size: 12px;
+      color: #aaa;
+      margin-bottom: 12px;
+    }
+  </style>
+</head>
+<body>
+  <h2>🔍 Autotask Collision Detection</h2>
+  <div id="current"></div>
+  <label>Tu nombre</label>
+  <input id="nameInput" type="text" placeholder="Ej: Ricardo Illanes" />
+  <button id="saveBtn">Guardar</button>
+  <div id="status"></div>
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>
