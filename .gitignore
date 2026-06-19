@@ -40,6 +40,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# claude code
+.claude/
+
 # wxt extension
 ticket_lock_wxt/node_modules/
 ticket_lock_wxt/.output/
