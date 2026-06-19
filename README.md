@@ -1,103 +1,48 @@
-# Netsus - Dashboard Integrado Kaseya + IT Glue con IA
+# Autotask Collision Detection
 
-Dashboard enterprise para MSPs con análisis de inteligencia artificial, plantillas automáticas y reportes inteligentes.
+Extensión de Chrome para detectar colisiones entre técnicos trabajando en el mismo ticket de Autotask simultáneamente.
 
-## 🚀 Características Principales
+## ¿Qué hace?
 
-### Dashboards
-- **Panel Cliente**: Vista de operaciones con KPIs, performance y tickets
-- **Panel MSP**: Dashboard operacional con ingresos, alertas y salud de sistemas
-- **Panel Ejecutivo**: Métricas de negocio, ROI y tendencias
+Cuando dos técnicos abren el mismo ticket al mismo tiempo, el segundo ve un banner de alerta en la parte superior de la página. El ticket queda bloqueado para evitar modificaciones simultáneas. Cuando el primer técnico termina, el segundo recibe una notificación de que ya puede trabajar.
 
-### Plantillas
-- **IT Glue**: Documentación, procedimientos, credenciales, inventario
-- **Kaseya**: Automatización, monitoreo, patching, backups, detección de amenazas
+## Componentes
 
-### IA Integrada
-- Análisis de Performance automático
-- Predicción de Fallos antes de ocurrir
-- Optimización de Costos con oportunidades de ahorro
-- Análisis de Seguridad y vulnerabilidades
-- Generación de Reportes automáticos
+- **Extensión de Chrome** — detecta el ticket activo y muestra alertas en tiempo real
+- **API en Vercel** — registra la presencia de cada técnico con TTL automático en Redis
+- **Panel de administración** — `netsus-two.vercel.app/admin` muestra todas las colisiones activas en tiempo real
 
-## 🛠️ Instalación
+## Instalación de la extensión
+
+1. Descarga el `.zip` desde `ticket_lock_wxt/.output/`
+2. Ve a `chrome://extensions/`
+3. Activa **Modo desarrollador**
+4. Arrastra el `.zip` o usa **Cargar extensión sin empaquetar** apuntando a `.output/chrome-mv3/`
+5. Abre la extensión y escribe tu nombre
+
+## Deploy
+
+Requiere variables de entorno en Vercel:
+
+```
+UPSTASH_REDIS_REST_URL=...
+UPSTASH_REDIS_REST_TOKEN=...
+TICKET_LOCK_API_KEY=...
+```
+
+Para deployar:
 
 ```bash
-cd /home/ricardoillanes/netsus
-npm install
+vercel --prod
 ```
 
-## ⚙️ Configuración
+## Tecnologías
 
-Edita `.env.local` con tus credenciales (opcional):
-
-```env
-OPENAI_API_KEY=tu_clave_aqui
-KASEYA_API_KEY=tu_clave_aqui
-ITGLUE_API_KEY=tu_clave_aqui
-```
-
-## 🎯 Uso
-
-### Desarrollo
-```bash
-npm run dev
-```
-Accede a http://localhost:3000
-
-### Compilar para Producción
-```bash
-npm run build
-npm start
-```
-
-## 📊 Dashboards
-
-- **Cliente**: /dashboards/client
-- **MSP**: /dashboards/msp
-- **Ejecutivo**: /dashboards/executive
-- **Plantillas**: /templates
-
-## 📁 Estructura
-
-```
-src/
-├── app/                  # Páginas y APIs
-├── components/           # Componentes React
-├── lib/
-│   ├── ai/              # Módulos de análisis IA
-│   ├── integrations/    # Kaseya e IT Glue
-│   └── templates/       # Definiciones de plantillas
-└── config/              # Configuración global
-```
-
-## 🤖 IA Features
-
-- **Análisis de Performance**: CPU, memoria, disk
-- **Predicción de Fallos**: Identifica componentes en riesgo
-- **Optimización de Costos**: ROI estimado por oportunidad
-- **Análisis de Seguridad**: Score y vulnerabilidades
-- **Reportes Automáticos**: Ejecutivo, técnico, operacional
-
-## 📚 Tecnologías
-
-- Next.js 16 + React
-- TypeScript
-- Tailwind CSS
-- Recharts
-- OpenAI API
-- Axios
-
-## 📝 Notas
-
-- El proyecto funciona con datos simulados si las APIs no están configuradas
-- Fallback automático a simulador para OpenAI si no hay API key
-- Compatible con Kaseya e IT Glue cuando están configurados
-
-## 🚀 Deploy
-
-Optimizado para Vercel. Configura variables de entorno en Vercel Dashboard.
+- WXT (extensión Chrome MV3)
+- Next.js 16 + TypeScript
+- Upstash Redis (presencia con TTL)
+- Vercel (hosting serverless)
 
 ---
 
-Desarrollado por Netsus - 2026
+Desarrollado por Netsus · Innovación Tecnológica — 2026
