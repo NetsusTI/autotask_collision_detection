@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Panel Admin — Autotask Collision Detection</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: linear-gradient(135deg, #0a0e1a 0%, #0f1628 100%);
+      color: #fff;
+      min-height: 100vh;
+    }
+
+    /* LOGIN */
+    #loginScreen {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    }
+    .loginBox {
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 20px; padding: 40px 36px; width: 320px; text-align: center;
+    }
+    .loginIcon {
+      width: 52px; height: 52px; border-radius: 14px; margin: 0 auto 20px;
+      background: linear-gradient(135deg, #f97316, #ea580c);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; box-shadow: 0 4px 16px rgba(249,115,22,0.4);
+    }
+    .loginTitle { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+    .loginSub { font-size: 12px; color: rgba(255,255,255,0.35); margin-bottom: 28px; }
+    .loginInput {
+      width: 100%; padding: 10px 14px; border-radius: 10px; font-size: 14px;
+      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+      color: #fff; outline: none; margin-bottom: 12px;
+    }
+    .loginInput.error { border-color: #ef4444; }
+    .loginInput::placeholder { color: rgba(255,255,255,0.25); }
+    .loginError { font-size: 12px; color: #ef4444; margin-bottom: 10px; }
+    .loginBtn {
+      width: 100%; padding: 10px; border-radius: 10px; font-size: 14px; font-weight: 600;
+      background: linear-gradient(135deg, #f97316, #ea580c); color: #fff;
+      border: none; cursor: pointer;
+    }
+
+    /* PANEL */
+    #panel { display: none; }
+    .header {
+      border-bottom: 1px solid rgba(255,255,255,0.07); padding: 0 40px;
+      background: rgba(255,255,255,0.03); backdrop-filter: blur(10px);
+      position: sticky; top: 0; z-index: 10;
+    }
+    .headerInner {
+      max-width: 900px; margin: 0 auto; display: flex; align-items: center;
+      justify-content: space-between; height: 64px;
+    }
+    .logo { display: flex; align-items: center; gap: 12px; }
+    .logoIcon {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: linear-gradient(135deg, #f97316, #ea580c);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; box-shadow: 0 4px 12px rgba(249,115,22,0.4);
+    }
+    .logoName { font-size: 15px; font-weight: 700; }
+    .logoSub { font-size: 11px; color: rgba(255,255,255,0.4); margin-top: -2px; }
+    .liveIndicator { display: flex; align-items: center; gap: 6px; font-size: 12px; color: rgba(255,255,255,0.4); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 6px #22c55e; animation: pulse 2s infinite; }
+
+    .content { max-width: 900px; margin: 0 auto; padding: 40px; }
+
+    .stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 32px; }
+    .stat {
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px; padding: 20px 24px;
+    }
+    .statIcon { font-size: 22px; margin-bottom: 8px; }
+    .statValue { font-size: 28px; font-weight: 700; color: #f97316; }
+    .statLabel { font-size: 12px; color: rgba(255,255,255,0.45); margin-top: 2px; }
+
+    .tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+    .tab {
+      padding: 6px 18px; border-radius: 20px; font-size: 13px; font-weight: 600;
+      cursor: pointer; border: none; color: #fff; background: rgba(255,255,255,0.06);
+    }
+    .tab.active { background: linear-gradient(135deg, #f97316, #ea580c); }
+
+    .ticketCard {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px; padding: 18px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .ticketCard.collision { border-color: rgba(249,115,22,0.3); }
+    .ticketLeft { display: flex; align-items: center; gap: 16px; }
+    .ticketIcon {
+      width: 42px; height: 42px; border-radius: 12px;
+      background: rgba(255,255,255,0.06);
+      display: flex; align-items: center; justify-content: center; font-size: 18px;
+    }
+    .ticketIcon.col { background: rgba(249,115,22,0.15); }
+    .ticketName { font-size: 14px; font-weight: 600; }
+    .ticketMeta { font-size: 12px; color: rgba(255,255,255,0.4); margin-top: 2px; }
+    .chips { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .chip {
+      padding: 5px 14px; border-radius: 20px; font-size: 12px; font-weight: 600;
+      background: rgba(255,255,255,0.1); color: #fff;
+    }
+    .chip.primary {
+      background: linear-gradient(135deg, #f97316, #ea580c);
+      box-shadow: 0 2px 8px rgba(249,115,22,0.3);
+    }
+
+    .histCard {
+      background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 12px; padding: 14px 20px;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      margin-bottom: 10px;
+    }
+    .histLeft { display: flex; align-items: center; gap: 12px; }
+    .histTicket { font-size: 13px; font-weight: 600; }
+    .histTime { font-size: 11px; color: rgba(255,255,255,0.35); margin-top: 2px; }
+    .histChip {
+      padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600;
+      background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.6);
+    }
+    .histChip.first { background: rgba(249,115,22,0.2); color: #f97316; }
+
+    .empty {
+      text-align: center; padding: 80px 0;
+      background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.1);
+      border-radius: 20px;
+    }
+    .emptyIcon { font-size: 40px; margin-bottom: 12px; }
+    .emptyText { font-size: 15px; color: rgba(255,255,255,0.5); }
+    .emptySub { font-size: 12px; color: rgba(255,255,255,0.25); margin-top: 4px; }
+
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  </style>
+</head>
+<body>
+
+<!-- Login -->
+<div id="loginScreen">
+  <div class="loginBox">
+    <div class="loginIcon">⚡</div>
+    <div class="loginTitle">Panel de Administración</div>
+    <div class="loginSub">Autotask Collision Detection · Netsus</div>
+    <input id="pwdInput" class="loginInput" type="password" placeholder="Contraseña" />
+    <div id="loginError" class="loginError" style="display:none">Contraseña incorrecta</div>
+    <button class="loginBtn" onclick="doLogin()">Ingresar</button>
+  </div>
+</div>
+
+<!-- Panel -->
+<div id="panel">
+  <div class="header">
+    <div class="headerInner">
+      <div class="logo">
+        <div class="logoIcon">⚡</div>
+        <div>
+          <div class="logoName">Collision Detection</div>
+          <div class="logoSub">Netsus · Panel de control</div>
+        </div>
+      </div>
+      <div class="liveIndicator">
+        <div class="dot"></div>
+        <span>En vivo · <span id="lastUpdate">--:--</span></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="stats">
+      <div class="stat"><div class="statIcon">🎫</div><div class="statValue" id="statTickets">0</div><div class="statLabel">Tickets activos</div></div>
+      <div class="stat"><div class="statIcon">👥</div><div class="statValue" id="statUsers">0</div><div class="statLabel">Técnicos ocupados</div></div>
+      <div class="stat"><div class="statIcon">⚠️</div><div class="statValue" id="statHistory">0</div><div class="statLabel">Colisiones hoy</div></div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" onclick="setTab('live')">🟢 En vivo</button>
+      <button class="tab" onclick="setTab('history')">📋 Historial</button>
+    </div>
+
+    <div id="liveTab"></div>
+    <div id="historyTab" style="display:none"></div>
+  </div>
+</div>
+
+<script src="./main.js" type="module"></script>
+</body>
+</html>

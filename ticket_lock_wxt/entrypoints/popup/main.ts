@@ -26,6 +26,10 @@ chrome.storage.local.get(['netsus_user', 'netsus_user_auto'], ({ netsus_user, ne
   }
 });
 
+document.getElementById('adminBtn')?.addEventListener('click', () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL('admin.html') });
+});
+
 saveBtn.addEventListener('click', () => {
   const name = input.value.trim();
   if (!name) return;
