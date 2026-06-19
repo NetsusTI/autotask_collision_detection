@@ -28,9 +28,10 @@ export async function POST(
 ) {
   if (!checkApiKey(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   const { id } = await params;
-  const { user } = await request.json().catch(() => ({ user: 'Desconocido' }));
+  const { user, ticketNumber } = await request.json().catch(() => ({ user: 'Desconocido', ticketNumber: null }));
 
   await redis.set(presenceKey(id, user), '1', { ex: PRESENCE_TTL });
+  if (ticketNumber) await redis.set(`ticketnumber:${id}`, ticketNumber, { ex: 300 });
 
   const allKeys = await redis.keys(`ticketpresence:${id}:*`);
   const others = allKeys

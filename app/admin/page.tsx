@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 
 interface TicketPresence {
   ticketId: string;
+  ticketNumber: string | null;
   users: string[];
 }
 
@@ -19,9 +20,8 @@ export default function AdminPage() {
       const res = await fetch('/api/presence/status', {
         headers: { 'x-api-key': API_KEY },
       });
-      const presence: Record<string, string[]> = await res.json().catch(() => ({}));
-      const merged = Object.entries(presence).map(([ticketId, users]) => ({ ticketId, users }));
-      setTickets(merged);
+      const presence: TicketPresence[] = await res.json().catch(() => []);
+      setTickets(Array.isArray(presence) ? presence : []);
       setLastUpdate(new Date());
     } finally {
       setLoading(false);
@@ -117,7 +117,7 @@ export default function AdminPage() {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {tickets.map(({ ticketId, users }) => (
+            {tickets.map(({ ticketId, ticketNumber, users }) => (
               <div key={ticketId} style={{
                 background: 'rgba(255,255,255,0.04)',
                 border: `1px solid ${users.length > 1 ? 'rgba(249,115,22,0.3)' : 'rgba(255,255,255,0.08)'}`,
@@ -135,7 +135,7 @@ export default function AdminPage() {
                     {users.length > 1 ? '⚠️' : '🎫'}
                   </div>
                   <div>
-                    <div style={{ fontSize: 14, fontWeight: 600 }}>Ticket #{ticketId}</div>
+                    <div style={{ fontSize: 14, fontWeight: 600 }}>{ticketNumber ?? `#${ticketId}`}</div>
                     <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
                       {users.length} técnico{users.length > 1 ? 's' : ''} activo{users.length > 1 ? 's' : ''}
                     </div>

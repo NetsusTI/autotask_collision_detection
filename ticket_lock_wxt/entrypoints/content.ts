@@ -34,6 +34,11 @@ export default defineContentScript({
       return match ? match[1] : null;
     }
 
+    function extractTicketNumber(): string | null {
+      const match = document.title.match(/T\d{8}\.\d{4}/);
+      return match ? match[0] : null;
+    }
+
     function formatNames(names: string[]): string {
       if (names.length === 1) return names[0];
       return `${names.slice(0, -1).join(', ')} y ${names[names.length - 1]}`;
@@ -108,16 +113,26 @@ export default defineContentScript({
       removeBanner();
       const banner = document.createElement('div');
       banner.id = 'netsus-presence-banner';
-      banner.style.cssText = `
-        position: fixed; top: 0; left: 0; right: 0; z-index: 999999;
-        background: #e67e22; color: white; text-align: center;
-        padding: 10px 16px; font-size: 15px; font-weight: bold;
-        font-family: sans-serif; box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-        cursor: default;
+      banner.innerHTML = `
+        <div style="
+          position: fixed; top: 0; left: 0; right: 0; z-index: 999999;
+          background: linear-gradient(90deg, #c0392b 0%, #e74c3c 100%);
+          color: white; font-family: 'Segoe UI', sans-serif;
+          box-shadow: 0 3px 12px rgba(0,0,0,0.4);
+          display: flex; align-items: center; justify-content: center;
+          gap: 12px; padding: 12px 20px;
+        ">
+          <span style="font-size:20px">🚫</span>
+          <span style="font-size:14px; font-weight:600; letter-spacing:0.01em">
+            <strong>${formatNames(others)}</strong> ${others.length === 1 ? 'está' : 'están'} trabajando en este ticket.
+            Espera a que ${others.length === 1 ? 'finalice' : 'finalicen'} para continuar.
+          </span>
+          <span style="
+            background: rgba(255,255,255,0.2); border-radius: 20px;
+            padding: 3px 12px; font-size: 12px; white-space: nowrap;
+          ">Ticket bloqueado</span>
+        </div>
       `;
-      const verb = others.length === 1 ? 'está' : 'están';
-      const fin = others.length === 1 ? 'finalice' : 'finalicen';
-      banner.textContent = `⚠️ ${formatNames(others)} ${verb} trabajando en este ticket. Cuando ${fin}, prosigue tú.`;
       document.body.prepend(banner);
       lockUI();
 
@@ -125,7 +140,7 @@ export default defineContentScript({
         playSound('alert');
         sendChromeNotification(
           'Ticket ocupado',
-          `${formatNames(others)} ${verb} trabajando en este ticket`
+          `${formatNames(others)} ${others.length === 1 ? 'está' : 'están'} trabajando en este ticket`
         );
       }
       wasLocked = true;
@@ -135,14 +150,21 @@ export default defineContentScript({
       removeBanner();
       const banner = document.createElement('div');
       banner.id = 'netsus-presence-banner';
-      banner.style.cssText = `
-        position: fixed; top: 0; left: 0; right: 0; z-index: 999999;
-        background: #27ae60; color: white; text-align: center;
-        padding: 10px 16px; font-size: 15px; font-weight: bold;
-        font-family: sans-serif; box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-        cursor: default;
+      banner.innerHTML = `
+        <div style="
+          position: fixed; top: 0; left: 0; right: 0; z-index: 999999;
+          background: linear-gradient(90deg, #1e8449 0%, #27ae60 100%);
+          color: white; font-family: 'Segoe UI', sans-serif;
+          box-shadow: 0 3px 12px rgba(0,0,0,0.4);
+          display: flex; align-items: center; justify-content: center;
+          gap: 12px; padding: 12px 20px;
+        ">
+          <span style="font-size:20px">✅</span>
+          <span style="font-size:14px; font-weight:600">
+            El ticket está libre. Ya puedes trabajar en él.
+          </span>
+        </div>
       `;
-      banner.textContent = '✅ El ticket está libre. Ya puedes trabajar en él.';
       document.body.prepend(banner);
       playSound('free');
       sendChromeNotification('Ticket liberado', 'Ya puedes trabajar en este ticket');
@@ -170,7 +192,8 @@ export default defineContentScript({
     }
 
     function registerPresence(ticketId: string, user: string) {
-      apiCall('POST', `/api/presence/${ticketId}`, { user }, (_status, data) => {
+      const ticketNumber = extractTicketNumber();
+      apiCall('POST', `/api/presence/${ticketId}`, { user, ticketNumber }, (_status, data) => {
         if (data?.others?.length > 0) {
           showBanner(data.others);
         } else {
