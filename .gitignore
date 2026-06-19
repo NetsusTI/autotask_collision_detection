@@ -42,6 +42,8 @@ next-env.d.ts
 
 # claude code
 .claude/
+CLAUDE.md
+AGENTS.md
 
 # wxt extension
 ticket_lock_wxt/node_modules/
