@@ -8,20 +8,50 @@ interface TicketPresence {
   users: string[];
 }
 
+interface CollisionEvent {
+  ts: number;
+  ticketId: string;
+  ticketNumber: string | null;
+  users: string[];
+}
+
 const API_KEY = '-_-ErJy9v64XRiDbpuPFZ3uLs4nVFmXm';
+const ADMIN_PASSWORD = 'netsus2026';
 
 export default function AdminPage() {
+  const [auth, setAuth] = useState(false);
+  const [pwd, setPwd] = useState('');
+  const [pwdError, setPwdError] = useState(false);
   const [tickets, setTickets] = useState<TicketPresence[]>([]);
+  const [history, setHistory] = useState<CollisionEvent[]>([]);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<'live' | 'history'>('live');
 
-  async function fetchPresence() {
+  useEffect(() => {
+    if (sessionStorage.getItem('netsus_admin') === '1') setAuth(true);
+  }, []);
+
+  function login() {
+    if (pwd === ADMIN_PASSWORD) {
+      sessionStorage.setItem('netsus_admin', '1');
+      setAuth(true);
+    } else {
+      setPwdError(true);
+      setTimeout(() => setPwdError(false), 2000);
+    }
+  }
+
+  async function fetchData() {
     try {
-      const res = await fetch('/api/presence/status', {
-        headers: { 'x-api-key': API_KEY },
-      });
-      const presence: TicketPresence[] = await res.json().catch(() => []);
+      const [presRes, histRes] = await Promise.all([
+        fetch('/api/presence/status', { headers: { 'x-api-key': API_KEY } }),
+        fetch('/api/presence/history', { headers: { 'x-api-key': API_KEY } }),
+      ]);
+      const presence: TicketPresence[] = await presRes.json().catch(() => []);
+      const hist: CollisionEvent[] = await histRes.json().catch(() => []);
       setTickets(Array.isArray(presence) ? presence : []);
+      setHistory(Array.isArray(hist) ? hist : []);
       setLastUpdate(new Date());
     } finally {
       setLoading(false);
@@ -29,10 +59,54 @@ export default function AdminPage() {
   }
 
   useEffect(() => {
-    fetchPresence();
-    const interval = setInterval(fetchPresence, 10000);
+    if (!auth) return;
+    fetchData();
+    const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [auth]);
+
+  if (!auth) {
+    return (
+      <div style={{
+        minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'linear-gradient(135deg, #0a0e1a 0%, #0f1628 100%)',
+        fontFamily: "'Segoe UI', system-ui, sans-serif",
+      }}>
+        <div style={{
+          background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: 20, padding: '40px 36px', width: 320, textAlign: 'center',
+        }}>
+          <div style={{
+            width: 52, height: 52, borderRadius: 14, margin: '0 auto 20px',
+            background: 'linear-gradient(135deg, #f97316, #ea580c)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 24, boxShadow: '0 4px 16px rgba(249,115,22,0.4)',
+          }}>⚡</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: '#fff', marginBottom: 4 }}>Panel de Administración</div>
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginBottom: 28 }}>Autotask Collision Detection · Netsus</div>
+          <input
+            type="password"
+            placeholder="Contraseña"
+            value={pwd}
+            onChange={e => setPwd(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && login()}
+            style={{
+              width: '100%', padding: '10px 14px', borderRadius: 10, fontSize: 14,
+              background: 'rgba(255,255,255,0.06)',
+              border: `1px solid ${pwdError ? '#ef4444' : 'rgba(255,255,255,0.12)'}`,
+              color: '#fff', boxSizing: 'border-box', outline: 'none', marginBottom: 12,
+            }}
+          />
+          {pwdError && <div style={{ fontSize: 12, color: '#ef4444', marginBottom: 10 }}>Contraseña incorrecta</div>}
+          <button onClick={login} style={{
+            width: '100%', padding: '10px', borderRadius: 10, fontSize: 14, fontWeight: 600,
+            background: 'linear-gradient(135deg, #f97316, #ea580c)', color: '#fff',
+            border: 'none', cursor: 'pointer',
+          }}>Ingresar</button>
+        </div>
+      </div>
+    );
+  }
 
   const totalUsers = tickets.reduce((acc, t) => acc + t.users.length, 0);
 
@@ -43,16 +117,11 @@ export default function AdminPage() {
       fontFamily: "'Segoe UI', system-ui, sans-serif",
       color: '#fff',
     }}>
-
       {/* Header */}
       <div style={{
-        borderBottom: '1px solid rgba(255,255,255,0.07)',
-        padding: '0 40px',
-        background: 'rgba(255,255,255,0.03)',
-        backdropFilter: 'blur(10px)',
-        position: 'sticky',
-        top: 0,
-        zIndex: 10,
+        borderBottom: '1px solid rgba(255,255,255,0.07)', padding: '0 40px',
+        background: 'rgba(255,255,255,0.03)', backdropFilter: 'blur(10px)',
+        position: 'sticky', top: 0, zIndex: 10,
       }}>
         <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 64 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -63,7 +132,7 @@ export default function AdminPage() {
               fontSize: 18, boxShadow: '0 4px 12px rgba(249,115,22,0.4)',
             }}>⚡</div>
             <div>
-              <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.3px' }}>Collision Detection</div>
+              <div style={{ fontSize: 15, fontWeight: 700 }}>Collision Detection</div>
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: -2 }}>Netsus · Panel de control</div>
             </div>
           </div>
@@ -77,15 +146,14 @@ export default function AdminPage() {
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '40px 40px' }}>
 
         {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 40 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 32 }}>
           {[
             { label: 'Tickets activos', value: tickets.length, icon: '🎫' },
             { label: 'Técnicos ocupados', value: totalUsers, icon: '👥' },
-            { label: 'Colisiones', value: tickets.filter(t => t.users.length > 1).length, icon: '⚠️' },
+            { label: 'Colisiones hoy', value: history.filter(e => Date.now() - e.ts < 86400000).length, icon: '⚠️' },
           ].map(({ label, value, icon }) => (
             <div key={label} style={{
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255,255,255,0.08)',
+              background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
               borderRadius: 16, padding: '20px 24px',
             }}>
               <div style={{ fontSize: 22, marginBottom: 8 }}>{icon}</div>
@@ -95,62 +163,93 @@ export default function AdminPage() {
           ))}
         </div>
 
-        {/* Ticket list */}
-        <div style={{ marginBottom: 16, fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-          Tickets en uso
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+          {(['live', 'history'] as const).map(t => (
+            <button key={t} onClick={() => setTab(t)} style={{
+              padding: '6px 18px', borderRadius: 20, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none',
+              background: tab === t ? 'linear-gradient(135deg, #f97316, #ea580c)' : 'rgba(255,255,255,0.06)',
+              color: '#fff',
+            }}>
+              {t === 'live' ? '🟢 En vivo' : '📋 Historial'}
+            </button>
+          ))}
         </div>
 
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: '80px 0', color: 'rgba(255,255,255,0.25)', fontSize: 14 }}>
-            Cargando...
-          </div>
-        ) : tickets.length === 0 ? (
-          <div style={{
-            textAlign: 'center', padding: '80px 0',
-            background: 'rgba(255,255,255,0.02)',
-            border: '1px dashed rgba(255,255,255,0.1)',
-            borderRadius: 20,
-          }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
-            <div style={{ fontSize: 15, color: 'rgba(255,255,255,0.5)' }}>Sin colisiones activas</div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', marginTop: 4 }}>Todos los técnicos trabajan sin conflictos</div>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {tickets.map(({ ticketId, ticketNumber, users }) => (
-              <div key={ticketId} style={{
-                background: 'rgba(255,255,255,0.04)',
-                border: `1px solid ${users.length > 1 ? 'rgba(249,115,22,0.3)' : 'rgba(255,255,255,0.08)'}`,
-                borderRadius: 16, padding: '18px 24px',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                transition: 'all 0.2s',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                  <div style={{
-                    width: 42, height: 42, borderRadius: 12,
-                    background: users.length > 1 ? 'rgba(249,115,22,0.15)' : 'rgba(255,255,255,0.06)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 18,
-                  }}>
-                    {users.length > 1 ? '⚠️' : '🎫'}
+        {tab === 'live' ? (
+          loading ? (
+            <div style={{ textAlign: 'center', padding: '80px 0', color: 'rgba(255,255,255,0.25)', fontSize: 14 }}>Cargando...</div>
+          ) : tickets.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '80px 0', background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: 20 }}>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
+              <div style={{ fontSize: 15, color: 'rgba(255,255,255,0.5)' }}>Sin colisiones activas</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', marginTop: 4 }}>Todos los técnicos trabajan sin conflictos</div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {tickets.map(({ ticketId, ticketNumber, users }) => (
+                <div key={ticketId} style={{
+                  background: 'rgba(255,255,255,0.04)',
+                  border: `1px solid ${users.length > 1 ? 'rgba(249,115,22,0.3)' : 'rgba(255,255,255,0.08)'}`,
+                  borderRadius: 16, padding: '18px 24px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                    <div style={{
+                      width: 42, height: 42, borderRadius: 12,
+                      background: users.length > 1 ? 'rgba(249,115,22,0.15)' : 'rgba(255,255,255,0.06)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+                    }}>
+                      {users.length > 1 ? '⚠️' : '🎫'}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 600 }}>{ticketNumber ?? `#${ticketId}`}</div>
+                      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
+                        {users.length} técnico{users.length > 1 ? 's' : ''} activo{users.length > 1 ? 's' : ''}
+                      </div>
+                    </div>
                   </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    {users.map((user, i) => (
+                      <span key={user} style={{
+                        padding: '5px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                        background: i === 0 ? 'linear-gradient(135deg, #f97316, #ea580c)' : 'rgba(255,255,255,0.1)',
+                        color: '#fff', boxShadow: i === 0 ? '0 2px 8px rgba(249,115,22,0.3)' : 'none',
+                      }}>{user}</span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {history.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '60px 0', color: 'rgba(255,255,255,0.3)', fontSize: 14 }}>
+                Sin colisiones registradas aún
+              </div>
+            ) : history.map((e, i) => (
+              <div key={i} style={{
+                background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)',
+                borderRadius: 12, padding: '14px 20px',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ fontSize: 16 }}>⚠️</span>
                   <div>
-                    <div style={{ fontSize: 14, fontWeight: 600 }}>{ticketNumber ?? `#${ticketId}`}</div>
-                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
-                      {users.length} técnico{users.length > 1 ? 's' : ''} activo{users.length > 1 ? 's' : ''}
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{e.ticketNumber ?? `#${e.ticketId}`}</div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginTop: 2 }}>
+                      {new Date(e.ts).toLocaleString('es-CL')}
                     </div>
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                  {users.map((user, i) => (
-                    <span key={user} style={{
-                      padding: '5px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600,
-                      background: i === 0 ? 'linear-gradient(135deg, #f97316, #ea580c)' : 'rgba(255,255,255,0.1)',
-                      color: '#fff',
-                      boxShadow: i === 0 ? '0 2px 8px rgba(249,115,22,0.3)' : 'none',
-                    }}>
-                      {user}
-                    </span>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  {e.users.map((u, j) => (
+                    <span key={u} style={{
+                      padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
+                      background: j === 0 ? 'rgba(249,115,22,0.2)' : 'rgba(255,255,255,0.08)',
+                      color: j === 0 ? '#f97316' : 'rgba(255,255,255,0.6)',
+                    }}>{u}</span>
                   ))}
                 </div>
               </div>
@@ -160,10 +259,8 @@ export default function AdminPage() {
       </div>
 
       <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.4; }
-        }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        input::placeholder { color: rgba(255,255,255,0.25); }
       `}</style>
     </div>
   );

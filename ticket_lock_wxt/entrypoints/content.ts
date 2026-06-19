@@ -57,9 +57,18 @@ export default defineContentScript({
       return match ? match[0] : null;
     }
 
-    function formatNames(names: string[]): string {
+    interface OtherUser { name: string; minutes: number; }
+
+    function formatNames(users: OtherUser[]): string {
+      const names = users.map(u => u.name);
       if (names.length === 1) return names[0];
       return `${names.slice(0, -1).join(', ')} y ${names[names.length - 1]}`;
+    }
+
+    function formatTime(minutes: number): string {
+      if (minutes < 1) return 'acaba de entrar';
+      if (minutes === 1) return 'lleva 1 min';
+      return `lleva ${minutes} min`;
     }
 
     function playSound(type: 'alert' | 'free') {
@@ -127,10 +136,12 @@ export default defineContentScript({
       document.getElementById('netsus-lock-style')?.remove();
     }
 
-    function showBanner(others: string[]) {
+    function showBanner(others: OtherUser[]) {
       removeBanner();
       const banner = document.createElement('div');
       banner.id = 'netsus-presence-banner';
+      const verb = others.length === 1 ? 'está' : 'están';
+      const timeInfo = others.length === 1 ? ` · ${formatTime(others[0].minutes)}` : '';
       banner.innerHTML = `
         <div style="
           position: fixed; top: 0; left: 0; right: 0; z-index: 999999;
@@ -138,27 +149,41 @@ export default defineContentScript({
           color: white; font-family: 'Segoe UI', sans-serif;
           box-shadow: 0 3px 12px rgba(0,0,0,0.4);
           display: flex; align-items: center; justify-content: center;
-          gap: 12px; padding: 12px 20px;
+          gap: 12px; padding: 10px 20px; flex-wrap: wrap;
         ">
-          <span style="font-size:20px">🚫</span>
-          <span style="font-size:14px; font-weight:600; letter-spacing:0.01em">
-            <strong>${formatNames(others)}</strong> ${others.length === 1 ? 'está' : 'están'} trabajando en este ticket.
-            Espera a que ${others.length === 1 ? 'finalice' : 'finalicen'} para continuar.
+          <span style="font-size:18px">🚫</span>
+          <span style="font-size:13px; font-weight:600;">
+            <strong>${formatNames(others)}</strong> ${verb} trabajando en este ticket${timeInfo}.
+            Espera a que ${others.length === 1 ? 'finalice' : 'finalicen'}.
           </span>
           <span style="
             background: rgba(255,255,255,0.2); border-radius: 20px;
             padding: 3px 12px; font-size: 12px; white-space: nowrap;
           ">Ticket bloqueado</span>
+          <button id="netsus-finish-btn" style="
+            background: rgba(255,255,255,0.25); border: 1px solid rgba(255,255,255,0.5);
+            color: white; border-radius: 20px; padding: 4px 14px;
+            font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
+          ">✓ Soy yo, ya terminé</button>
         </div>
       `;
       document.body.prepend(banner);
+      document.getElementById('netsus-finish-btn')?.addEventListener('click', () => {
+        if (currentTicketId && currentUser) {
+          leavePresence(currentTicketId, currentUser);
+          clearInterval(pollInterval);
+          removeBanner();
+          wasLocked = false;
+          currentTicketId = null;
+        }
+      });
       lockUI();
 
       if (!wasLocked) {
         playSound('alert');
         sendChromeNotification(
           'Ticket ocupado',
-          `${formatNames(others)} ${others.length === 1 ? 'está' : 'están'} trabajando en este ticket`
+          `${formatNames(others)} ${verb} trabajando en este ticket`
         );
       }
       wasLocked = true;
@@ -212,8 +237,11 @@ export default defineContentScript({
     function registerPresence(ticketId: string, user: string) {
       const ticketNumber = extractTicketNumber();
       apiCall('POST', `/api/presence/${ticketId}`, { user, ticketNumber }, (_status, data) => {
-        if (data?.others?.length > 0) {
-          showBanner(data.others);
+        const others: OtherUser[] = Array.isArray(data?.others)
+          ? data.others.map((o: any) => typeof o === 'string' ? { name: o, minutes: 0 } : o)
+          : [];
+        if (others.length > 0) {
+          showBanner(others);
         } else {
           if (wasLocked) showLiberationBanner();
           else removeBanner();
