@@ -16,14 +16,20 @@ export async function GET(request: NextRequest) {
   }
 
   const ticketIds = Object.keys(ticketMap);
-  const numbers = ticketIds.length > 0
-    ? await Promise.all(ticketIds.map(id => redis.get<string>(`ticketnumber:${id}`)))
-    : [];
+  if (!ticketIds.length) return NextResponse.json([]);
 
-  const result = ticketIds.map((id, i) => ({
-    ticketId: id,
-    ticketNumber: numbers[i] ?? null,
-    users: ticketMap[id],
+  const [numbers, urls] = await Promise.all([
+    Promise.all(ticketIds.map(id => redis.get<string>(`ticketnumber:${id}`))),
+    Promise.all(ticketIds.map(id => redis.get<string>(`ticketurl:${id}`))),
+  ]);
+
+  const result = await Promise.all(ticketIds.map(async (id, i) => {
+    const users = await Promise.all(ticketMap[id].map(async (name) => {
+      const ts = await redis.get<string>(`ticketentry:${id}:${name}`);
+      const minutes = ts ? Math.floor((Date.now() - parseInt(ts)) / 60000) : 0;
+      return { name, minutes };
+    }));
+    return { ticketId: id, ticketNumber: numbers[i] ?? null, ticketUrl: urls[i] ?? null, users };
   }));
 
   return NextResponse.json(result);

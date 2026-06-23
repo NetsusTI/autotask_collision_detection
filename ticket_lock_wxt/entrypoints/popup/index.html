@@ -5,18 +5,10 @@
   <style>
     body {
       font-family: 'Segoe UI', sans-serif;
-      width: 260px;
-      padding: 16px;
-      margin: 0;
-      background: #0f1628;
-      color: #eee;
+      width: 260px; padding: 16px; margin: 0;
+      background: #0f1628; color: #eee;
     }
-    h2 {
-      font-size: 13px;
-      margin: 0 0 14px;
-      color: #f97316;
-      letter-spacing: 0.02em;
-    }
+    h2 { font-size: 13px; margin: 0 0 14px; color: #f97316; letter-spacing: 0.02em; }
     #avatar {
       width: 44px; height: 44px; border-radius: 50%;
       background: linear-gradient(135deg, #f97316, #ea580c);
@@ -24,52 +16,56 @@
       font-size: 18px; font-weight: 700; margin: 0 auto 10px;
       box-shadow: 0 4px 12px rgba(249,115,22,0.35);
     }
-    #current {
-      text-align: center;
-      font-size: 14px;
-      font-weight: 600;
-      color: #fff;
-      margin-bottom: 4px;
-    }
-    #autoLabel {
-      text-align: center;
-      font-size: 11px;
-      color: rgba(255,255,255,0.35);
-      margin-bottom: 14px;
-    }
+    #current { text-align: center; font-size: 14px; font-weight: 600; color: #fff; margin-bottom: 4px; }
+    #autoLabel { text-align: center; font-size: 11px; color: rgba(255,255,255,0.35); margin-bottom: 14px; }
     hr { border: none; border-top: 1px solid rgba(255,255,255,0.08); margin: 12px 0; }
     label { font-size: 11px; color: rgba(255,255,255,0.45); }
     input {
-      width: 100%;
-      padding: 8px;
-      margin-top: 4px;
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 6px;
-      background: rgba(255,255,255,0.06);
-      color: #fff;
-      font-size: 13px;
-      box-sizing: border-box;
+      width: 100%; padding: 8px; margin-top: 4px;
+      border: 1px solid rgba(255,255,255,0.12); border-radius: 6px;
+      background: rgba(255,255,255,0.06); color: #fff;
+      font-size: 13px; box-sizing: border-box;
     }
-    button {
-      margin-top: 8px;
-      width: 100%;
-      padding: 8px;
+    .btn-primary {
+      margin-top: 8px; width: 100%; padding: 8px;
       background: linear-gradient(135deg, #f97316, #ea580c);
-      color: white;
-      border: none;
-      border-radius: 6px;
-      font-size: 13px;
-      cursor: pointer;
-      font-weight: 600;
+      color: white; border: none; border-radius: 6px;
+      font-size: 13px; cursor: pointer; font-weight: 600;
     }
-    button:hover { opacity: 0.9; }
-    #status {
-      margin-top: 8px;
-      font-size: 11px;
-      color: #22c55e;
-      text-align: center;
-      min-height: 16px;
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-ghost {
+      width: 100%; padding: 8px; border-radius: 6px; font-size: 12px; font-weight: 600;
+      background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.5);
+      border: 1px solid rgba(255,255,255,0.1); cursor: pointer;
     }
+    .btn-ghost:hover { background: rgba(255,255,255,0.1); }
+    #status { margin-top: 8px; font-size: 11px; color: #22c55e; text-align: center; min-height: 16px; }
+    #collisionSection { margin-top: 10px; }
+    .col-label { font-size: 11px; color: rgba(255,255,255,0.4); margin-bottom: 6px; }
+    .col-card {
+      background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25);
+      border-radius: 8px; padding: 7px 10px; margin-bottom: 5px;
+    }
+    .col-ticket { font-size: 12px; font-weight: 600; color: #f87171; margin-bottom: 2px; }
+    .col-users { font-size: 11px; color: rgba(255,255,255,0.55); }
+    .mode-row {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-top: 10px;
+    }
+    .mode-label { font-size: 11px; color: rgba(255,255,255,0.45); }
+    .toggle { position: relative; display: inline-block; width: 36px; height: 20px; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(255,255,255,0.15); transition: .3s; border-radius: 20px;
+    }
+    .slider:before {
+      position: absolute; content: ""; height: 14px; width: 14px;
+      left: 3px; bottom: 3px; background: white; transition: .3s; border-radius: 50%;
+    }
+    input:checked + .slider { background: #f97316; }
+    input:checked + .slider:before { transform: translateX(16px); }
+    #modeDesc { font-size: 10px; color: rgba(255,255,255,0.3); text-align: right; margin-top: 3px; }
   </style>
 </head>
 <body>
@@ -80,14 +76,26 @@
   <hr />
   <label>Cambiar nombre manualmente</label>
   <input id="nameInput" type="text" placeholder="Ej: Ricardo Illanes" />
-  <button id="saveBtn">Guardar</button>
+  <button class="btn-primary" id="saveBtn">Guardar</button>
   <div id="status"></div>
+  <div class="mode-row" style="margin-top:10px">
+    <span class="mode-label">🔊 Sonido de alerta</span>
+    <label class="toggle">
+      <input type="checkbox" id="soundToggle" checked>
+      <span class="slider"></span>
+    </label>
+  </div>
+  <div id="collisionSection" style="display:none">
+    <hr />
+    <div class="col-label">⚠️ Colisiones activas</div>
+    <div id="collisionList"></div>
+  </div>
   <hr style="border:none;border-top:1px solid rgba(255,255,255,0.08);margin:14px 0 10px"/>
-  <button id="adminBtn" style="
-    width:100%; padding:8px; border-radius:6px; font-size:12px; font-weight:600;
-    background:rgba(255,255,255,0.06); color:rgba(255,255,255,0.5);
-    border:1px solid rgba(255,255,255,0.1); cursor:pointer;
-  ">Panel Admin</button>
+  <button class="btn-ghost" id="adminBtn">Panel Admin</button>
+  <div id="nameWarning" style="display:none;margin-top:8px;background:rgba(251,146,60,0.12);border:1px solid rgba(251,146,60,0.3);border-radius:6px;padding:7px 10px;font-size:11px;color:#fb923c;text-align:center">
+    ⚠️ Nombre no detectado — escríbelo manualmente
+  </div>
+  <div style="text-align:center;font-size:10px;color:rgba(255,255,255,0.18);margin-top:10px">v1.0.0 · Netsus</div>
   <script type="module" src="./main.ts"></script>
 </body>
 </html>

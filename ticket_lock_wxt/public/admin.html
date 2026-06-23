@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Panel Admin — Autotask Collision Detection</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: linear-gradient(135deg, #0a0e1a 0%, #0f1628 100%); color: #fff; min-height: 100vh; }
+    #loginScreen { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .loginBox { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 40px 36px; width: 320px; text-align: center; }
+    .loginIcon { width: 52px; height: 52px; border-radius: 14px; margin: 0 auto 20px; background: none; display: flex; align-items: center; justify-content: center; }
+    .loginTitle { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+    .loginSub { font-size: 12px; color: rgba(255,255,255,0.35); margin-bottom: 28px; }
+    .loginInput { width: 100%; padding: 10px 14px; border-radius: 10px; font-size: 14px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: #fff; outline: none; margin-bottom: 12px; }
+    .loginInput::placeholder { color: rgba(255,255,255,0.25); }
+    .loginError { font-size: 12px; color: #ef4444; margin-bottom: 10px; }
+    .loginBtn { width: 100%; padding: 10px; border-radius: 10px; font-size: 14px; font-weight: 600; background: linear-gradient(135deg, #f97316, #ea580c); color: #fff; border: none; cursor: pointer; }
+    #panel { display: none; }
+    .header { border-bottom: 1px solid rgba(255,255,255,0.07); padding: 0 40px; background: rgba(255,255,255,0.03); position: sticky; top: 0; z-index: 10; }
+    .headerInner { max-width: 900px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 64px; }
+    .logo { display: flex; align-items: center; gap: 12px; }
+    .logoIcon { width: 36px; height: 36px; border-radius: 10px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+    .logoName { font-size: 15px; font-weight: 700; }
+    .logoSub { font-size: 11px; color: rgba(255,255,255,0.4); margin-top: -2px; }
+    .headerRight { display: flex; align-items: center; gap: 12px; }
+    .liveIndicator { display: flex; align-items: center; gap: 6px; font-size: 12px; color: rgba(255,255,255,0.4); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 6px #22c55e; animation: pulse 2s infinite; }
+    #countdown { background: rgba(255,255,255,0.07); border-radius: 6px; padding: 2px 7px; font-size: 11px; color: rgba(255,255,255,0.35); }
+    #logoutBtn { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.4); border-radius: 8px; padding: 5px 12px; font-size: 12px; cursor: pointer; }
+    #logoutBtn:hover { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.7); }
+    .content { max-width: 900px; margin: 0 auto; padding: 40px; }
+    .stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 32px; }
+    .stat { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 20px 24px; }
+    .statIcon { font-size: 22px; margin-bottom: 8px; }
+    .statValue { font-size: 28px; font-weight: 700; color: #f97316; }
+    .statLabel { font-size: 12px; color: rgba(255,255,255,0.45); margin-top: 2px; }
+    .tabBar { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+    .tab { padding: 6px 18px; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; color: #fff; background: rgba(255,255,255,0.06); }
+    .tab.active { background: linear-gradient(135deg, #f97316, #ea580c); }
+    .viewBtn { padding: 5px 14px; border-radius: 16px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.45); background: transparent; }
+    .viewBtn.active { background: rgba(255,255,255,0.1); color: #fff; border-color: rgba(255,255,255,0.25); }
+    .techAvatar { width: 42px; height: 42px; border-radius: 50%; background: linear-gradient(135deg, #f97316, #ea580c); display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; flex-shrink: 0; }
+    .csvBtn { margin-left: auto; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.05); }
+    .csvBtn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .filterBar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+    .filterInput { flex: 1; padding: 8px 12px; border-radius: 10px; font-size: 13px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; outline: none; }
+    .filterInput::placeholder { color: rgba(255,255,255,0.25); }
+    .filterInput[type="date"] { color-scheme: dark; }
+    .periodBtns { display: flex; gap: 4px; }
+    .periodBtn { padding: 5px 12px; border-radius: 16px; font-size: 11px; font-weight: 600; cursor: pointer; border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.4); background: transparent; }
+    .periodBtn.active { background: rgba(249,115,22,0.2); border-color: rgba(249,115,22,0.4); color: #f97316; }
+    .ticketCard { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .ticketCard.collision { border-color: rgba(249,115,22,0.3); }
+    .ticketLeft { display: flex; align-items: center; gap: 16px; }
+    .ticketIcon { width: 42px; height: 42px; border-radius: 12px; background: rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: center; font-size: 18px; }
+    .ticketIcon.col { background: rgba(249,115,22,0.15); }
+    .ticketName { font-size: 14px; font-weight: 600; }
+    .ticketMeta { font-size: 12px; color: rgba(255,255,255,0.4); margin-top: 2px; }
+    .chips { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .chip { padding: 5px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; background: rgba(255,255,255,0.1); color: #fff; }
+    .chip.primary { background: linear-gradient(135deg, #f97316, #ea580c); box-shadow: 0 2px 8px rgba(249,115,22,0.3); }
+    .chip-time { font-size: 10px; opacity: 0.65; margin-left: 3px; font-weight: 400; }
+    .histCard { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
+    .histLeft { display: flex; align-items: center; gap: 12px; }
+    .histTicket { font-size: 13px; font-weight: 600; }
+    .histTime { font-size: 11px; color: rgba(255,255,255,0.35); margin-top: 2px; }
+    .histChip { padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.6); }
+    .histChip.first { background: rgba(249,115,22,0.2); color: #f97316; }
+    .empty { text-align: center; padding: 80px 0; background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.1); border-radius: 20px; }
+    .emptyIcon { font-size: 40px; margin-bottom: 12px; }
+    .emptyText { font-size: 15px; color: rgba(255,255,255,0.5); }
+    .emptySub { font-size: 12px; color: rgba(255,255,255,0.25); margin-top: 4px; }
+    /* Config tab */
+    .configSection { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 16px; padding: 24px; margin-bottom: 16px; }
+    .configTitle { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+    .configSub { font-size: 12px; color: rgba(255,255,255,0.4); margin-bottom: 16px; }
+    .configInput { width: 100%; padding: 10px 14px; border-radius: 10px; font-size: 13px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: #fff; outline: none; }
+    .configInput::placeholder { color: rgba(255,255,255,0.25); }
+    .configBtns { display: flex; gap: 8px; margin-top: 10px; }
+    .configBtn { padding: 8px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; }
+    .configBtn.primary { background: linear-gradient(135deg, #f97316, #ea580c); color: #fff; }
+    .configBtn.secondary { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.12); }
+    .configStatus { font-size: 12px; margin-top: 8px; min-height: 18px; }
+    .configStatus.ok { color: #22c55e; }
+    .configStatus.err { color: #ef4444; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .anlSection { background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:16px;padding:24px;margin-bottom:16px; }
+    .anlTitle { font-size:14px;font-weight:700;margin-bottom:16px; }
+    .barRow { display:flex;align-items:center;gap:10px;margin-bottom:8px; }
+    .barLabel { width:140px;font-size:12px;color:rgba(255,255,255,0.7);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0; }
+    .barTrack { flex:1;height:10px;background:rgba(255,255,255,0.06);border-radius:6px;overflow:hidden; }
+    .barFill { height:100%;background:linear-gradient(90deg,#f97316,#ea580c);border-radius:6px;transition:width .5s; }
+    .barFill.blue { background:linear-gradient(90deg,#3867E9,#2952cc); }
+    .barCount { width:28px;text-align:right;font-size:11px;color:rgba(255,255,255,0.4);flex-shrink:0; }
+    .hourGrid { display:grid;grid-template-columns:repeat(24,1fr);gap:3px;align-items:end;height:64px; }
+    .hourBar { background:rgba(249,115,22,0.25);border-radius:2px 2px 0 0;min-height:2px;transition:height .5s; }
+    .hourBar:hover { background:rgba(249,115,22,0.6); }
+    .hourLabels { display:grid;grid-template-columns:repeat(24,1fr);gap:3px;margin-top:4px; }
+    .hourLbl { font-size:8px;color:rgba(255,255,255,0.2);text-align:center; }
+    .ticketLink { color: inherit; text-decoration: none; border-bottom: 1px dashed rgba(255,255,255,0.3); }
+    .ticketLink:hover { border-bottom-color: #f97316; color: #f97316; }
+    .chipLink { color: inherit; text-decoration: none; }
+    .chipLink:hover { opacity: 0.8; }
+    #apiError { display:none; background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.3); border-radius: 10px; padding: 10px 16px; margin-bottom: 16px; font-size: 12px; color: #f87171; }
+  </style>
+</head>
+<body>
+
+<div id="loginScreen">
+  <div class="loginBox">
+    <div class="loginIcon"><img src="icon/128.png" style="width:52px;height:52px;border-radius:14px"></div>
+    <div class="loginTitle">Panel de Administración</div>
+    <div class="loginSub">Autotask Collision Detection · Netsus</div>
+    <input id="pwdInput" class="loginInput" type="password" placeholder="Contraseña">
+    <div id="loginError" class="loginError" style="display:none">Contraseña incorrecta</div>
+    <button class="loginBtn" id="loginBtn">Ingresar</button>
+  </div>
+</div>
+
+<div id="panel">
+  <div class="header">
+    <div class="headerInner">
+      <div class="logo">
+        <img src="netsus-logo.png" style="height:28px;opacity:0.92">
+        <div style="width:1px;height:28px;background:rgba(255,255,255,0.12);margin:0 4px"></div>
+        <div>
+          <div class="logoName">Autotask Collision Detection</div>
+          <div class="logoSub">Panel de control</div>
+        </div>
+      </div>
+      <div class="headerRight">
+        <div class="liveIndicator">
+          <div class="dot"></div>
+          <span>En vivo · <span id="lastUpdate">--:--</span></span>
+          <span id="countdown">10s</span>
+        </div>
+        <button id="logoutBtn">Cerrar sesión</button>
+      </div>
+    </div>
+  </div>
+  <div class="content">
+    <div id="apiError">⚠️ Sin conexión con la API — <span id="apiErrorTime"></span></div>
+    <div class="stats">
+      <div class="stat"><div class="statIcon">🎫</div><div class="statValue" id="statTickets">0</div><div class="statLabel">Tickets activos</div></div>
+      <div class="stat"><div class="statIcon">👥</div><div class="statValue" id="statUsers">0</div><div class="statLabel">Técnicos ocupados</div></div>
+      <div class="stat"><div class="statIcon">⚠️</div><div class="statValue" id="statHistory">0</div><div class="statLabel">Colisiones hoy</div></div>
+    </div>
+    <div class="tabBar">
+      <button class="tab active" id="tabLive">🟢 En vivo</button>
+      <button class="tab" id="tabHistory">📋 Historial</button>
+      <button class="tab" id="tabAnalytics">📊 Análisis</button>
+      <button class="tab" id="tabConfig">⚙️ Config</button>
+      <button class="csvBtn" id="exportCsvBtn" style="display:none">↓ Exportar CSV</button>
+    </div>
+    <div id="filterBar" class="filterBar" style="display:none">
+      <input id="historySearch" class="filterInput" type="text" placeholder="Filtrar por técnico o ticket...">
+      <div class="periodBtns">
+        <button class="periodBtn active" data-period="all">Todo</button>
+        <button class="periodBtn" data-period="week">Semana</button>
+        <button class="periodBtn" data-period="today">Hoy</button>
+        <button class="periodBtn" data-period="custom">Rango</button>
+      </div>
+      <div id="dateRangeRow" style="display:none;gap:6px;align-items:center">
+        <input id="dateFrom" type="date" class="filterInput" style="width:130px;padding:5px 8px">
+        <span style="color:rgba(255,255,255,0.3);font-size:12px">→</span>
+        <input id="dateTo" type="date" class="filterInput" style="width:130px;padding:5px 8px">
+      </div>
+    </div>
+    <div id="liveViewToggle" style="display:flex;gap:6px;margin-bottom:14px">
+      <button class="viewBtn active" id="viewByTicket">🎫 Por ticket</button>
+      <button class="viewBtn" id="viewByTech">👤 Por técnico</button>
+    </div>
+    <div id="liveTab"></div>
+    <div id="historyTab" style="display:none"></div>
+    <div id="analyticsTab" style="display:none"></div>
+    <div id="configTab" style="display:none">
+      <div class="configSection">
+        <div class="configTitle">🔔 Notificaciones Teams</div>
+        <div class="configSub">Pega aquí el Incoming Webhook de tu canal de Teams para recibir alertas automáticas cuando se detecte una colisión.</div>
+        <input id="webhookInput" class="configInput" type="url" placeholder="https://outlook.office.com/webhook/...">
+        <div class="configBtns">
+          <button class="configBtn primary" id="saveWebhookBtn">Guardar webhook</button>
+          <button class="configBtn secondary" id="testWebhookBtn">Probar</button>
+          <button class="configBtn secondary" id="clearWebhookBtn">Borrar</button>
+        </div>
+        <div class="configStatus" id="webhookStatus"></div>
+      </div>
+      <div class="configSection">
+        <div class="configTitle">⏱ Tiempo de presencia activa</div>
+        <div class="configSub">Segundos que el servidor considera a un técnico "presente" sin recibir señal. Mínimo 15s, máximo 300s. Recomendado: 40s.</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <input id="ttlInput" class="configInput" type="number" min="15" max="300" step="5" placeholder="40" style="max-width:100px">
+          <span style="font-size:12px;color:rgba(255,255,255,0.35)">segundos</span>
+          <button class="configBtn primary" id="saveTtlBtn" style="width:auto">Guardar</button>
+        </div>
+        <div class="configStatus" id="ttlStatus"></div>
+      </div>
+      <div class="configSection">
+        <div class="configTitle">📊 Resumen diario a Teams</div>
+        <div class="configSub">Envía un resumen de las colisiones de ayer (o de hoy) al canal de Teams configurado arriba. También puedes llamar este endpoint desde n8n con un trigger programado a las 9:00 AM.</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
+          <button class="configBtn secondary" id="sendYesterdayBtn">Enviar resumen de ayer</button>
+          <button class="configBtn secondary" id="sendTodayBtn">Enviar resumen de hoy</button>
+        </div>
+        <div class="configSub" style="margin-top:10px;font-family:monospace;background:rgba(255,255,255,0.04);border-radius:6px;padding:8px;font-size:11px;word-break:break-all">
+          GET /api/presence/daily-summary?send=true&amp;period=yesterday
+        </div>
+        <div class="configStatus" id="summaryStatus"></div>
+      </div>
+      <div class="configSection">
+        <div class="configTitle">ℹ️ Información</div>
+        <div class="configSub">Versión 1.0.0 · Autotask Collision Detection · Netsus</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.35);line-height:1.8">
+          API: <a href="https://netsus-two.vercel.app" style="color:#f97316" target="_blank">netsus-two.vercel.app</a><br>
+          Política de privacidad: <a href="https://netsus-two.vercel.app/privacy" style="color:#f97316" target="_blank">ver política</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="admin.js"></script>
+</body>
+</html>

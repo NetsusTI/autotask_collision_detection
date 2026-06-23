@@ -4,8 +4,19 @@ export default defineContentScript({
   main() {
     let currentTicketId: string | null = null;
     let pollInterval: number | undefined;
+    let pauseTimeout: number | undefined;
     let currentUser: string | null = null;
     let wasLocked = false;
+    let soundEnabled = true;
+    let bannerState: 'none' | 'full' | 'pill' = 'none';
+    let lastOthers: OtherUser[] = [];
+    let minimizeTimerId: number | undefined;
+    let pingCooldown = false;
+
+    const AVATAR_COLORS = ['#f97316', '#3b82f6', '#8b5cf6', '#10b981', '#ec4899'];
+    let minimizePref = false; // loaded from storage
+
+    interface OtherUser { name: string; minutes: number; }
 
     function getUserFromDOM(): string | null {
       const selectors = [
@@ -25,7 +36,9 @@ export default defineContentScript({
     let userRetryCount = 0;
 
     function loadUserAndInit() {
-      chrome.storage.local.get('netsus_user', ({ netsus_user }) => {
+      chrome.storage.local.get(['netsus_user', 'netsus_sound', 'netsus_minimize_pref'], ({ netsus_user, netsus_sound, netsus_minimize_pref }) => {
+        soundEnabled = netsus_sound !== 'off';
+        minimizePref = netsus_minimize_pref === 'true';
         if (netsus_user) {
           currentUser = netsus_user;
           init();
@@ -57,8 +70,6 @@ export default defineContentScript({
       return match ? match[0] : null;
     }
 
-    interface OtherUser { name: string; minutes: number; }
-
     function formatNames(users: OtherUser[]): string {
       const names = users.map(u => u.name);
       if (names.length === 1) return names[0];
@@ -67,17 +78,64 @@ export default defineContentScript({
 
     function formatTime(minutes: number): string {
       if (minutes < 1) return 'acaba de entrar';
-      if (minutes === 1) return 'lleva 1 min';
-      return `lleva ${minutes} min`;
+      if (minutes === 1) return '1 min';
+      return `${minutes} min`;
     }
 
-    function playSound(type: 'alert' | 'free') {
+    function avatarHtml(name: string, idx: number): string {
+      const inits = name.split(' ').slice(0, 2).map(w => w[0] || '').join('').toUpperCase();
+      const color = AVATAR_COLORS[idx % AVATAR_COLORS.length];
+      const offset = idx * -8;
+      return `<div style="
+        width:34px;height:34px;border-radius:50%;
+        background:${color};border:2px solid #991b1b;
+        display:inline-flex;align-items:center;justify-content:center;
+        font-size:12px;font-weight:800;flex-shrink:0;
+        position:relative;margin-left:${idx > 0 ? offset : 0}px;
+        box-shadow:0 2px 6px rgba(0,0,0,0.3);
+      ">${inits}</div>`;
+    }
+
+    function progressBar(minutes: number, maxMin = 60): string {
+      const pct = Math.min(Math.round((minutes / maxMin) * 100), 100);
+      return `<div style="
+        width:56px;height:3px;background:rgba(255,255,255,0.2);
+        border-radius:2px;overflow:hidden;display:inline-block;vertical-align:middle;margin-left:6px;
+      "><div style="width:${pct}%;height:100%;background:rgba(255,255,255,0.8);border-radius:2px;"></div></div>`;
+    }
+
+    function injectBannerStyles() {
+      if (document.getElementById('netsus-styles')) return;
+      const s = document.createElement('style');
+      s.id = 'netsus-styles';
+      s.textContent = `
+        @keyframes netsus-slide-in {
+          from { transform: translateY(-100%); opacity: 0; }
+          to   { transform: translateY(0);     opacity: 1; }
+        }
+        @keyframes netsus-pop-in {
+          from { transform: scale(0.7) translateY(20px); opacity: 0; }
+          to   { transform: scale(1)   translateY(0);    opacity: 1; }
+        }
+        #netsus-presence-banner .nb-btn {
+          border: 1px solid rgba(255,255,255,0.35); color: white;
+          border-radius: 18px; padding: 5px 14px;
+          font-size: 12px; font-weight: 600; cursor: pointer;
+          white-space: nowrap; background: rgba(255,255,255,0.15);
+          transition: background 0.15s; font-family: 'Segoe UI', sans-serif;
+        }
+        #netsus-presence-banner .nb-btn:hover { background: rgba(255,255,255,0.28); }
+        #netsus-presence-banner .nb-btn.ghost { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.2); }
+        #netsus-presence-banner .nb-btn.icon { background: transparent; border-color: rgba(255,255,255,0.15); padding: 5px 10px; }
+      `;
+      document.head.appendChild(s);
+    }
+
+    function playSound(type: 'alert' | 'free' | 'ping' | 'new_entry') {
       const ctx = new AudioContext();
       const gain = ctx.createGain();
       gain.connect(ctx.destination);
-
       if (type === 'alert') {
-        // Dos pitidos cortos — colisión detectada
         [0, 0.3].forEach((offset) => {
           const osc = ctx.createOscillator();
           osc.connect(gain);
@@ -87,8 +145,7 @@ export default defineContentScript({
           osc.start(ctx.currentTime + offset);
           osc.stop(ctx.currentTime + offset + 0.25);
         });
-      } else {
-        // Pitido ascendente — ticket liberado
+      } else if (type === 'free') {
         const osc = ctx.createOscillator();
         osc.connect(gain);
         osc.frequency.setValueAtTime(440, ctx.currentTime);
@@ -97,6 +154,26 @@ export default defineContentScript({
         gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
         osc.start(ctx.currentTime);
         osc.stop(ctx.currentTime + 0.4);
+      } else if (type === 'ping') {
+        // Notification-style: three short rising tones
+        [0, 0.12, 0.24].forEach((offset, i) => {
+          const osc = ctx.createOscillator();
+          osc.connect(gain);
+          osc.frequency.value = 600 + i * 150;
+          gain.gain.setValueAtTime(0.2, ctx.currentTime + offset);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + offset + 0.1);
+          osc.start(ctx.currentTime + offset);
+          osc.stop(ctx.currentTime + offset + 0.1);
+        });
+      } else if (type === 'new_entry') {
+        // Softer single pulse for new entry while in pill mode
+        const osc = ctx.createOscillator();
+        osc.connect(gain);
+        osc.frequency.value = 660;
+        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.2);
       }
     }
 
@@ -118,13 +195,10 @@ export default defineContentScript({
         body.netsus-locked button,
         body.netsus-locked textarea,
         body.netsus-locked input:not([type="search"]):not([type="text"][readonly]) {
-          pointer-events: none !important;
-          opacity: 0.45 !important;
-          cursor: not-allowed !important;
+          pointer-events: none !important; opacity: 0.45 !important; cursor: not-allowed !important;
         }
         body.netsus-locked #netsus-presence-banner {
-          pointer-events: auto !important;
-          opacity: 1 !important;
+          pointer-events: auto !important; opacity: 1 !important;
         }
       `;
       document.head.appendChild(style);
@@ -136,38 +210,55 @@ export default defineContentScript({
       document.getElementById('netsus-lock-style')?.remove();
     }
 
-    function showBanner(others: OtherUser[]) {
-      removeBanner();
+    function renderFullBanner(others: OtherUser[]) {
+      injectBannerStyles();
+      const sorted = [...others].sort((a, b) => b.minutes - a.minutes);
+      const first = sorted[0];
+
+      const avatars = sorted.map((u, i) => avatarHtml(u.name, i)).join('');
+
+      const whoLine = sorted.length === 1
+        ? `<strong>${first.name}</strong> llegó primero · ${formatTime(first.minutes)}${progressBar(first.minutes)}`
+        : sorted.map((u, i) => `<strong>${u.name}</strong>${i === 0 ? ' · primero' : ''} · ${formatTime(u.minutes)}${progressBar(u.minutes)}`).join('<span style="opacity:0.35;margin:0 6px">|</span>');
+
+      const ticketLabel = extractTicketNumber() ?? '';
+
+      const existing = document.getElementById('netsus-presence-banner');
+      if (existing) existing.remove();
+
       const banner = document.createElement('div');
       banner.id = 'netsus-presence-banner';
-      const verb = others.length === 1 ? 'está' : 'están';
-      const timeInfo = others.length === 1 ? ` · ${formatTime(others[0].minutes)}` : '';
       banner.innerHTML = `
-        <div style="
-          position: fixed; top: 0; left: 0; right: 0; z-index: 999999;
-          background: linear-gradient(90deg, #c0392b 0%, #e74c3c 100%);
-          color: white; font-family: 'Segoe UI', sans-serif;
-          box-shadow: 0 3px 12px rgba(0,0,0,0.4);
-          display: flex; align-items: center; justify-content: center;
-          gap: 12px; padding: 10px 20px; flex-wrap: wrap;
+        <div id="netsus-banner-inner" style="
+          position:fixed;top:0;left:0;right:0;z-index:999999;
+          background:linear-gradient(90deg,#991b1b 0%,#dc2626 100%);
+          color:white;font-family:'Segoe UI',sans-serif;
+          box-shadow:0 4px 20px rgba(0,0,0,0.5);
+          display:flex;align-items:center;padding:10px 20px;gap:12px;
+          animation:netsus-slide-in 0.22s ease-out;
         ">
-          <span style="font-size:18px">🚫</span>
-          <span style="font-size:13px; font-weight:600;">
-            <strong>${formatNames(others)}</strong> ${verb} trabajando en este ticket${timeInfo}.
-            Espera a que ${others.length === 1 ? 'finalice' : 'finalicen'}.
-          </span>
-          <span style="
-            background: rgba(255,255,255,0.2); border-radius: 20px;
-            padding: 3px 12px; font-size: 12px; white-space: nowrap;
-          ">Ticket bloqueado</span>
-          <button id="netsus-finish-btn" style="
-            background: rgba(255,255,255,0.25); border: 1px solid rgba(255,255,255,0.5);
-            color: white; border-radius: 20px; padding: 4px 14px;
-            font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
-          ">✓ Soy yo, ya terminé</button>
+          <div style="display:flex;align-items:center;flex-shrink:0">${avatars}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+              ${whoLine}
+            </div>
+            <div style="font-size:11px;opacity:0.65;margin-top:2px">
+              ${ticketLabel ? ticketLabel + ' · ' : ''}Espera a que ${sorted.length === 1 ? 'finalice' : 'finalicen'}
+            </div>
+          </div>
+          <button class="nb-btn" id="netsus-ping-btn">📣 Avisar</button>
+          <div style="display:flex;gap:3px;align-items:center">
+            <span style="font-size:11px;opacity:0.5;margin-right:2px">⏸</span>
+            <button class="nb-btn ghost" data-pause="5">5'</button>
+            <button class="nb-btn ghost" data-pause="15">15'</button>
+            <button class="nb-btn ghost" data-pause="30">30'</button>
+          </div>
+          <button class="nb-btn" id="netsus-finish-btn">✓ Terminé</button>
+          <button class="nb-btn icon" id="netsus-minimize-btn" title="Minimizar">—</button>
         </div>
       `;
       document.body.prepend(banner);
+
       document.getElementById('netsus-finish-btn')?.addEventListener('click', () => {
         if (currentTicketId && currentUser) {
           leavePresence(currentTicketId, currentUser);
@@ -177,46 +268,216 @@ export default defineContentScript({
           currentTicketId = null;
         }
       });
-      lockUI();
 
+      banner.querySelectorAll<HTMLButtonElement>('[data-pause]').forEach(btn => {
+        btn.addEventListener('click', () => pausePresence(parseInt(btn.dataset.pause!)));
+      });
+
+      document.getElementById('netsus-minimize-btn')?.addEventListener('click', () => {
+        clearTimeout(minimizeTimerId);
+        minimizePref = true;
+        chrome.storage.local.set({ netsus_minimize_pref: 'true' });
+        minimizeToPill();
+      });
+
+      document.getElementById('netsus-ping-btn')?.addEventListener('click', () => {
+        if (pingCooldown || !currentTicketId || !currentUser) return;
+        pingCooldown = true;
+        const btn = document.getElementById('netsus-ping-btn') as HTMLButtonElement;
+        if (btn) { btn.textContent = '✓ Enviado'; btn.style.opacity = '0.5'; }
+        apiCall('POST', `/api/presence/${currentTicketId}`, {
+          user: currentUser,
+          ping: sorted.map(u => u.name),
+        }, () => {});
+        setTimeout(() => {
+          pingCooldown = false;
+          if (btn) { btn.textContent = '📣 Avisar'; btn.style.opacity = '1'; }
+        }, 15000);
+      });
+
+      lockUI();
+      // If tech prefers minimized, go straight to pill after first render
+      if (minimizePref) {
+        minimizeTimerId = window.setTimeout(() => minimizeToPill(), 800);
+      } else {
+        clearTimeout(minimizeTimerId);
+        minimizeTimerId = window.setTimeout(() => minimizeToPill(), 10000);
+      }
+    }
+
+    function minimizeToPill() {
+      const banner = document.getElementById('netsus-presence-banner');
+      if (!banner) return;
+      banner.remove();
+      bannerState = 'pill';
+
+      injectBannerStyles();
+      const sorted = [...lastOthers].sort((a, b) => b.minutes - a.minutes);
+      const pill = document.createElement('div');
+      pill.id = 'netsus-presence-banner';
+      pill.innerHTML = `
+        <div id="netsus-pill-inner" style="
+          position:fixed;bottom:24px;right:24px;z-index:999999;
+          background:linear-gradient(135deg,#991b1b,#dc2626);
+          color:white;font-family:'Segoe UI',sans-serif;
+          border-radius:28px;padding:10px 18px;
+          box-shadow:0 6px 24px rgba(0,0,0,0.45);
+          display:flex;align-items:center;gap:8px;
+          cursor:pointer;animation:netsus-pop-in 0.2s ease-out;
+          border:1px solid rgba(255,255,255,0.15);
+        ">
+          <span style="font-size:14px">🚫</span>
+          <span id="netsus-pill-text" style="font-size:12px;font-weight:700">
+            ${sorted.map(u => u.name.split(' ')[0]).join(', ')}
+            · ${formatTime(sorted[0]?.minutes ?? 0)}
+          </span>
+          <span style="font-size:10px;opacity:0.55;margin-left:2px">ver</span>
+        </div>
+      `;
+      pill.addEventListener('click', () => {
+        clearTimeout(minimizeTimerId);
+        bannerState = 'full';
+        renderFullBanner(lastOthers);
+      });
+      document.body.appendChild(pill);
+    }
+
+    function updatePill(others: OtherUser[], hasNewEntry: boolean) {
+      const sorted = [...others].sort((a, b) => b.minutes - a.minutes);
+      const el = document.getElementById('netsus-pill-text');
+      if (el) el.textContent = `${sorted.map(u => u.name.split(' ')[0]).join(', ')} · ${formatTime(sorted[0]?.minutes ?? 0)}`;
+      if (hasNewEntry) {
+        const pill = document.getElementById('netsus-pill-inner');
+        if (pill) {
+          pill.style.animation = 'none';
+          pill.style.boxShadow = '0 6px 24px rgba(220,38,38,0.7), 0 0 0 4px rgba(220,38,38,0.25)';
+          setTimeout(() => { if (pill) pill.style.boxShadow = ''; }, 1500);
+        }
+        if (soundEnabled) playSound('new_entry');
+        sendChromeNotification('Nuevo técnico en el ticket', `${sorted[0]?.name} entró mientras tenías el banner minimizado`);
+      }
+    }
+
+    function showBanner(others: OtherUser[]) {
+      const prevNames = new Set(lastOthers.map(o => o.name));
+      const hasNewEntry = others.some(o => !prevNames.has(o.name));
+      lastOthers = others;
+      if (bannerState === 'pill') { updatePill(others, hasNewEntry); return; }
+      if (bannerState === 'full' && document.getElementById('netsus-presence-banner')) {
+        // Update time inline without re-animating
+        const sorted = [...others].sort((a, b) => b.minutes - a.minutes);
+        const first = sorted[0];
+        const inner = document.querySelector<HTMLElement>('#netsus-banner-inner > div > div');
+        if (inner) {
+          const whoLine = sorted.length === 1
+            ? `<strong>${first.name}</strong> llegó primero · ${formatTime(first.minutes)}${progressBar(first.minutes)}`
+            : sorted.map((u, i) => `<strong>${u.name}</strong>${i === 0 ? ' · primero' : ''} · ${formatTime(u.minutes)}${progressBar(u.minutes)}`).join('<span style="opacity:0.35;margin:0 6px">|</span>');
+          inner.innerHTML = whoLine;
+        }
+        return;
+      }
+      bannerState = 'full';
+      renderFullBanner(others);
       if (!wasLocked) {
-        playSound('alert');
-        sendChromeNotification(
-          'Ticket ocupado',
-          `${formatNames(others)} ${verb} trabajando en este ticket`
-        );
+        if (soundEnabled) playSound('alert');
+        const verb = others.length === 1 ? 'está' : 'están';
+        sendChromeNotification('Ticket ocupado', `${formatNames(others)} ${verb} trabajando en este ticket`);
       }
       wasLocked = true;
     }
 
     function showLiberationBanner() {
-      removeBanner();
+      clearTimeout(minimizeTimerId);
+      bannerState = 'none';
+      const existing = document.getElementById('netsus-presence-banner');
+      if (existing) existing.remove();
+      unlockUI();
+
+      injectBannerStyles();
       const banner = document.createElement('div');
       banner.id = 'netsus-presence-banner';
       banner.innerHTML = `
         <div style="
-          position: fixed; top: 0; left: 0; right: 0; z-index: 999999;
-          background: linear-gradient(90deg, #1e8449 0%, #27ae60 100%);
-          color: white; font-family: 'Segoe UI', sans-serif;
-          box-shadow: 0 3px 12px rgba(0,0,0,0.4);
-          display: flex; align-items: center; justify-content: center;
-          gap: 12px; padding: 12px 20px;
+          position:fixed;top:0;left:0;right:0;z-index:999999;
+          background:linear-gradient(90deg,#14532d,#16a34a);
+          color:white;font-family:'Segoe UI',sans-serif;
+          box-shadow:0 4px 20px rgba(0,0,0,0.4);
+          display:flex;align-items:center;justify-content:center;gap:12px;padding:12px 20px;
+          animation:netsus-slide-in 0.22s ease-out;
         ">
           <span style="font-size:20px">✅</span>
-          <span style="font-size:14px; font-weight:600">
-            El ticket está libre. Ya puedes trabajar en él.
-          </span>
+          <span style="font-size:14px;font-weight:700">El ticket está libre. Ya puedes trabajar en él.</span>
         </div>
       `;
       document.body.prepend(banner);
-      playSound('free');
+      if (soundEnabled) playSound('free');
       sendChromeNotification('Ticket liberado', 'Ya puedes trabajar en este ticket');
-      setTimeout(() => removeBanner(), 5000);
+      const escHandler = (e: KeyboardEvent) => { if (e.key === 'Escape') { removeBanner(); document.removeEventListener('keydown', escHandler); } };
+      document.addEventListener('keydown', escHandler);
+      setTimeout(() => { removeBanner(); document.removeEventListener('keydown', escHandler); }, 5000);
     }
 
     function removeBanner() {
+      clearTimeout(minimizeTimerId);
+      bannerState = 'none';
       document.getElementById('netsus-presence-banner')?.remove();
       unlockUI();
+    }
+
+    function pausePresence(minutes: number) {
+      if (!currentTicketId || !currentUser) return;
+      leavePresence(currentTicketId, currentUser);
+      clearInterval(pollInterval);
+      wasLocked = false;
+      clearTimeout(minimizeTimerId);
+      bannerState = 'none';
+      showPauseBanner(minutes);
+      pauseTimeout = window.setTimeout(() => { removeBanner(); init(); }, minutes * 60 * 1000);
+    }
+
+    function showPauseBanner(totalMinutes: number) {
+      const existing = document.getElementById('netsus-presence-banner');
+      if (existing) existing.remove();
+
+      injectBannerStyles();
+      const banner = document.createElement('div');
+      banner.id = 'netsus-presence-banner';
+      let secsLeft = totalMinutes * 60;
+
+      const renderPause = () => {
+        const m = Math.floor(secsLeft / 60);
+        const s = secsLeft % 60;
+        banner.innerHTML = `
+          <div style="
+            position:fixed;top:0;left:0;right:0;z-index:999999;
+            background:linear-gradient(90deg,#1e3a8a,#2563eb);
+            color:white;font-family:'Segoe UI',sans-serif;
+            box-shadow:0 4px 20px rgba(0,0,0,0.4);
+            display:flex;align-items:center;justify-content:center;gap:12px;padding:10px 20px;
+            animation:netsus-slide-in 0.22s ease-out;
+          ">
+            <span style="font-size:18px">⏸</span>
+            <span style="font-size:13px;font-weight:700">
+              Presencia pausada — volverás en <strong>${m}:${s.toString().padStart(2,'0')}</strong>
+            </span>
+            <button id="netsus-cancel-pause" class="nb-btn">Cancelar pausa</button>
+          </div>
+        `;
+        document.getElementById('netsus-cancel-pause')?.addEventListener('click', () => {
+          clearTimeout(pauseTimeout);
+          clearInterval(tick);
+          removeBanner();
+          init();
+        });
+      };
+
+      renderPause();
+      document.body.prepend(banner);
+      const tick = window.setInterval(() => {
+        secsLeft--;
+        if (secsLeft <= 0) { clearInterval(tick); return; }
+        renderPause();
+      }, 1000);
     }
 
     function apiCall(
@@ -234,18 +495,61 @@ export default defineContentScript({
         .catch(() => {});
     }
 
-    function registerPresence(ticketId: string, user: string) {
-      const ticketNumber = extractTicketNumber();
-      apiCall('POST', `/api/presence/${ticketId}`, { user, ticketNumber }, (_status, data) => {
+    function showAssignmentWarning(assignedTo: string) {
+      if (document.getElementById('netsus-assigned-banner')) return;
+      const el = document.createElement('div');
+      el.id = 'netsus-assigned-banner';
+      el.innerHTML = `<div style="
+        position:fixed;bottom:0;left:0;right:0;z-index:999998;
+        background:linear-gradient(90deg,#78350f,#b45309);
+        color:white;font-family:'Segoe UI',sans-serif;
+        box-shadow:0 -2px 12px rgba(0,0,0,0.4);
+        display:flex;align-items:center;justify-content:center;gap:10px;padding:8px 20px;
+      ">
+        <span style="font-size:15px">📋</span>
+        <span style="font-size:12px;font-weight:600">Este ticket está asignado a <strong>${assignedTo}</strong></span>
+        <button id="netsus-assign-close" style="
+          background:rgba(255,255,255,0.2);border:none;color:white;border-radius:12px;
+          padding:2px 10px;font-size:11px;cursor:pointer;margin-left:8px;
+        ">✕</button>
+      </div>`;
+      document.body.appendChild(el);
+      document.getElementById('netsus-assign-close')?.addEventListener('click', () => el.remove());
+    }
+
+    function registerPresence(ticketId: string, user: string, pingTargets?: string[]) {
+      const body: Record<string, unknown> = {
+        user,
+        ticketNumber: extractTicketNumber(),
+        ticketUrl: window.location.href,
+      };
+      if (pingTargets?.length) body.ping = pingTargets;
+
+      apiCall('POST', `/api/presence/${ticketId}`, body, (_status, data) => {
         const others: OtherUser[] = Array.isArray(data?.others)
-          ? data.others.map((o: any) => typeof o === 'string' ? { name: o, minutes: 0 } : o)
+          ? data.others
+              .map((o: any) => typeof o === 'string' ? { name: o, minutes: 0 } : o)
+              .filter((o: OtherUser) => o.name.trim().toLowerCase() !== user.trim().toLowerCase())
           : [];
+
         if (others.length > 0) {
           showBanner(others);
         } else {
           if (wasLocked) showLiberationBanner();
           else removeBanner();
           wasLocked = false;
+        }
+
+        if (data?.assignedTo && data.assignedTo.trim().toLowerCase() !== user.trim().toLowerCase()) {
+          showAssignmentWarning(data.assignedTo);
+        }
+
+        if (data?.pingedBy) {
+          if (soundEnabled) playSound('ping');
+          sendChromeNotification(
+            '📣 ' + data.pingedBy + ' te está esperando',
+            `Quiere saber si terminaste en ${extractTicketNumber() ?? 'este ticket'}`
+          );
         }
       });
     }
@@ -256,7 +560,6 @@ export default defineContentScript({
 
     function init() {
       if (!currentUser) return;
-
       const ticketId = extractTicketId();
       if (ticketId === currentTicketId) return;
 
@@ -271,16 +574,13 @@ export default defineContentScript({
       if (!ticketId) return;
 
       registerPresence(ticketId, currentUser);
-
       pollInterval = window.setInterval(() => {
         registerPresence(ticketId, currentUser as string);
-      }, 10000);
+      }, 5000);
     }
 
     window.addEventListener('beforeunload', () => {
-      if (currentTicketId && currentUser) {
-        leavePresence(currentTicketId, currentUser);
-      }
+      if (currentTicketId && currentUser) leavePresence(currentTicketId, currentUser);
     });
 
     let lastUrl = location.href;
