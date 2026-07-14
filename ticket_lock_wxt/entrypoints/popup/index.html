@@ -2,70 +2,97 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;800&display=swap" rel="stylesheet">
   <style>
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      width: 260px; padding: 16px; margin: 0;
-      background: #0f1628; color: #eee;
+    :root {
+      --ink-rgb: 255,255,255;
+      --bg: #190637;
+      --text: #fff;
+      --accent: #3867E9;
+      --accent-rgb: 56,103,233;
+      --cyan: #01BFFA;
+      --dim: rgba(255,255,255,0.55);
+      --faint: rgba(255,255,255,0.32);
     }
-    h2 { font-size: 13px; margin: 0 0 14px; color: #f97316; letter-spacing: 0.02em; }
+    html[data-theme="light"] {
+      --ink-rgb: 59,59,59;
+      --bg: #F3F3F3;
+      --text: #3B3B3B;
+      /* Misma alfa que en oscuro se ve ilegible sobre fondo claro; estos dos tokens
+         suben la opacidad en modo claro para mantener contraste legible */
+      --dim: rgba(59,59,59,0.78);
+      --faint: rgba(59,59,59,0.6);
+    }
+    body {
+      font-family: 'Montserrat', 'Segoe UI', sans-serif; font-weight: 300;
+      width: 260px; padding: 16px; margin: 0;
+      background: var(--bg); color: var(--text);
+    }
+    h2 {
+      font-size: 13px; margin: 0 0 14px; letter-spacing: 0.02em;
+      display: flex; align-items: center; gap: 8px; font-weight: 800;
+    }
+    h2 img { height: 16px; }
     #avatar {
       width: 44px; height: 44px; border-radius: 50%;
-      background: linear-gradient(135deg, #f97316, #ea580c);
+      background: var(--accent);
       display: flex; align-items: center; justify-content: center;
-      font-size: 18px; font-weight: 700; margin: 0 auto 10px;
-      box-shadow: 0 4px 12px rgba(249,115,22,0.35);
+      font-size: 18px; font-weight: 700; margin: 0 auto 10px; color: #fff;
+      box-shadow: 0 4px 12px rgba(var(--accent-rgb),0.35);
     }
-    #current { text-align: center; font-size: 14px; font-weight: 600; color: #fff; margin-bottom: 4px; }
-    #autoLabel { text-align: center; font-size: 11px; color: rgba(255,255,255,0.35); margin-bottom: 14px; }
-    hr { border: none; border-top: 1px solid rgba(255,255,255,0.08); margin: 12px 0; }
-    label { font-size: 11px; color: rgba(255,255,255,0.45); }
+    #current { text-align: center; font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    #autoLabel { text-align: center; font-size: 11px; color: var(--dim); margin-bottom: 14px; }
+    hr { border: none; border-top: 1px solid rgba(var(--ink-rgb),0.1); margin: 12px 0; }
+    label { font-size: 11px; color: var(--dim); }
     input {
-      width: 100%; padding: 8px; margin-top: 4px;
-      border: 1px solid rgba(255,255,255,0.12); border-radius: 6px;
-      background: rgba(255,255,255,0.06); color: #fff;
+      width: 100%; padding: 8px; margin-top: 4px; font-family: inherit;
+      border: 1px solid rgba(var(--ink-rgb),0.15); border-radius: 6px;
+      background: rgba(var(--ink-rgb),0.06); color: var(--text);
       font-size: 13px; box-sizing: border-box;
     }
     .btn-primary {
-      margin-top: 8px; width: 100%; padding: 8px;
-      background: linear-gradient(135deg, #f97316, #ea580c);
+      margin-top: 8px; width: 100%; padding: 8px; font-family: inherit;
+      background: var(--accent);
       color: white; border: none; border-radius: 6px;
       font-size: 13px; cursor: pointer; font-weight: 600;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
     }
-    .btn-primary:hover { opacity: 0.9; }
+    .btn-primary:hover { background: #2f56c9; }
     .btn-ghost {
-      width: 100%; padding: 8px; border-radius: 6px; font-size: 12px; font-weight: 600;
-      background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.5);
-      border: 1px solid rgba(255,255,255,0.1); cursor: pointer;
+      width: 100%; padding: 8px; border-radius: 6px; font-size: 12px; font-weight: 600; font-family: inherit;
+      background: rgba(var(--ink-rgb),0.07); color: var(--dim);
+      border: 1px solid rgba(var(--ink-rgb),0.12); cursor: pointer;
     }
-    .btn-ghost:hover { background: rgba(255,255,255,0.1); }
+    .btn-ghost:hover { background: rgba(var(--ink-rgb),0.12); }
     #status { margin-top: 8px; font-size: 11px; color: #22c55e; text-align: center; min-height: 16px; }
     #collisionSection { margin-top: 10px; }
-    .col-label { font-size: 11px; color: rgba(255,255,255,0.4); margin-bottom: 6px; }
+    .col-label { font-size: 11px; color: var(--dim); margin-bottom: 6px; display: flex; align-items: center; gap: 5px; }
     .col-card {
       background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25);
       border-radius: 8px; padding: 7px 10px; margin-bottom: 5px;
     }
     .col-ticket { font-size: 12px; font-weight: 600; color: #f87171; margin-bottom: 2px; }
-    .col-users { font-size: 11px; color: rgba(255,255,255,0.55); }
+    .col-users { font-size: 11px; color: var(--dim); }
     .mode-row {
       display: flex; align-items: center; justify-content: space-between;
       margin-top: 10px;
     }
-    .mode-label { font-size: 11px; color: rgba(255,255,255,0.45); }
+    .mode-label { font-size: 11px; color: var(--dim); display: flex; align-items: center; gap: 5px; }
     .toggle { position: relative; display: inline-block; width: 36px; height: 20px; }
     .toggle input { opacity: 0; width: 0; height: 0; }
     .slider {
       position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(255,255,255,0.15); transition: .3s; border-radius: 20px;
+      background: rgba(var(--ink-rgb),0.18); transition: .3s; border-radius: 20px;
     }
     .slider:before {
       position: absolute; content: ""; height: 14px; width: 14px;
       left: 3px; bottom: 3px; background: white; transition: .3s; border-radius: 50%;
     }
-    input:checked + .slider { background: #f97316; }
+    input:checked + .slider { background: var(--accent); }
     input:checked + .slider:before { transform: translateX(16px); }
-    #modeDesc { font-size: 10px; color: rgba(255,255,255,0.3); text-align: right; margin-top: 3px; }
+    #modeDesc { font-size: 10px; color: var(--faint); text-align: right; margin-top: 3px; }
     .renag-row { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
     .renag-row input {
       width: 56px; padding: 5px 6px; margin: 0; text-align: center; font-size: 12px;
@@ -80,65 +107,43 @@
       display: inline-flex; align-items: center; justify-content: center;
     }
     .notif-readall {
-      background: none; border: none; color: rgba(255,255,255,0.4);
+      background: none; border: none; color: var(--dim); font-family: inherit;
       font-size: 10px; cursor: pointer; padding: 2px 4px;
     }
-    .notif-readall:hover { color: #fff; }
+    .notif-readall:hover { color: var(--text); }
     .notif-list { display: flex; flex-direction: column; gap: 5px; max-height: 220px; overflow-y: auto; }
     .notif-item {
       display: flex; gap: 8px; align-items: flex-start; padding: 7px 9px;
       border-radius: 8px; cursor: pointer; border-left: 3px solid transparent;
-      background: rgba(255,255,255,0.04);
+      background: rgba(var(--ink-rgb),0.05);
     }
     .notif-item.unread { background: var(--tint); border-left-color: var(--sev); }
     .notif-item.read { opacity: 0.55; }
-    .notif-item:hover { background: rgba(255,255,255,0.09); }
+    .notif-item:hover { background: rgba(var(--ink-rgb),0.1); }
     .notif-ico { flex-shrink: 0; margin-top: 1px; }
     .notif-body { flex: 1; min-width: 0; }
-    .notif-title { font-size: 12px; font-weight: 700; color: #f1f5f9; display: flex; align-items: center; gap: 5px; }
-    .notif-text { font-size: 11px; color: rgba(255,255,255,0.55); line-height: 1.3; margin-top: 1px;
+    .notif-title { font-size: 12px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 5px; }
+    .notif-text { font-size: 11px; color: var(--dim); line-height: 1.3; margin-top: 1px;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .notif-time { font-size: 10px; color: rgba(255,255,255,0.35); margin-top: 2px; }
+    .notif-time { font-size: 10px; color: var(--faint); margin-top: 2px; }
     .notif-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-    .notif-empty { font-size: 11px; color: rgba(255,255,255,0.3); text-align: center; padding: 14px 0; }
+    .notif-empty { font-size: 11px; color: var(--faint); text-align: center; padding: 14px 0; }
     /* Selector de tema */
-    .theme-seg { display: inline-flex; background: rgba(255,255,255,0.06); border-radius: 8px; padding: 2px; gap: 2px; }
-    .theme-seg button { border: none; background: transparent; color: rgba(255,255,255,0.5); font-size: 11px; padding: 4px 9px; border-radius: 6px; cursor: pointer; }
-    .theme-seg button.active { background: #f97316; color: #fff; font-weight: 600; }
+    .theme-seg { display: inline-flex; background: rgba(var(--ink-rgb),0.08); border-radius: 8px; padding: 2px; gap: 2px; }
+    .theme-seg button { border: none; background: transparent; color: var(--dim); font-size: 11px; font-family: inherit; padding: 4px 9px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; }
+    .theme-seg button.active { background: var(--accent); color: #fff; font-weight: 600; }
     /* Preferencias por tipo */
     .prefs-details { margin-top: 10px; }
-    .prefs-details summary { font-size: 11px; color: rgba(255,255,255,0.45); cursor: pointer; list-style: none; padding: 4px 0; }
+    .prefs-details summary { font-size: 11px; color: var(--dim); cursor: pointer; list-style: none; padding: 4px 0; display: flex; align-items: center; gap: 5px; }
     .prefs-details summary::-webkit-details-marker { display: none; }
-    .prefs-details summary::before { content: "▸ "; }
-    .prefs-details[open] summary::before { content: "▾ "; }
     .pref-row { display: flex; align-items: center; justify-content: space-between; padding: 5px 0; }
-    .pref-label { font-size: 12px; color: rgba(255,255,255,0.7); }
-    /* Modo claro (override; oscuro es el default) */
-    html[data-theme="light"] body { background: #f1f5f9; color: #0f172a; }
-    html[data-theme="light"] #current { color: #0f172a; }
-    html[data-theme="light"] #autoLabel,
-    html[data-theme="light"] label,
-    html[data-theme="light"] .mode-label,
-    html[data-theme="light"] .col-label,
-    html[data-theme="light"] .prefs-details summary { color: rgba(15,23,42,0.55); }
-    html[data-theme="light"] .pref-label { color: rgba(15,23,42,0.75); }
-    html[data-theme="light"] input { background: rgba(15,23,42,0.05); border-color: rgba(15,23,42,0.15); color: #0f172a; }
-    html[data-theme="light"] .btn-ghost { background: rgba(15,23,42,0.05); color: rgba(15,23,42,0.6); border-color: rgba(15,23,42,0.12); }
-    html[data-theme="light"] hr { border-color: rgba(15,23,42,0.1); }
-    html[data-theme="light"] .theme-seg { background: rgba(15,23,42,0.06); }
-    html[data-theme="light"] .theme-seg button { color: rgba(15,23,42,0.55); }
-    html[data-theme="light"] .theme-seg button.active { color: #fff; }
-    html[data-theme="light"] .notif-item { background: rgba(15,23,42,0.04); }
-    html[data-theme="light"] .notif-item:hover { background: rgba(15,23,42,0.09); }
-    html[data-theme="light"] .notif-title { color: #0f172a; }
-    html[data-theme="light"] .notif-text { color: rgba(15,23,42,0.6); }
-    html[data-theme="light"] .notif-time { color: rgba(15,23,42,0.4); }
-    html[data-theme="light"] .col-users { color: rgba(15,23,42,0.6); }
-    html[data-theme="light"] .slider { background: rgba(15,23,42,0.2); }
+    .pref-label { font-size: 12px; color: var(--dim); }
+    .footer-brand { text-align: center; font-size: 10px; color: var(--faint); margin-top: 10px; }
+    .footer-brand b { color: var(--accent); font-weight: 800; }
   </style>
 </head>
 <body>
-  <h2>⚡ Autotask CoView</h2>
+  <h2><img src="netsus-logo.png" alt="netsus"> Autotask CoView</h2>
   <div id="avatar">?</div>
   <div id="current">Detectando...</div>
   <div id="autoLabel"></div>
@@ -148,34 +153,34 @@
   <button class="btn-primary" id="saveBtn">Guardar</button>
   <div id="status"></div>
   <div class="mode-row" style="margin-top:10px">
-    <span class="mode-label">🔊 Sonido de alerta</span>
+    <span class="mode-label" id="soundLabel">Sonido de alerta</span>
     <label class="toggle">
       <input type="checkbox" id="soundToggle" checked>
       <span class="slider"></span>
     </label>
   </div>
   <div class="renag-row">
-    <span class="mode-label">🔔 Re-avisar cada</span>
+    <span class="mode-label" id="renagLabel">Re-avisar cada</span>
     <div style="display:flex;align-items:center;gap:5px">
       <input id="renagInput" type="number" min="1" max="60" value="3" />
       <span class="mode-label">min</span>
     </div>
   </div>
   <div class="renag-row">
-    <span class="mode-label">🎨 Tema</span>
+    <span class="mode-label" id="themeLabel">Tema</span>
     <div class="theme-seg" id="themeSeg">
       <button type="button" data-theme-val="auto">Auto</button>
-      <button type="button" data-theme-val="light">☀️</button>
-      <button type="button" data-theme-val="dark">🌙</button>
+      <button type="button" data-theme-val="light"></button>
+      <button type="button" data-theme-val="dark"></button>
     </div>
   </div>
   <details class="prefs-details">
-    <summary>🔔 Tipos de notificación</summary>
+    <summary id="prefsSummary">Tipos de notificación</summary>
     <div id="typePrefsList"></div>
   </details>
   <div id="collisionSection" style="display:none">
     <hr />
-    <div class="col-label">⚠️ Colisiones activas</div>
+    <div class="col-label" id="collisionLabel">Colisiones activas</div>
     <div id="collisionList"></div>
   </div>
   <hr />
@@ -186,12 +191,12 @@
     </div>
     <div id="notifList" class="notif-list"></div>
   </div>
-  <hr style="border:none;border-top:1px solid rgba(255,255,255,0.08);margin:14px 0 10px"/>
+  <hr />
   <button class="btn-ghost" id="adminBtn">Panel Admin</button>
   <div id="nameWarning" style="display:none;margin-top:8px;background:rgba(251,146,60,0.12);border:1px solid rgba(251,146,60,0.3);border-radius:6px;padding:7px 10px;font-size:11px;color:#fb923c;text-align:center">
-    ⚠️ Nombre no detectado — escríbelo manualmente
+    Nombre no detectado — escríbelo manualmente
   </div>
-  <div style="text-align:center;font-size:10px;color:rgba(255,255,255,0.18);margin-top:10px">v1.0.0 · Netsus</div>
+  <div id="footer" class="footer-brand"><b>netsus</b> · Innovación Tecnológica</div>
   <script type="module" src="./main.ts"></script>
 </body>
 </html>

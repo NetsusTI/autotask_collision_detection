@@ -18,6 +18,76 @@
   var historyTotal = 0;
   var HISTORY_PAGE = 50;
 
+  // --- Tema (claro/oscuro/auto) — misma clave que usa el resto de la extensión ---
+  var THEME_KEY = 'netsus_theme';
+  var currentThemePref = 'auto';
+
+  function resolveTheme(pref) {
+    if (pref === 'light' || pref === 'dark') return pref;
+    if (typeof matchMedia === 'undefined') return 'dark';
+    return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+
+  function applyTheme(resolved) {
+    document.documentElement.setAttribute('data-theme', resolved);
+  }
+
+  function highlightThemeButtons(pref) {
+    document.querySelectorAll('.themeSeg button').forEach(function (b) {
+      b.classList.toggle('active', b.dataset.themeVal === pref);
+    });
+  }
+
+  function setThemePref(pref) {
+    currentThemePref = pref;
+    chrome.storage.local.set({ netsus_theme: pref });
+    applyTheme(resolveTheme(pref));
+    highlightThemeButtons(pref);
+  }
+
+  chrome.storage.local.get([THEME_KEY], function (r) {
+    var pref = r[THEME_KEY];
+    if (pref !== 'light' && pref !== 'dark') pref = 'auto';
+    currentThemePref = pref;
+    applyTheme(resolveTheme(pref));
+    highlightThemeButtons(pref);
+  });
+
+  document.querySelectorAll('.themeSeg button').forEach(function (btn) {
+    btn.addEventListener('click', function () { setThemePref(btn.dataset.themeVal); });
+  });
+
+  if (typeof matchMedia !== 'undefined') {
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
+      if (currentThemePref === 'auto') applyTheme(resolveTheme('auto'));
+    });
+  }
+
+  chrome.storage.onChanged.addListener(function (changes, area) {
+    if (area === 'local' && changes[THEME_KEY]) {
+      currentThemePref = changes[THEME_KEY].newValue || 'auto';
+      applyTheme(resolveTheme(currentThemePref));
+      highlightThemeButtons(currentThemePref);
+    }
+  });
+
+  // --- Iconos SVG inline (estilo Lucide) para markup generado dinámicamente ---
+  var ICON_PATHS = {
+    'alert-triangle': '<path d="m10.29 3.86-8.18 14.14A2 2 0 0 0 3.83 21h16.34a2 2 0 0 0 1.72-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+    'ticket': '<path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/>',
+    'check-circle': '<circle cx="12" cy="12" r="9"/><path d="m9 12 2 2 4-4"/>',
+    'clipboard-list': '<rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/>',
+    'bar-chart-3': '<path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M7 16h8"/><path d="M7 11h12"/><path d="M7 6h3"/>',
+    'link-2': '<path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/>',
+    'calendar': '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>',
+    'clock': '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>',
+    'users': '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  };
+  function ic(name, size, color) {
+    size = size || 16;
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="' + (color || 'currentColor') + '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;flex-shrink:0">' + ICON_PATHS[name] + '</svg>';
+  }
+
   function userName(u) { return typeof u === 'string' ? u : u.name; }
   function userMinutes(u) { return typeof u === 'string' ? 0 : (u.minutes || 0); }
   function userLabel(u) {
@@ -171,7 +241,7 @@
     document.getElementById('statUsers').textContent = new Set(allUsers).size;
     var el = document.getElementById('liveTab');
     if (!tickets.length) {
-      el.innerHTML = '<div class="empty"><div class="emptyIcon">✅</div><div class="emptyText">Sin colisiones activas</div><div class="emptySub">Todos los técnicos trabajan sin conflictos</div></div>';
+      el.innerHTML = '<div class="empty"><div class="emptyIcon">' + ic('check-circle', 30) + '</div><div class="emptyText">Sin colisiones activas</div><div class="emptySub">Todos los técnicos trabajan sin conflictos</div></div>';
       return;
     }
     el.innerHTML = tickets.map(function (t) {
@@ -181,7 +251,7 @@
         ? '<a href="' + t.ticketUrl + '" target="_blank" class="ticketLink">' + label + '</a>'
         : label;
       return '<div class="ticketCard ' + (isCol ? 'collision' : '') + '">' +
-        '<div class="ticketLeft"><div class="ticketIcon ' + (isCol ? 'col' : '') + '">' + (isCol ? '⚠️' : '🎫') + '</div>' +
+        '<div class="ticketLeft"><div class="ticketIcon ' + (isCol ? 'col' : '') + '">' + ic(isCol ? 'alert-triangle' : 'ticket', 18) + '</div>' +
         '<div><div class="ticketName">' + nameEl + '</div>' +
         '<div class="ticketMeta">' + t.users.length + ' técnico' + (t.users.length > 1 ? 's' : '') + ' activo' + (t.users.length > 1 ? 's' : '') + '</div></div></div>' +
         '<div class="chips">' + t.users.map(function (u, i) {
@@ -203,7 +273,7 @@
     var el = document.getElementById('liveTab');
     var techs = Object.keys(techMap);
     if (!techs.length) {
-      el.innerHTML = '<div class="empty"><div class="emptyIcon">✅</div><div class="emptyText">Sin actividad activa</div><div class="emptySub">Todos los técnicos están libres</div></div>';
+      el.innerHTML = '<div class="empty"><div class="emptyIcon">' + ic('check-circle', 30) + '</div><div class="emptyText">Sin actividad activa</div><div class="emptySub">Todos los técnicos están libres</div></div>';
       return;
     }
     el.innerHTML = techs.map(function (name) {
@@ -213,7 +283,7 @@
         '<div class="ticketLeft">' +
         '<div class="techAvatar">' + initials(name) + '</div>' +
         '<div><div class="ticketName">' + name + '</div>' +
-        '<div class="ticketMeta">' + tks.length + ' ticket' + (tks.length > 1 ? 's' : '') + ' abierto' + (tks.length > 1 ? 's' : '') + (hasCollision ? ' · ⚠️ colisión' : '') + '</div></div>' +
+        '<div class="ticketMeta">' + tks.length + ' ticket' + (tks.length > 1 ? 's' : '') + ' abierto' + (tks.length > 1 ? 's' : '') + (hasCollision ? ' · <span style="color:#ef4444">' + ic('alert-triangle', 11) + ' colisión</span>' : '') + '</div></div>' +
         '</div><div class="chips">' +
         tks.map(function (t) {
           var chip = t.url
@@ -264,11 +334,11 @@
     populateTechFilter();
     var el = document.getElementById('historyTab');
     if (!history.length) {
-      el.innerHTML = '<div class="empty"><div class="emptyIcon">📋</div><div class="emptyText">Sin resultados</div><div class="emptySub">Prueba cambiando los filtros</div></div>';
+      el.innerHTML = '<div class="empty"><div class="emptyIcon">' + ic('clipboard-list', 30) + '</div><div class="emptyText">Sin resultados</div><div class="emptySub">Prueba cambiando los filtros</div></div>';
       return;
     }
     var cards = history.map(function (e) {
-      return '<div class="histCard"><div class="histLeft"><span style="font-size:16px">⚠️</span>' +
+      return '<div class="histCard"><div class="histLeft">' + ic('alert-triangle', 16) +
         '<div><div class="histTicket">' + (e.ticketNumber || '#' + e.ticketId) + '</div>' +
         '<div class="histTime">' + new Date(e.ts).toLocaleString('es-CL') + '</div></div></div>' +
         '<div class="chips">' + e.users.map(function (u, i) {
@@ -311,12 +381,12 @@
 
   function loadAnalytics() {
     var el = document.getElementById('analyticsTab');
-    el.innerHTML = '<div style="text-align:center;padding:40px;color:rgba(255,255,255,0.3)">Cargando...</div>';
+    el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--faint)">Cargando...</div>';
     fetch(BASE_URL + '/api/presence/analytics', { headers: { 'x-api-key': API_KEY } })
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (!data.total) {
-          el.innerHTML = '<div class="empty"><div class="emptyIcon">📊</div><div class="emptyText">Sin datos aún</div><div class="emptySub">Las colisiones aparecerán aquí una vez registradas</div></div>';
+          el.innerHTML = '<div class="empty"><div class="emptyIcon">' + ic('bar-chart-3', 30) + '</div><div class="emptyText">Sin datos aún</div><div class="emptySub">Las colisiones aparecerán aquí una vez registradas</div></div>';
           return;
         }
         var maxTech = data.byTech.length ? data.byTech[0].count : 1;
@@ -350,10 +420,10 @@
           var pairBars = data.pairs.map(function (p) {
             var w = Math.round((p.count / maxPair) * 100);
             return '<div class="barRow"><div class="barLabel" title="' + p.pair + '">' + p.pair + '</div>' +
-              '<div class="barTrack"><div class="barFill" style="width:' + w + '%;background:linear-gradient(90deg,#8b5cf6,#ec4899)"></div></div>' +
+              '<div class="barTrack"><div class="barFill" style="width:' + w + '%;background:linear-gradient(90deg,#8C52FF,#6d28d9)"></div></div>' +
               '<div class="barCount">' + p.count + 'x</div></div>';
           }).join('');
-          pairsHtml = '<div class="anlSection"><div class="anlTitle">🔗 Pares que más colisionan</div>' + pairBars + '</div>';
+          pairsHtml = '<div class="anlSection"><div class="anlTitle">' + ic('link-2', 15) + ' Pares que más colisionan</div>' + pairBars + '</div>';
         }
 
         var durStr = '';
@@ -361,10 +431,10 @@
           var avgMin = Math.floor(data.avgDurationSecs / 60);
           var avgSec = data.avgDurationSecs % 60;
           var maxMin = Math.floor((data.maxDurationSecs || 0) / 60);
-          durStr = '<div class="anlSection"><div class="anlTitle">⏱ Duración de colisiones <span style="font-weight:400;color:rgba(255,255,255,0.35);font-size:12px">· ' + data.resolvedCount + ' registradas</span></div>' +
+          durStr = '<div class="anlSection"><div class="anlTitle">' + ic('clock', 15) + ' Duración de colisiones <span style="font-weight:400;color:var(--faint);font-size:12px">· ' + data.resolvedCount + ' registradas</span></div>' +
             '<div style="display:flex;gap:24px;margin-top:4px">' +
-            '<div><div style="font-size:24px;font-weight:700;color:#f97316">' + (avgMin > 0 ? avgMin + 'm ' : '') + avgSec + 's</div><div style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:2px">Duración promedio</div></div>' +
-            '<div><div style="font-size:24px;font-weight:700;color:rgba(255,255,255,0.6)">' + (maxMin > 0 ? maxMin + 'm ' : '') + (data.maxDurationSecs % 60) + 's</div><div style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:2px">Máxima registrada</div></div>' +
+            '<div><div style="font-size:24px;font-weight:800;color:var(--accent)">' + (avgMin > 0 ? avgMin + 'm ' : '') + avgSec + 's</div><div style="font-size:11px;color:var(--dim);margin-top:2px">Duración promedio</div></div>' +
+            '<div><div style="font-size:24px;font-weight:700;color:var(--dim)">' + (maxMin > 0 ? maxMin + 'm ' : '') + (data.maxDurationSecs % 60) + 's</div><div style="font-size:11px;color:var(--dim);margin-top:2px">Máxima registrada</div></div>' +
             '</div></div>';
         }
 
@@ -379,22 +449,22 @@
             var day = d.date.slice(8); // DD
             return '<div class="dayLbl">' + (i % 5 === 0 ? day : '') + '</div>';
           }).join('');
-          dayHtml = '<div class="anlSection"><div class="anlTitle">📅 Tendencia últimos 30 días</div>' +
+          dayHtml = '<div class="anlSection"><div class="anlTitle">' + ic('calendar', 15) + ' Tendencia últimos 30 días</div>' +
             '<div class="dayGrid">' + dayBars + '</div>' +
             '<div class="dayLabels">' + dayLabels + '</div></div>';
         }
 
         el.innerHTML =
           dayHtml +
-          '<div class="anlSection"><div class="anlTitle">👤 Técnicos con más colisiones <span style="font-weight:400;color:rgba(255,255,255,0.35);font-size:12px">· total ' + data.total + '</span></div>' + techBars + '</div>' +
+          '<div class="anlSection"><div class="anlTitle">' + ic('users', 15) + ' Técnicos con más colisiones <span style="font-weight:400;color:var(--faint);font-size:12px">· total ' + data.total + '</span></div>' + techBars + '</div>' +
           pairsHtml +
-          '<div class="anlSection"><div class="anlTitle">🕐 Colisiones por hora del día</div>' +
+          '<div class="anlSection"><div class="anlTitle">' + ic('clock', 15) + ' Colisiones por hora del día</div>' +
             '<div class="hourGrid">' + hourBars + '</div>' +
             '<div class="hourLabels">' + hourLabels + '</div></div>' +
-          (data.topTickets.length ? '<div class="anlSection"><div class="anlTitle">🎫 Tickets con más colisiones</div>' + topTickets + '</div>' : '') +
+          (data.topTickets.length ? '<div class="anlSection"><div class="anlTitle">' + ic('ticket', 15) + ' Tickets con más colisiones</div>' + topTickets + '</div>' : '') +
           durStr;
       }).catch(function () {
-        el.innerHTML = '<div class="empty"><div class="emptyIcon">⚠️</div><div class="emptyText">Error al cargar análisis</div></div>';
+        el.innerHTML = '<div class="empty"><div class="emptyIcon" style="color:#ef4444">' + ic('alert-triangle', 30) + '</div><div class="emptyText">Error al cargar análisis</div></div>';
       });
   }
 
@@ -437,7 +507,7 @@
   function pollNow() {
     var status = document.getElementById('notifStatus');
     status.className = 'configStatus';
-    status.style.color = 'rgba(255,255,255,0.5)';
+    status.style.color = 'var(--dim)';
     status.textContent = 'Sondeando Autotask...';
     fetch(BASE_URL + '/api/notifications/poll?force=1', { headers: { 'x-api-key': API_KEY } })
       .then(function (r) { return r.json(); })
@@ -500,7 +570,7 @@
     if (!url) { status.className = 'configStatus err'; status.textContent = 'Ingresa una URL primero'; return; }
     var body = {
       '@type': 'MessageCard', '@context': 'http://schema.org/extensions',
-      themeColor: 'f97316', summary: '✅ Prueba de webhook',
+      themeColor: '3867E9', summary: '✅ Prueba de webhook',
       sections: [{ activityTitle: '✅ Webhook configurado correctamente', activitySubtitle: 'Autotask CoView · Netsus', activityText: 'Las alertas de colisión llegarán a este canal.' }]
     };
     fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -551,7 +621,7 @@
   function sendDailySummary(period) {
     var statusEl = document.getElementById('summaryStatus');
     statusEl.textContent = 'Enviando...';
-    statusEl.style.color = 'rgba(255,255,255,0.5)';
+    statusEl.style.color = 'var(--dim)';
     fetch(BASE_URL + '/api/presence/daily-summary?send=true&period=' + period, { headers: { 'x-api-key': API_KEY } })
       .then(function (r) { return r.json(); })
       .then(function (data) {

@@ -258,13 +258,23 @@ export function mountNotificationCenter(hooks: NotificationCenterHooks = {}) {
   };
 }
 
+function injectBrandFont() {
+  if (document.getElementById('netsus-font-link')) return;
+  const link = document.createElement('link');
+  link.id = 'netsus-font-link';
+  link.rel = 'stylesheet';
+  link.href = 'https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;800&display=swap';
+  document.head.appendChild(link);
+}
+
 function injectStyles() {
+  injectBrandFont();
   if (document.getElementById(`${PREFIX}-styles`)) return;
   const s = document.createElement('style');
   s.id = `${PREFIX}-styles`;
   s.textContent = `
     #${PREFIX}-root {
-      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-family: 'Montserrat', 'Segoe UI', system-ui, sans-serif;
       --p-bg:#0f172a; --p-border:rgba(255,255,255,0.1); --p-shadow:0 16px 48px rgba(0,0,0,0.55);
       --text:#f1f5f9; --dim:rgba(255,255,255,0.6); --faint:rgba(255,255,255,0.4);
       --hover:rgba(255,255,255,0.06); --head-bg:rgba(255,255,255,0.02);
@@ -316,7 +326,7 @@ function injectStyles() {
       background: var(--head-bg);
     }
     .${PREFIX}-title { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: var(--text); }
-    .${PREFIX}-title svg { color: #f97316; }
+    .${PREFIX}-title svg { color: #3867E9; }
     .${PREFIX}-head-actions { display: flex; gap: 4px; }
     .${PREFIX}-ico-btn {
       width: 30px; height: 30px; border-radius: 8px; cursor: pointer;

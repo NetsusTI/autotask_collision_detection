@@ -1,6 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Montserrat } from 'next/font/google';
+import { Icon } from '@/lib/icons';
+
+const montserrat = Montserrat({ subsets: ['latin'], weight: ['300', '400', '600', '800'] });
 
 interface TicketPresence {
   ticketId: string;
@@ -24,11 +28,11 @@ const THEME_STORAGE_KEY = 'netsus_admin_theme';
 
 const PALETTE: Record<ResolvedTheme, Record<string, string>> = {
   dark: {
-    pageBg: 'linear-gradient(135deg, #0a0e1a 0%, #0f1628 100%)',
+    pageBg: 'linear-gradient(135deg, #190637 0%, #0d0320 100%)',
     text: '#fff',
     cardBg: 'rgba(255,255,255,0.04)',
     cardBorder: 'rgba(255,255,255,0.08)',
-    accentBorder: 'rgba(249,115,22,0.3)',
+    accentBorder: 'rgba(239,68,68,0.35)',
     dim: 'rgba(255,255,255,0.4)',
     faint: 'rgba(255,255,255,0.25)',
     headerBg: 'rgba(255,255,255,0.03)',
@@ -42,24 +46,26 @@ const PALETTE: Record<ResolvedTheme, Record<string, string>> = {
     iconBg: 'rgba(255,255,255,0.06)',
   },
   light: {
-    pageBg: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
-    text: '#0f172a',
+    pageBg: 'linear-gradient(135deg, #F3F3F3 0%, #e7e7ec 100%)',
+    text: '#3B3B3B',
     cardBg: '#ffffff',
-    cardBorder: 'rgba(15,23,42,0.1)',
-    accentBorder: 'rgba(234,88,12,0.35)',
-    dim: 'rgba(15,23,42,0.55)',
-    faint: 'rgba(15,23,42,0.38)',
+    cardBorder: 'rgba(59,59,59,0.1)',
+    accentBorder: 'rgba(239,68,68,0.35)',
+    dim: 'rgba(59,59,59,0.78)',
+    faint: 'rgba(59,59,59,0.6)',
     headerBg: 'rgba(255,255,255,0.75)',
-    headerBorder: 'rgba(15,23,42,0.08)',
-    chipBg: 'rgba(15,23,42,0.08)',
-    chipBg2: 'rgba(15,23,42,0.05)',
-    inputBg: 'rgba(15,23,42,0.04)',
-    inputBorder: 'rgba(15,23,42,0.15)',
-    dashedBorder: 'rgba(15,23,42,0.15)',
-    emptyBg: 'rgba(15,23,42,0.02)',
-    iconBg: 'rgba(15,23,42,0.05)',
+    headerBorder: 'rgba(59,59,59,0.08)',
+    chipBg: 'rgba(59,59,59,0.08)',
+    chipBg2: 'rgba(59,59,59,0.05)',
+    inputBg: 'rgba(59,59,59,0.04)',
+    inputBorder: 'rgba(59,59,59,0.15)',
+    dashedBorder: 'rgba(59,59,59,0.15)',
+    emptyBg: 'rgba(59,59,59,0.02)',
+    iconBg: 'rgba(59,59,59,0.05)',
   },
 };
+
+const ACCENT = '#3867E9';
 
 function resolveTheme(pref: ThemePref): ResolvedTheme {
   if (pref === 'light' || pref === 'dark') return pref;
@@ -68,10 +74,10 @@ function resolveTheme(pref: ThemePref): ResolvedTheme {
 }
 
 function ThemeToggle({ pref, onChange }: { pref: ThemePref; onChange: (p: ThemePref) => void }) {
-  const opts: { v: ThemePref; label: string }[] = [
+  const opts: { v: ThemePref; label: React.ReactNode }[] = [
     { v: 'auto', label: 'Auto' },
-    { v: 'light', label: '☀️' },
-    { v: 'dark', label: '🌙' },
+    { v: 'light', label: <Icon name="sun" size={13} /> },
+    { v: 'dark', label: <Icon name="moon" size={13} /> },
   ];
   return (
     <div style={{ display: 'inline-flex', background: 'rgba(128,128,128,0.15)', borderRadius: 8, padding: 2, gap: 2 }}>
@@ -81,11 +87,27 @@ function ThemeToggle({ pref, onChange }: { pref: ThemePref; onChange: (p: ThemeP
           onClick={() => onChange(o.v)}
           style={{
             border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer',
-            background: pref === o.v ? 'linear-gradient(135deg, #f97316, #ea580c)' : 'transparent',
+            display: 'flex', alignItems: 'center',
+            background: pref === o.v ? ACCENT : 'transparent',
             color: pref === o.v ? '#fff' : 'inherit', fontWeight: pref === o.v ? 600 : 400,
           }}
         >{o.label}</button>
       ))}
+    </div>
+  );
+}
+
+const FOOTER_HEIGHT = 44;
+
+function Footer({ color, background, border }: { color: string; background: string; border: string }) {
+  return (
+    <div style={{
+      position: 'fixed', bottom: 0, left: 0, right: 0, height: FOOTER_HEIGHT, zIndex: 20,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      textAlign: 'center', fontSize: 11, color,
+      background, borderTop: `1px solid ${border}`, backdropFilter: 'blur(10px)',
+    }}>
+      <b style={{ color: ACCENT, fontWeight: 800 }}>netsus</b>&nbsp;· Innovación Tecnológica
     </div>
   );
 }
@@ -99,6 +121,8 @@ export default function AdminPage() {
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'live' | 'history'>('live');
+  const [online, setOnline] = useState(0);
+  const [teamConfigured, setTeamConfigured] = useState(false);
 
   const [themePref, setThemePref] = useState<ThemePref>('auto');
   const [resolved, setResolved] = useState<ResolvedTheme>('dark');
@@ -137,14 +161,18 @@ export default function AdminPage() {
 
   async function fetchData() {
     try {
-      const [presRes, histRes] = await Promise.all([
+      const [presRes, histRes, onlineRes] = await Promise.all([
         fetch('/api/presence/status', { headers: { 'x-api-key': API_KEY } }),
         fetch('/api/presence/history', { headers: { 'x-api-key': API_KEY } }),
+        fetch('/api/team/online', { headers: { 'x-api-key': API_KEY } }),
       ]);
       const presence: TicketPresence[] = await presRes.json().catch(() => []);
       const hist: CollisionEvent[] = await histRes.json().catch(() => []);
+      const onlineData = await onlineRes.json().catch(() => ({ online: 0, configured: false }));
       setTickets(Array.isArray(presence) ? presence : []);
       setHistory(Array.isArray(hist) ? hist : []);
+      setOnline(onlineData.online ?? 0);
+      setTeamConfigured(!!onlineData.configured);
       setLastUpdate(new Date());
     } finally {
       setLoading(false);
@@ -162,59 +190,56 @@ export default function AdminPage() {
 
   if (!auth) {
     return (
-      <div style={{
-        minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: p.pageBg, color: p.text,
-        fontFamily: "'Segoe UI', system-ui, sans-serif", position: 'relative',
+      <div className={montserrat.className} style={{
+        minHeight: '100vh', display: 'flex', flexDirection: 'column',
+        background: p.pageBg, color: p.text, fontWeight: 300, position: 'relative',
       }}>
         <div style={{ position: 'absolute', top: 20, right: 20 }}>
           <ThemeToggle pref={themePref} onChange={changeTheme} />
         </div>
-        <div style={{
-          background: p.cardBg, border: `1px solid ${p.cardBorder}`,
-          borderRadius: 20, padding: '40px 36px', width: 320, textAlign: 'center',
-        }}>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{
-            width: 52, height: 52, borderRadius: 14, margin: '0 auto 20px',
-            background: 'linear-gradient(135deg, #f97316, #ea580c)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 24, boxShadow: '0 4px 16px rgba(249,115,22,0.4)',
-          }}>⚡</div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: p.text, marginBottom: 4 }}>Panel de Administración</div>
-          <div style={{ fontSize: 12, color: p.dim, marginBottom: 28 }}>Autotask CoView · Netsus</div>
-          <input
-            type="password"
-            placeholder="Contraseña"
-            value={pwd}
-            onChange={e => setPwd(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && login()}
-            style={{
-              width: '100%', padding: '10px 14px', borderRadius: 10, fontSize: 14,
-              background: p.inputBg,
-              border: `1px solid ${pwdError ? '#ef4444' : p.inputBorder}`,
-              color: p.text, boxSizing: 'border-box', outline: 'none', marginBottom: 12,
-            }}
-          />
-          {pwdError && <div style={{ fontSize: 12, color: '#ef4444', marginBottom: 10 }}>Contraseña incorrecta</div>}
-          <button onClick={login} style={{
-            width: '100%', padding: '10px', borderRadius: 10, fontSize: 14, fontWeight: 600,
-            background: 'linear-gradient(135deg, #f97316, #ea580c)', color: '#fff',
-            border: 'none', cursor: 'pointer',
-          }}>Ingresar</button>
+            background: p.cardBg, border: `1px solid ${p.cardBorder}`,
+            borderRadius: 20, padding: '40px 36px', width: 320, textAlign: 'center',
+          }}>
+            <img src="/netsus-logo.png" alt="netsus" style={{ height: 28, margin: '0 auto 24px', display: 'block' }} />
+            <div style={{ fontSize: 16, fontWeight: 800, color: p.text, marginBottom: 4 }}>Panel de Administración</div>
+            <div style={{ fontSize: 12, color: p.dim, marginBottom: 28 }}>Autotask CoView · Netsus</div>
+            <input
+              type="password"
+              placeholder="Contraseña"
+              value={pwd}
+              onChange={e => setPwd(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && login()}
+              style={{
+                width: '100%', padding: '10px 14px', borderRadius: 10, fontSize: 14, fontFamily: 'inherit',
+                background: p.inputBg,
+                border: `1px solid ${pwdError ? '#ef4444' : p.inputBorder}`,
+                color: p.text, boxSizing: 'border-box', outline: 'none', marginBottom: 12,
+              }}
+            />
+            {pwdError && <div style={{ fontSize: 12, color: '#ef4444', marginBottom: 10 }}>Contraseña incorrecta</div>}
+            <button onClick={login} style={{
+              width: '100%', padding: '10px', borderRadius: 10, fontSize: 14, fontWeight: 600, fontFamily: 'inherit',
+              background: ACCENT, color: '#fff',
+              border: 'none', cursor: 'pointer',
+            }}>Ingresar</button>
+          </div>
         </div>
+        <Footer color={p.faint} background={p.headerBg} border={p.headerBorder} />
         <style>{`input::placeholder { color: ${p.faint}; }`}</style>
       </div>
     );
   }
 
-  const totalUsers = tickets.reduce((acc, t) => acc + t.users.length, 0);
+  const busyTechs = new Set(tickets.flatMap(t => t.users)).size;
+  const available = teamConfigured ? Math.max(0, online - busyTechs) : null;
+  const collisionsToday = history.filter(e => Date.now() - e.ts < 86400000).length;
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: p.pageBg,
-      fontFamily: "'Segoe UI', system-ui, sans-serif",
-      color: p.text,
+    <div className={montserrat.className} style={{
+      minHeight: '100vh', display: 'flex', flexDirection: 'column',
+      background: p.pageBg, color: p.text, fontWeight: 300,
     }}>
       {/* Header */}
       <div style={{
@@ -224,14 +249,10 @@ export default function AdminPage() {
       }}>
         <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 64 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{
-              width: 36, height: 36, borderRadius: 10,
-              background: 'linear-gradient(135deg, #f97316, #ea580c)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 18, boxShadow: '0 4px 12px rgba(249,115,22,0.4)',
-            }}>⚡</div>
+            <img src="/netsus-logo.png" alt="netsus" style={{ height: 22 }} />
+            <div style={{ width: 1, height: 28, background: p.headerBorder }} />
             <div>
-              <div style={{ fontSize: 15, fontWeight: 700 }}>Collision Detection</div>
+              <div style={{ fontSize: 15, fontWeight: 800 }}>Autotask CoView</div>
               <div style={{ fontSize: 11, color: p.dim, marginTop: -2 }}>Netsus · Panel de control</div>
             </div>
           </div>
@@ -245,21 +266,26 @@ export default function AdminPage() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '40px 40px' }}>
+      <div style={{ maxWidth: 900, margin: '0 auto', padding: `40px 40px ${FOOTER_HEIGHT + 24}px`, width: '100%', boxSizing: 'border-box', flex: 1 }}>
 
         {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 32 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 16, marginBottom: 32 }}>
           {[
-            { label: 'Tickets activos', value: tickets.length, icon: '🎫' },
-            { label: 'Técnicos ocupados', value: totalUsers, icon: '👥' },
-            { label: 'Colisiones hoy', value: history.filter(e => Date.now() - e.ts < 86400000).length, icon: '⚠️' },
-          ].map(({ label, value, icon }) => (
+            { label: 'Tickets activos', value: String(tickets.length), icon: 'ticket' as const, color: ACCENT },
+            { label: 'Técnicos ocupados', value: String(busyTechs), icon: 'users' as const, color: ACCENT },
+            {
+              label: teamConfigured ? 'Técnicos disponibles' : 'Disponibles (requiere n1–n5)',
+              value: available === null ? '—' : String(available),
+              icon: 'user' as const, color: '#22c55e',
+            },
+            { label: 'Colisiones hoy', value: String(collisionsToday), icon: 'alert-triangle' as const, color: '#ef4444' },
+          ].map(({ label, value, icon, color }) => (
             <div key={label} style={{
               background: p.cardBg, border: `1px solid ${p.cardBorder}`,
               borderRadius: 16, padding: '20px 24px',
             }}>
-              <div style={{ fontSize: 22, marginBottom: 8 }}>{icon}</div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: '#f97316' }}>{value}</div>
+              <div style={{ marginBottom: 8, color }}><Icon name={icon} size={22} /></div>
+              <div style={{ fontSize: 28, fontWeight: 800, color }}>{value}</div>
               <div style={{ fontSize: 12, color: p.dim, marginTop: 2 }}>{label}</div>
             </div>
           ))}
@@ -269,11 +295,13 @@ export default function AdminPage() {
         <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
           {(['live', 'history'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)} style={{
-              padding: '6px 18px', borderRadius: 20, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none',
-              background: tab === t ? 'linear-gradient(135deg, #f97316, #ea580c)' : p.chipBg2,
+              padding: '6px 18px', borderRadius: 20, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', border: 'none',
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: tab === t ? ACCENT : p.chipBg2,
               color: tab === t ? '#fff' : p.text,
             }}>
-              {t === 'live' ? '🟢 En vivo' : '📋 Historial'}
+              <Icon name={t === 'live' ? 'circle' : 'clipboard-list'} size={13} />
+              {t === 'live' ? 'En vivo' : 'Historial'}
             </button>
           ))}
         </div>
@@ -283,7 +311,7 @@ export default function AdminPage() {
             <div style={{ textAlign: 'center', padding: '80px 0', color: p.faint, fontSize: 14 }}>Cargando...</div>
           ) : tickets.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '80px 0', background: p.emptyBg, border: `1px dashed ${p.dashedBorder}`, borderRadius: 20 }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
+              <div style={{ marginBottom: 12, color: '#22c55e', display: 'flex', justifyContent: 'center' }}><Icon name="check-circle" size={40} /></div>
               <div style={{ fontSize: 15, color: p.dim }}>Sin colisiones activas</div>
               <div style={{ fontSize: 12, color: p.faint, marginTop: 4 }}>Todos los técnicos trabajan sin conflictos</div>
             </div>
@@ -299,10 +327,11 @@ export default function AdminPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                     <div style={{
                       width: 42, height: 42, borderRadius: 12,
-                      background: users.length > 1 ? 'rgba(249,115,22,0.15)' : p.iconBg,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+                      background: users.length > 1 ? 'rgba(239,68,68,0.15)' : p.iconBg,
+                      color: users.length > 1 ? '#ef4444' : ACCENT,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
-                      {users.length > 1 ? '⚠️' : '🎫'}
+                      <Icon name={users.length > 1 ? 'alert-triangle' : 'ticket'} size={18} />
                     </div>
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 600 }}>{ticketNumber ?? `#${ticketId}`}</div>
@@ -315,9 +344,8 @@ export default function AdminPage() {
                     {users.map((user, i) => (
                       <span key={user} style={{
                         padding: '5px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600,
-                        background: i === 0 ? 'linear-gradient(135deg, #f97316, #ea580c)' : p.chipBg,
+                        background: i === 0 ? ACCENT : p.chipBg,
                         color: i === 0 ? '#fff' : p.text,
-                        boxShadow: i === 0 ? '0 2px 8px rgba(249,115,22,0.3)' : 'none',
                       }}>{user}</span>
                     ))}
                   </div>
@@ -338,7 +366,7 @@ export default function AdminPage() {
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{ fontSize: 16 }}>⚠️</span>
+                  <span style={{ color: '#ef4444', display: 'flex' }}><Icon name="alert-triangle" size={16} /></span>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 600 }}>{e.ticketNumber ?? `#${e.ticketId}`}</div>
                     <div style={{ fontSize: 11, color: p.faint, marginTop: 2 }}>
@@ -350,8 +378,8 @@ export default function AdminPage() {
                   {e.users.map((u, j) => (
                     <span key={u} style={{
                       padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
-                      background: j === 0 ? 'rgba(249,115,22,0.2)' : p.chipBg2,
-                      color: j === 0 ? '#f97316' : p.dim,
+                      background: j === 0 ? 'rgba(56,103,233,0.2)' : p.chipBg2,
+                      color: j === 0 ? ACCENT : p.dim,
                     }}>{u}</span>
                   ))}
                 </div>
@@ -360,6 +388,8 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+
+      <Footer color={p.faint} background={p.headerBg} border={p.headerBorder} />
 
       <style>{`
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }

@@ -3,121 +3,164 @@
 <head>
   <meta charset="UTF-8">
   <title>Panel Admin — Autotask CoView</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;800&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', system-ui, sans-serif; background: linear-gradient(135deg, #0a0e1a 0%, #0f1628 100%); color: #fff; min-height: 100vh; }
-    #loginScreen { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-    .loginBox { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 40px 36px; width: 320px; text-align: center; }
+    :root {
+      --ink-rgb: 255,255,255;
+      --bg-grad: linear-gradient(135deg, #190637 0%, #0d0320 100%);
+      --text: #fff;
+      --date-scheme: dark;
+      --accent: #3867E9;
+      --accent-rgb: 56,103,233;
+      --cyan: #01BFFA;
+      --cyan-rgb: 1,191,250;
+      --purple: #8C52FF;
+      --grad-chart: linear-gradient(90deg, #3867E9, #01BFFA);
+      --dim: rgba(255,255,255,0.55);
+      --faint: rgba(255,255,255,0.32);
+    }
+    html[data-theme="light"] {
+      --ink-rgb: 59,59,59;
+      --bg-grad: linear-gradient(135deg, #F3F3F3 0%, #e7e7ec 100%);
+      --text: #3B3B3B;
+      --date-scheme: light;
+      /* Misma alfa que en oscuro se ve ilegible sobre fondo claro (contraste invertido);
+         estos dos tokens quedan con alfa más alta en modo claro para cumplir ~4.5:1 / ~3:1 */
+      --dim: rgba(59,59,59,0.78);
+      --faint: rgba(59,59,59,0.6);
+    }
+    body { font-family: 'Montserrat', 'Segoe UI', system-ui, sans-serif; font-weight: 300; background: var(--bg-grad); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+    #loginScreen { min-height: 100vh; display: flex; align-items: center; justify-content: center; position: relative; flex: 1; }
+    .loginBox { background: rgba(var(--ink-rgb),0.04); border: 1px solid rgba(var(--ink-rgb),0.08); border-radius: 20px; padding: 40px 36px; width: 320px; text-align: center; }
     .loginIcon { width: 52px; height: 52px; border-radius: 14px; margin: 0 auto 20px; background: none; display: flex; align-items: center; justify-content: center; }
-    .loginTitle { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
-    .loginSub { font-size: 12px; color: rgba(255,255,255,0.35); margin-bottom: 28px; }
-    .loginInput { width: 100%; padding: 10px 14px; border-radius: 10px; font-size: 14px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: #fff; outline: none; margin-bottom: 12px; }
-    .loginInput::placeholder { color: rgba(255,255,255,0.25); }
+    .loginTitle { font-size: 16px; font-weight: 800; margin-bottom: 4px; }
+    .loginSub { font-size: 12px; color: var(--dim); margin-bottom: 28px; }
+    .loginInput { width: 100%; padding: 10px 14px; border-radius: 10px; font-size: 14px; font-family: inherit; background: rgba(var(--ink-rgb),0.06); border: 1px solid rgba(var(--ink-rgb),0.12); color: var(--text); outline: none; margin-bottom: 12px; }
+    .loginInput::placeholder { color: var(--faint); }
     .loginError { font-size: 12px; color: #ef4444; margin-bottom: 10px; }
-    .loginBtn { width: 100%; padding: 10px; border-radius: 10px; font-size: 14px; font-weight: 600; background: linear-gradient(135deg, #f97316, #ea580c); color: #fff; border: none; cursor: pointer; }
-    #panel { display: none; }
-    .header { border-bottom: 1px solid rgba(255,255,255,0.07); padding: 0 40px; background: rgba(255,255,255,0.03); position: sticky; top: 0; z-index: 10; }
+    .loginBtn { width: 100%; padding: 10px; border-radius: 10px; font-size: 14px; font-weight: 600; font-family: inherit; background: var(--accent); color: #fff; border: none; cursor: pointer; }
+    .loginBtn:hover { background: #2f56c9; }
+    #panel { display: none; flex: 1; flex-direction: column; }
+    .header { border-bottom: 1px solid rgba(var(--ink-rgb),0.07); padding: 0 40px; background: rgba(var(--ink-rgb),0.03); position: sticky; top: 0; z-index: 10; }
     .headerInner { max-width: 900px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 64px; }
     .logo { display: flex; align-items: center; gap: 12px; }
     .logoIcon { width: 36px; height: 36px; border-radius: 10px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
-    .logoName { font-size: 15px; font-weight: 700; }
-    .logoSub { font-size: 11px; color: rgba(255,255,255,0.4); margin-top: -2px; }
+    .logoName { font-size: 15px; font-weight: 800; }
+    .logoSub { font-size: 11px; color: var(--dim); margin-top: -2px; }
     .headerRight { display: flex; align-items: center; gap: 12px; }
-    .liveIndicator { display: flex; align-items: center; gap: 6px; font-size: 12px; color: rgba(255,255,255,0.4); }
+    .liveIndicator { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dim); }
     .dot { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 6px #22c55e; animation: pulse 2s infinite; }
-    #countdown { background: rgba(255,255,255,0.07); border-radius: 6px; padding: 2px 7px; font-size: 11px; color: rgba(255,255,255,0.35); }
-    #logoutBtn { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.4); border-radius: 8px; padding: 5px 12px; font-size: 12px; cursor: pointer; }
-    #logoutBtn:hover { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.7); }
-    .content { max-width: 900px; margin: 0 auto; padding: 40px; }
+    #countdown { background: rgba(var(--ink-rgb),0.07); border-radius: 6px; padding: 2px 7px; font-size: 11px; color: var(--faint); }
+    #logoutBtn { font-family: inherit; background: rgba(var(--ink-rgb),0.06); border: 1px solid rgba(var(--ink-rgb),0.1); color: var(--dim); border-radius: 8px; padding: 5px 12px; font-size: 12px; cursor: pointer; }
+    #logoutBtn:hover { background: rgba(var(--ink-rgb),0.1); color: var(--text); }
+    /* Theme toggle */
+    .themeSeg { display: inline-flex; background: rgba(var(--ink-rgb),0.08); border-radius: 8px; padding: 2px; gap: 2px; }
+    .themeSeg button { border: none; background: transparent; color: var(--dim); font-size: 11px; font-family: inherit; padding: 4px 10px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; }
+    .themeSeg button.active { background: var(--accent); color: #fff; font-weight: 600; }
+    .content { max-width: 900px; margin: 0 auto; padding: 40px; width: 100%; }
     .stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 32px; }
-    .stat { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 20px 24px; }
-    .statIcon { font-size: 22px; margin-bottom: 8px; }
-    .statValue { font-size: 28px; font-weight: 700; color: #f97316; }
-    .statLabel { font-size: 12px; color: rgba(255,255,255,0.45); margin-top: 2px; }
+    .stat { background: rgba(var(--ink-rgb),0.04); border: 1px solid rgba(var(--ink-rgb),0.08); border-radius: 16px; padding: 20px 24px; }
+    .statIcon { margin-bottom: 8px; color: var(--accent); }
+    .statValue { font-size: 28px; font-weight: 800; color: var(--accent); }
+    .statLabel { font-size: 12px; color: var(--dim); margin-top: 2px; }
     .tabBar { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
-    .tab { padding: 6px 18px; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; color: #fff; background: rgba(255,255,255,0.06); }
-    .tab.active { background: linear-gradient(135deg, #f97316, #ea580c); }
-    .viewBtn { padding: 5px 14px; border-radius: 16px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.45); background: transparent; }
-    .viewBtn.active { background: rgba(255,255,255,0.1); color: #fff; border-color: rgba(255,255,255,0.25); }
-    .techAvatar { width: 42px; height: 42px; border-radius: 50%; background: linear-gradient(135deg, #f97316, #ea580c); display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; flex-shrink: 0; }
-    .csvBtn { margin-left: auto; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid rgba(255,255,255,0.15); color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.05); }
-    .csvBtn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    .tab { padding: 6px 18px; border-radius: 20px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; border: none; color: var(--text); background: rgba(var(--ink-rgb),0.06); display: flex; align-items: center; gap: 6px; }
+    .tab.active { background: var(--accent); color: #fff; }
+    .viewBtn { padding: 5px 14px; border-radius: 16px; font-size: 12px; font-weight: 600; font-family: inherit; cursor: pointer; border: 1px solid rgba(var(--ink-rgb),0.12); color: var(--dim); background: transparent; display: inline-flex; align-items: center; gap: 5px; }
+    .viewBtn.active { background: rgba(var(--ink-rgb),0.1); color: var(--text); border-color: rgba(var(--ink-rgb),0.25); }
+    .techAvatar { width: 42px; height: 42px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; flex-shrink: 0; color: #fff; }
+    .csvBtn { margin-left: auto; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; font-family: inherit; cursor: pointer; border: 1px solid rgba(var(--ink-rgb),0.15); color: var(--dim); background: rgba(var(--ink-rgb),0.05); display: inline-flex; align-items: center; gap: 5px; }
+    .csvBtn:hover { background: rgba(var(--ink-rgb),0.1); color: var(--text); }
     .filterBar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
-    .filterInput { flex: 1; padding: 8px 12px; border-radius: 10px; font-size: 13px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; outline: none; }
-    .filterInput::placeholder { color: rgba(255,255,255,0.25); }
-    .filterInput[type="date"] { color-scheme: dark; }
+    .filterInput { flex: 1; padding: 8px 12px; border-radius: 10px; font-size: 13px; font-family: inherit; background: rgba(var(--ink-rgb),0.05); border: 1px solid rgba(var(--ink-rgb),0.1); color: var(--text); outline: none; }
+    .filterInput::placeholder { color: var(--faint); }
+    .filterInput[type="date"] { color-scheme: var(--date-scheme); }
     .periodBtns { display: flex; gap: 4px; }
-    .periodBtn { padding: 5px 12px; border-radius: 16px; font-size: 11px; font-weight: 600; cursor: pointer; border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.4); background: transparent; }
-    .periodBtn.active { background: rgba(249,115,22,0.2); border-color: rgba(249,115,22,0.4); color: #f97316; }
-    .ticketCard { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-    .ticketCard.collision { border-color: rgba(249,115,22,0.3); }
+    .periodBtn { padding: 5px 12px; border-radius: 16px; font-size: 11px; font-weight: 600; font-family: inherit; cursor: pointer; border: 1px solid rgba(var(--ink-rgb),0.12); color: var(--dim); background: transparent; }
+    .periodBtn.active { background: rgba(var(--accent-rgb),0.18); border-color: rgba(var(--accent-rgb),0.4); color: var(--accent); }
+    .ticketCard { background: rgba(var(--ink-rgb),0.04); border: 1px solid rgba(var(--ink-rgb),0.08); border-radius: 16px; padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .ticketCard.collision { border-color: rgba(239,68,68,0.35); }
     .ticketLeft { display: flex; align-items: center; gap: 16px; }
-    .ticketIcon { width: 42px; height: 42px; border-radius: 12px; background: rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: center; font-size: 18px; }
-    .ticketIcon.col { background: rgba(249,115,22,0.15); }
+    .ticketIcon { width: 42px; height: 42px; border-radius: 12px; background: rgba(var(--ink-rgb),0.06); display: flex; align-items: center; justify-content: center; color: var(--accent); }
+    .ticketIcon.col { background: rgba(239,68,68,0.15); color: #ef4444; }
     .ticketName { font-size: 14px; font-weight: 600; }
-    .ticketMeta { font-size: 12px; color: rgba(255,255,255,0.4); margin-top: 2px; }
+    .ticketMeta { font-size: 12px; color: var(--dim); margin-top: 2px; }
     .chips { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-    .chip { padding: 5px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; background: rgba(255,255,255,0.1); color: #fff; }
-    .chip.primary { background: linear-gradient(135deg, #f97316, #ea580c); box-shadow: 0 2px 8px rgba(249,115,22,0.3); }
+    .chip { padding: 5px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; background: rgba(var(--ink-rgb),0.1); color: var(--text); }
+    .chip.primary { background: var(--accent); color: #fff; }
     .chip-time { font-size: 10px; opacity: 0.65; margin-left: 3px; font-weight: 400; }
-    .histCard { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
-    .histLeft { display: flex; align-items: center; gap: 12px; }
+    .histCard { background: rgba(var(--ink-rgb),0.03); border: 1px solid rgba(var(--ink-rgb),0.07); border-radius: 12px; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
+    .histLeft { display: flex; align-items: center; gap: 12px; color: #ef4444; }
     .histTicket { font-size: 13px; font-weight: 600; }
-    .histTime { font-size: 11px; color: rgba(255,255,255,0.35); margin-top: 2px; }
-    .histChip { padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.6); }
-    .histChip.first { background: rgba(249,115,22,0.2); color: #f97316; }
-    .empty { text-align: center; padding: 80px 0; background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.1); border-radius: 20px; }
-    .emptyIcon { font-size: 40px; margin-bottom: 12px; }
-    .emptyText { font-size: 15px; color: rgba(255,255,255,0.5); }
-    .emptySub { font-size: 12px; color: rgba(255,255,255,0.25); margin-top: 4px; }
+    .histTime { font-size: 11px; color: var(--faint); margin-top: 2px; }
+    .histChip { padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; background: rgba(var(--ink-rgb),0.08); color: var(--dim); }
+    .histChip.first { background: rgba(var(--accent-rgb),0.2); color: var(--accent); }
+    .empty { text-align: center; padding: 80px 0; background: rgba(var(--ink-rgb),0.02); border: 1px dashed rgba(var(--ink-rgb),0.1); border-radius: 20px; }
+    .emptyIcon { margin-bottom: 12px; color: #22c55e; display: flex; justify-content: center; }
+    .emptyText { font-size: 15px; color: var(--dim); }
+    .emptySub { font-size: 12px; color: var(--faint); margin-top: 4px; }
     /* Config tab */
-    .configSection { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); border-radius: 16px; padding: 24px; margin-bottom: 16px; }
-    .configTitle { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
-    .configSub { font-size: 12px; color: rgba(255,255,255,0.4); margin-bottom: 16px; }
-    .configInput { width: 100%; padding: 10px 14px; border-radius: 10px; font-size: 13px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: #fff; outline: none; }
-    .configInput::placeholder { color: rgba(255,255,255,0.25); }
+    .configSection { background: rgba(var(--ink-rgb),0.03); border: 1px solid rgba(var(--ink-rgb),0.07); border-radius: 16px; padding: 24px; margin-bottom: 16px; }
+    .configTitle { font-size: 14px; font-weight: 800; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+    .configTitle svg { color: var(--accent); }
+    .configSub { font-size: 12px; color: var(--dim); margin-bottom: 16px; font-weight: 300; }
+    .configInput { width: 100%; padding: 10px 14px; border-radius: 10px; font-size: 13px; font-family: inherit; background: rgba(var(--ink-rgb),0.06); border: 1px solid rgba(var(--ink-rgb),0.12); color: var(--text); outline: none; }
+    .configInput::placeholder { color: var(--faint); }
     .configBtns { display: flex; gap: 8px; margin-top: 10px; }
-    .configBtn { padding: 8px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; }
-    .configBtn.primary { background: linear-gradient(135deg, #f97316, #ea580c); color: #fff; }
-    .configBtn.secondary { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.12); }
+    .configBtn { padding: 8px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; border: none; display: inline-flex; align-items: center; gap: 6px; }
+    .configBtn.primary { background: var(--accent); color: #fff; }
+    .configBtn.primary:hover { background: #2f56c9; }
+    .configBtn.secondary { background: rgba(var(--ink-rgb),0.08); color: var(--dim); border: 1px solid rgba(var(--ink-rgb),0.12); }
     .configStatus { font-size: 12px; margin-top: 8px; min-height: 18px; }
     .configStatus.ok { color: #22c55e; }
     .configStatus.err { color: #ef4444; }
     .toggle { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
     .toggle input { opacity: 0; width: 0; height: 0; }
-    .toggle .slider { position: absolute; cursor: pointer; inset: 0; background: rgba(255,255,255,0.15); transition: .3s; border-radius: 22px; }
+    .toggle .slider { position: absolute; cursor: pointer; inset: 0; background: rgba(var(--ink-rgb),0.15); transition: .3s; border-radius: 22px; }
     .toggle .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background: #fff; transition: .3s; border-radius: 50%; }
-    .toggle input:checked + .slider { background: #f97316; }
+    .toggle input:checked + .slider { background: var(--accent); }
     .toggle input:checked + .slider:before { transform: translateX(18px); }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-    .anlSection { background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:16px;padding:24px;margin-bottom:16px; }
-    .anlTitle { font-size:14px;font-weight:700;margin-bottom:16px; }
+    .anlSection { background:rgba(var(--ink-rgb),0.03);border:1px solid rgba(var(--ink-rgb),0.07);border-radius:16px;padding:24px;margin-bottom:16px; }
+    .anlTitle { font-size:14px;font-weight:800;margin-bottom:16px;display:flex;align-items:center;gap:8px; }
+    .anlTitle svg { color: var(--accent); }
     .barRow { display:flex;align-items:center;gap:10px;margin-bottom:8px; }
-    .barLabel { width:140px;font-size:12px;color:rgba(255,255,255,0.7);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0; }
-    .barTrack { flex:1;height:10px;background:rgba(255,255,255,0.06);border-radius:6px;overflow:hidden; }
-    .barFill { height:100%;background:linear-gradient(90deg,#f97316,#ea580c);border-radius:6px;transition:width .5s; }
+    .barLabel { width:140px;font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0; }
+    .barTrack { flex:1;height:10px;background:rgba(var(--ink-rgb),0.06);border-radius:6px;overflow:hidden; }
+    .barFill { height:100%;background:var(--grad-chart);border-radius:6px;transition:width .5s; }
     .barFill.blue { background:linear-gradient(90deg,#3867E9,#2952cc); }
-    .barCount { width:28px;text-align:right;font-size:11px;color:rgba(255,255,255,0.4);flex-shrink:0; }
+    .barFill.purple { background:linear-gradient(90deg,#8C52FF,#6d3fd1); }
+    .barCount { width:28px;text-align:right;font-size:11px;color:var(--dim);flex-shrink:0; }
     .hourGrid { display:grid;grid-template-columns:repeat(24,1fr);gap:3px;align-items:end;height:64px; }
-    .hourBar { background:rgba(249,115,22,0.25);border-radius:2px 2px 0 0;min-height:2px;transition:height .5s; }
-    .hourBar:hover { background:rgba(249,115,22,0.6); }
+    .hourBar { background:rgba(var(--cyan-rgb),0.3);border-radius:2px 2px 0 0;min-height:2px;transition:height .5s; }
+    .hourBar:hover { background:rgba(var(--cyan-rgb),0.7); }
     .hourLabels { display:grid;grid-template-columns:repeat(24,1fr);gap:3px;margin-top:4px; }
-    .hourLbl { font-size:8px;color:rgba(255,255,255,0.2);text-align:center; }
-    .ticketLink { color: inherit; text-decoration: none; border-bottom: 1px dashed rgba(255,255,255,0.3); }
-    .ticketLink:hover { border-bottom-color: #f97316; color: #f97316; }
+    .hourLbl { font-size:8px;color:var(--faint);text-align:center; }
+    .ticketLink { color: inherit; text-decoration: none; border-bottom: 1px dashed rgba(var(--ink-rgb),0.3); }
+    .ticketLink:hover { border-bottom-color: var(--cyan); color: var(--cyan); }
     .chipLink { color: inherit; text-decoration: none; }
     .chipLink:hover { opacity: 0.8; }
     #apiError { display:none; background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.3); border-radius: 10px; padding: 10px 16px; margin-bottom: 16px; font-size: 12px; color: #f87171; }
     .dayGrid { display:grid;grid-template-columns:repeat(30,1fr);gap:3px;align-items:end;height:64px; }
-    .dayBar { background:rgba(56,103,233,0.3);border-radius:2px 2px 0 0;min-height:2px;transition:height .5s;cursor:default; }
-    .dayBar:hover { background:rgba(56,103,233,0.7); }
+    .dayBar { background:rgba(var(--accent-rgb),0.3);border-radius:2px 2px 0 0;min-height:2px;transition:height .5s;cursor:default; }
+    .dayBar:hover { background:rgba(var(--accent-rgb),0.7); }
     .dayLabels { display:grid;grid-template-columns:repeat(30,1fr);gap:3px;margin-top:4px; }
-    .dayLbl { font-size:7px;color:rgba(255,255,255,0.2);text-align:center;overflow:hidden; }
+    .dayLbl { font-size:7px;color:var(--faint);text-align:center;overflow:hidden; }
+    .footer { text-align: center; padding: 18px 20px; font-size: 11px; color: var(--faint); border-top: 1px solid rgba(var(--ink-rgb),0.06); }
+    .footer b { color: var(--accent); font-weight: 800; }
   </style>
 </head>
 <body>
 
 <div id="loginScreen">
+  <div class="themeSeg" id="themeSegLogin" style="position:absolute;top:20px;right:20px">
+    <button type="button" data-theme-val="auto">Auto</button>
+    <button type="button" data-theme-val="light"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></button>
+    <button type="button" data-theme-val="dark"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/></svg></button>
+  </div>
   <div class="loginBox">
     <div class="loginIcon"><img src="icon/128.png" style="width:52px;height:52px;border-radius:14px"></div>
     <div class="loginTitle">Panel de Administración</div>
@@ -132,8 +175,8 @@
   <div class="header">
     <div class="headerInner">
       <div class="logo">
-        <img src="netsus-logo.png" style="height:28px;opacity:0.92">
-        <div style="width:1px;height:28px;background:rgba(255,255,255,0.12);margin:0 4px"></div>
+        <img src="netsus-logo.png" style="height:24px;opacity:0.95">
+        <div style="width:1px;height:28px;background:rgba(var(--ink-rgb),0.12);margin:0 4px"></div>
         <div>
           <div class="logoName">Autotask CoView</div>
           <div class="logoSub">Panel de control</div>
@@ -145,6 +188,11 @@
           <span>En vivo · <span id="lastUpdate">--:--</span></span>
           <span id="countdown">10s</span>
         </div>
+        <div class="themeSeg" id="themeSeg">
+          <button type="button" data-theme-val="auto">Auto</button>
+          <button type="button" data-theme-val="light"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></button>
+          <button type="button" data-theme-val="dark"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/></svg></button>
+        </div>
         <button id="logoutBtn">Cerrar sesión</button>
       </div>
     </div>
@@ -152,16 +200,16 @@
   <div class="content">
     <div id="apiError">⚠️ Sin conexión con la API — <span id="apiErrorTime"></span></div>
     <div class="stats">
-      <div class="stat"><div class="statIcon">🎫</div><div class="statValue" id="statTickets">0</div><div class="statLabel">Tickets activos</div></div>
-      <div class="stat"><div class="statIcon">👥</div><div class="statValue" id="statUsers">0</div><div class="statLabel">Técnicos ocupados</div></div>
-      <div class="stat"><div class="statIcon">⚠️</div><div class="statValue" id="statHistory">0</div><div class="statLabel">Colisiones hoy</div></div>
+      <div class="stat"><div class="statIcon"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg></div><div class="statValue" id="statTickets">0</div><div class="statLabel">Tickets activos</div></div>
+      <div class="stat"><div class="statIcon"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="statValue" id="statUsers">0</div><div class="statLabel">Técnicos ocupados</div></div>
+      <div class="stat"><div class="statIcon" style="color:#ef4444"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m10.29 3.86-8.18 14.14A2 2 0 0 0 3.83 21h16.34a2 2 0 0 0 1.72-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></div><div class="statValue" id="statHistory" style="color:#ef4444">0</div><div class="statLabel">Colisiones hoy</div></div>
     </div>
     <div class="tabBar">
-      <button class="tab active" id="tabLive">🟢 En vivo</button>
-      <button class="tab" id="tabHistory">📋 Historial</button>
-      <button class="tab" id="tabAnalytics">📊 Análisis</button>
-      <button class="tab" id="tabConfig">⚙️ Config</button>
-      <button class="csvBtn" id="exportCsvBtn" style="display:none">↓ Exportar CSV</button>
+      <button class="tab active" id="tabLive"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="12" cy="12" r="8"/></svg> En vivo</button>
+      <button class="tab" id="tabHistory"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg> Historial</button>
+      <button class="tab" id="tabAnalytics"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M7 16h8"/><path d="M7 11h12"/><path d="M7 6h3"/></svg> Análisis</button>
+      <button class="tab" id="tabConfig"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg> Config</button>
+      <button class="csvBtn" id="exportCsvBtn" style="display:none"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m8 11 4 4 4-4"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg> Exportar CSV</button>
     </div>
     <div id="filterBar" class="filterBar" style="display:none">
       <input id="historySearch" class="filterInput" type="text" placeholder="Filtrar por técnico o ticket...">
@@ -176,21 +224,21 @@
       </div>
       <div id="dateRangeRow" style="display:none;gap:6px;align-items:center">
         <input id="dateFrom" type="date" class="filterInput" style="width:130px;padding:5px 8px">
-        <span style="color:rgba(255,255,255,0.3);font-size:12px">→</span>
+        <span style="color:var(--faint);font-size:12px">→</span>
         <input id="dateTo" type="date" class="filterInput" style="width:130px;padding:5px 8px">
       </div>
-      <button class="csvBtn" id="clearHistoryBtn" style="color:#ef4444;border-color:rgba(239,68,68,0.3);margin-left:auto">🗑 Borrar</button>
+      <button class="csvBtn" id="clearHistoryBtn" style="color:#ef4444;border-color:rgba(239,68,68,0.3);margin-left:auto"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Borrar</button>
     </div>
     <div id="liveViewToggle" style="display:flex;gap:6px;margin-bottom:14px">
-      <button class="viewBtn active" id="viewByTicket">🎫 Por ticket</button>
-      <button class="viewBtn" id="viewByTech">👤 Por técnico</button>
+      <button class="viewBtn active" id="viewByTicket"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/></svg> Por ticket</button>
+      <button class="viewBtn" id="viewByTech"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Por técnico</button>
     </div>
     <div id="liveTab"></div>
     <div id="historyTab" style="display:none"></div>
     <div id="analyticsTab" style="display:none"></div>
     <div id="configTab" style="display:none">
       <div class="configSection">
-        <div class="configTitle">🔔 Notificaciones Teams</div>
+        <div class="configTitle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg> Notificaciones Teams</div>
         <div class="configSub">Pega aquí el Incoming Webhook de tu canal de Teams para recibir alertas automáticas cuando se detecte una colisión.</div>
         <input id="webhookInput" class="configInput" type="url" placeholder="https://outlook.office.com/webhook/...">
         <div class="configBtns">
@@ -201,20 +249,20 @@
         <div class="configStatus" id="webhookStatus"></div>
       </div>
       <div class="configSection">
-        <div class="configTitle">⏱ Tiempo de presencia activa</div>
+        <div class="configTitle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg> Tiempo de presencia activa</div>
         <div class="configSub">Segundos que el servidor considera a un técnico "presente" sin recibir señal. Mínimo 15s, máximo 300s. Recomendado: 40s.</div>
         <div style="display:flex;align-items:center;gap:10px">
           <input id="ttlInput" class="configInput" type="number" min="15" max="300" step="5" placeholder="40" style="max-width:100px">
-          <span style="font-size:12px;color:rgba(255,255,255,0.35)">segundos</span>
+          <span style="font-size:12px;color:var(--faint)">segundos</span>
           <button class="configBtn primary" id="saveTtlBtn" style="width:auto">Guardar</button>
         </div>
         <div class="configStatus" id="ttlStatus"></div>
       </div>
       <div class="configSection">
-        <div class="configTitle">🛰️ Notificaciones Autotask (n1–n5)</div>
+        <div class="configTitle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m13 7 9 9-3 3-9-9z"/><path d="m2 22 4-4"/><path d="m17 2 5 5"/><path d="M14.5 4.5 18 8"/><path d="m6 16 4.5 4.5"/><path d="M3 14a6.5 6.5 0 0 1 7-7"/></svg> Notificaciones Autotask (n1–n5)</div>
         <div class="configSub">Centro de notificaciones "COLview". El servidor sondea Autotask y avisa a cada técnico en su extensión: ticket entrante en la cola (n1), asignación (n2), respuesta de cliente (n3), SLA por vencer (n4) y ticket crítico en la cola (n5).</div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin:10px 0">
-          <span style="font-size:13px;color:rgba(255,255,255,0.7)">Activar poller n1–n5</span>
+          <span style="font-size:13px;color:var(--dim)">Activar poller n1–n5</span>
           <label class="toggle"><input type="checkbox" id="notifEnabledInput"><span class="slider"></span></label>
         </div>
         <div class="configSub" style="margin-top:6px">Colas a vigilar (queueID, separados por coma) — para n1 y n5</div>
@@ -236,13 +284,13 @@
         <div class="configStatus" id="notifStatus"></div>
       </div>
       <div class="configSection">
-        <div class="configTitle">📊 Resumen diario a Teams</div>
+        <div class="configTitle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M7 16h8"/><path d="M7 11h12"/><path d="M7 6h3"/></svg> Resumen diario a Teams</div>
         <div class="configSub">Envía un resumen de las colisiones de ayer (o de hoy) al canal de Teams configurado arriba. También puedes llamar este endpoint desde n8n con un trigger programado a las 9:00 AM.</div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
           <button class="configBtn secondary" id="sendYesterdayBtn">Enviar resumen de ayer</button>
           <button class="configBtn secondary" id="sendTodayBtn">Enviar resumen de hoy</button>
         </div>
-        <div class="configSub" style="margin-top:10px;font-family:monospace;background:rgba(255,255,255,0.04);border-radius:6px;padding:8px;font-size:11px;word-break:break-all">
+        <div class="configSub" style="margin-top:10px;font-family:monospace;background:rgba(var(--ink-rgb),0.04);border-radius:6px;padding:8px;font-size:11px;word-break:break-all">
           GET /api/presence/daily-summary?send=true&amp;period=yesterday
         </div>
         <div class="configStatus" id="summaryStatus"></div>
@@ -250,13 +298,14 @@
       <div class="configSection">
         <div class="configTitle">ℹ️ Información</div>
         <div class="configSub">Versión 1.0.0 · Autotask CoView · Netsus</div>
-        <div style="font-size:12px;color:rgba(255,255,255,0.35);line-height:1.8">
-          API: <a href="https://netsus-two.vercel.app" style="color:#f97316" target="_blank">netsus-two.vercel.app</a><br>
-          Política de privacidad: <a href="https://netsus-two.vercel.app/privacy" style="color:#f97316" target="_blank">ver política</a>
+        <div style="font-size:12px;color:var(--dim);line-height:1.8">
+          API: <a href="https://netsus-two.vercel.app" style="color:var(--accent)" target="_blank">netsus-two.vercel.app</a><br>
+          Política de privacidad: <a href="https://netsus-two.vercel.app/privacy" style="color:var(--accent)" target="_blank">ver política</a>
         </div>
       </div>
     </div>
   </div>
+  <div class="footer"><b>netsus</b> · Innovación Tecnológica</div>
 </div>
 
 <script src="admin.js"></script>

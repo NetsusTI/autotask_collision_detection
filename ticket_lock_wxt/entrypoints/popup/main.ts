@@ -42,6 +42,17 @@ function showUser(name: string, isAuto: boolean) {
   input.value = name;
 }
 
+// Iconos estáticos de las etiquetas (los textos ya no llevan emoji inline en el HTML)
+document.getElementById('soundLabel')!.innerHTML = icon('volume-2', { size: 13 }) + ' Sonido de alerta';
+document.getElementById('renagLabel')!.innerHTML = icon('bell', { size: 13 }) + ' Re-avisar cada';
+document.getElementById('themeLabel')!.innerHTML = icon('palette', { size: 13 }) + ' Tema';
+document.getElementById('prefsSummary')!.innerHTML = icon('bell', { size: 12 }) + ' Tipos de notificación';
+document.getElementById('collisionLabel')!.innerHTML = `<span style="color:#ef4444;display:flex">${icon('alert-triangle', { size: 12 })}</span> Colisiones activas`;
+document.querySelector<HTMLButtonElement>('#themeSeg button[data-theme-val="light"]')!.innerHTML = icon('sun', { size: 12 });
+document.querySelector<HTMLButtonElement>('#themeSeg button[data-theme-val="dark"]')!.innerHTML = icon('moon', { size: 12 });
+const nameWarningIcon = document.querySelector('#nameWarning');
+if (nameWarningIcon) nameWarningIcon.innerHTML = `<span style="display:inline-flex;vertical-align:middle;margin-right:4px">${icon('alert-triangle', { size: 12 })}</span>${nameWarningIcon.textContent!.trim()}`;
+
 chrome.storage.local.get(['netsus_user', 'netsus_user_auto', 'netsus_sound'], ({ netsus_user, netsus_user_auto, netsus_sound }) => {
   if (netsus_user) {
     showUser(netsus_user, !!netsus_user_auto);
@@ -102,7 +113,7 @@ chrome.runtime.sendMessage({ type: 'NETSUS_STATUS' }, (res: any) => {
   if (chrome.runtime.lastError) return;
   if (res && !res.online) {
     const footer = document.getElementById('footer');
-    if (footer) footer.innerHTML = '<span style="color:#ef4444">⚠ Sin conexión al servidor</span>';
+    if (footer) footer.innerHTML = `<span style="color:#ef4444;display:inline-flex;align-items:center;gap:4px">${icon('alert-triangle', { size: 11 })} Sin conexión al servidor</span>`;
   }
 });
 

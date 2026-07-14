@@ -8,6 +8,7 @@ import {
   type Severity,
 } from '@/lib/notifications';
 import { getTypePrefs, isMuted, subscribePrefs, type TypePrefs } from '@/lib/prefs';
+import { icon } from '@/lib/icons';
 
 export default defineContentScript({
   matches: ['https://*.autotask.net/*'],
@@ -120,7 +121,17 @@ export default defineContentScript({
       "><div style="width:${pct}%;height:100%;background:rgba(255,255,255,0.8);border-radius:2px;"></div></div>`;
     }
 
+    function injectBrandFont() {
+      if (document.getElementById('netsus-font-link')) return;
+      const link = document.createElement('link');
+      link.id = 'netsus-font-link';
+      link.rel = 'stylesheet';
+      link.href = 'https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;800&display=swap';
+      document.head.appendChild(link);
+    }
+
     function injectBannerStyles() {
+      injectBrandFont();
       if (document.getElementById('netsus-styles')) return;
       const s = document.createElement('style');
       s.id = 'netsus-styles';
@@ -137,8 +148,9 @@ export default defineContentScript({
           border: 1px solid rgba(255,255,255,0.35); color: white;
           border-radius: 18px; padding: 5px 14px;
           font-size: 12px; font-weight: 600; cursor: pointer;
+          display: inline-flex; align-items: center; gap: 5px;
           white-space: nowrap; background: rgba(255,255,255,0.15);
-          transition: background 0.15s; font-family: 'Segoe UI', sans-serif;
+          transition: background 0.15s; font-family: 'Montserrat', 'Segoe UI', sans-serif;
         }
         #netsus-presence-banner .nb-btn:hover { background: rgba(255,255,255,0.28); }
         #netsus-presence-banner .nb-btn.ghost { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.2); }
@@ -224,7 +236,7 @@ export default defineContentScript({
         for (const n of due) {
           if (isMuted(typePrefs, n.type)) continue; // tipo silenciado: no re-insiste
           playSoundForSeverity(n.severity);
-          sendChromeNotification(`🔔 ${n.title}`, n.body);
+          sendChromeNotification(`🔔 ${n.title}`, n.body); // pop-up del SO: sin soporte SVG, mantiene emoji
           await bumpNag(n.id);
         }
       }, 30000);
@@ -275,7 +287,7 @@ export default defineContentScript({
         <div id="netsus-banner-inner" style="
           position:fixed;top:0;left:0;right:0;z-index:999999;
           background:linear-gradient(90deg,#991b1b 0%,#dc2626 100%);
-          color:white;font-family:'Segoe UI',sans-serif;
+          color:white;font-family:'Montserrat','Segoe UI',sans-serif;
           box-shadow:0 4px 20px rgba(0,0,0,0.5);
           display:flex;align-items:center;padding:10px 20px;gap:12px;
           animation:netsus-slide-in 0.22s ease-out;
@@ -289,14 +301,14 @@ export default defineContentScript({
               ${ticketLabel ? ticketLabel + ' · ' : ''}Espera a que ${sorted.length === 1 ? 'finalice' : 'finalicen'}
             </div>
           </div>
-          <button class="nb-btn" id="netsus-ping-btn">📣 Avisar</button>
+          <button class="nb-btn" id="netsus-ping-btn">${icon('megaphone', { size: 13, color: '#fff' })} Avisar</button>
           <div style="display:flex;gap:3px;align-items:center">
-            <span style="font-size:11px;opacity:0.5;margin-right:2px">⏸</span>
+            <span style="opacity:0.5;margin-right:2px;display:inline-flex">${icon('pause', { size: 11, color: '#fff' })}</span>
             <button class="nb-btn ghost" data-pause="5">5'</button>
             <button class="nb-btn ghost" data-pause="15">15'</button>
             <button class="nb-btn ghost" data-pause="30">30'</button>
           </div>
-          <button class="nb-btn" id="netsus-finish-btn">✓ Terminé</button>
+          <button class="nb-btn" id="netsus-finish-btn">${icon('check', { size: 13, color: '#fff' })} Terminé</button>
           <button class="nb-btn icon" id="netsus-minimize-btn" title="Minimizar">—</button>
         </div>
       `;
@@ -327,14 +339,14 @@ export default defineContentScript({
         if (pingCooldown || !currentTicketId || !currentUser) return;
         pingCooldown = true;
         const btn = document.getElementById('netsus-ping-btn') as HTMLButtonElement;
-        if (btn) { btn.textContent = '✓ Enviado'; btn.style.opacity = '0.5'; }
+        if (btn) { btn.innerHTML = `${icon('check', { size: 13, color: '#fff' })} Enviado`; btn.style.opacity = '0.5'; }
         apiCall('POST', `/api/presence/${currentTicketId}`, {
           user: currentUser,
           ping: sorted.map(u => u.name),
         }, () => {});
         setTimeout(() => {
           pingCooldown = false;
-          if (btn) { btn.textContent = '📣 Avisar'; btn.style.opacity = '1'; }
+          if (btn) { btn.innerHTML = `${icon('megaphone', { size: 13, color: '#fff' })} Avisar`; btn.style.opacity = '1'; }
         }, 15000);
       });
 
@@ -362,7 +374,7 @@ export default defineContentScript({
         <div id="netsus-pill-inner" style="
           position:fixed;bottom:24px;right:24px;z-index:999999;
           background:linear-gradient(135deg,#991b1b,#dc2626);
-          color:white;font-family:'Segoe UI',sans-serif;
+          color:white;font-family:'Montserrat','Segoe UI',sans-serif;
           border-radius:28px;padding:10px 18px;
           box-shadow:0 6px 24px rgba(0,0,0,0.45);
           display:flex;align-items:center;gap:8px;
@@ -370,7 +382,7 @@ export default defineContentScript({
           border:1px solid rgba(255,255,255,0.15);
           user-select:none;
         ">
-          <span style="font-size:14px">🚫</span>
+          <span style="display:inline-flex">${icon('ban', { size: 14, color: '#fff' })}</span>
           <span id="netsus-pill-text" style="font-size:12px;font-weight:700">
             ${sorted.map(u => u.name.split(' ')[0]).join(', ')}
             · ${formatTime(sorted[0]?.minutes ?? 0)}
@@ -447,12 +459,12 @@ export default defineContentScript({
       el.innerHTML = `<div style="
         position:fixed;bottom:0;left:0;right:0;z-index:999996;
         background:linear-gradient(90deg,#374151,#4b5563);
-        color:white;font-family:'Segoe UI',sans-serif;
+        color:white;font-family:'Montserrat','Segoe UI',sans-serif;
         box-shadow:0 -2px 12px rgba(0,0,0,0.4);
         display:flex;align-items:center;justify-content:center;gap:10px;padding:7px 20px;
         animation:netsus-slide-in 0.22s ease-out;
       ">
-        <span style="font-size:13px">⚠️</span>
+        <span style="display:inline-flex">${icon('alert-triangle', { size: 15, color: '#fff' })}</span>
         <span style="font-size:11px;font-weight:600">Sin conexión con el servidor de detección — las colisiones no se están registrando</span>
       </div>`;
       document.body.appendChild(el);
@@ -532,12 +544,12 @@ export default defineContentScript({
         <div style="
           position:fixed;top:0;left:0;right:0;z-index:999999;
           background:linear-gradient(90deg,#14532d,#16a34a);
-          color:white;font-family:'Segoe UI',sans-serif;
+          color:white;font-family:'Montserrat','Segoe UI',sans-serif;
           box-shadow:0 4px 20px rgba(0,0,0,0.4);
           display:flex;align-items:center;justify-content:center;gap:12px;padding:12px 20px;
           animation:netsus-slide-in 0.22s ease-out;
         ">
-          <span style="font-size:20px">✅</span>
+          <span style="display:inline-flex">${icon('check-circle', { size: 20, color: '#fff' })}</span>
           <span style="font-size:14px;font-weight:700">El ticket está libre. Ya puedes trabajar en él.</span>
         </div>
       `;
@@ -593,13 +605,13 @@ export default defineContentScript({
         banner.innerHTML = `
           <div style="
             position:fixed;top:0;left:0;right:0;z-index:999999;
-            background:linear-gradient(90deg,#1e3a8a,#2563eb);
-            color:white;font-family:'Segoe UI',sans-serif;
+            background:linear-gradient(90deg,#1e3a8a,#3867E9);
+            color:white;font-family:'Montserrat','Segoe UI',sans-serif;
             box-shadow:0 4px 20px rgba(0,0,0,0.4);
             display:flex;align-items:center;justify-content:center;gap:12px;padding:10px 20px;
             animation:netsus-slide-in 0.22s ease-out;
           ">
-            <span style="font-size:18px">⏸</span>
+            <span style="display:inline-flex">${icon('pause', { size: 16, color: '#fff' })}</span>
             <span style="font-size:13px;font-weight:700">
               Presencia pausada — volverás en <strong>${m}:${s.toString().padStart(2,'0')}</strong>
             </span>
@@ -663,19 +675,19 @@ export default defineContentScript({
       el.innerHTML = `<div style="
         position:fixed;bottom:0;left:0;right:0;z-index:999997;
         background:linear-gradient(90deg,#78350f,#d97706);
-        color:white;font-family:'Segoe UI',sans-serif;
+        color:white;font-family:'Montserrat','Segoe UI',sans-serif;
         box-shadow:0 -2px 12px rgba(0,0,0,0.4);
         display:flex;align-items:center;justify-content:center;gap:10px;padding:8px 20px;
         animation:netsus-slide-in 0.22s ease-out;
       ">
-        <span style="font-size:15px">🔥</span>
+        <span style="display:inline-flex">${icon('flame', { size: 16, color: '#fff' })}</span>
         <span style="font-size:12px;font-weight:600">
           Este ticket tuvo <strong>${count} colisión${count !== 1 ? 'es' : ''}</strong> en el pasado — avisa cuando termines
         </span>
         <button id="netsus-history-close" style="
           background:rgba(255,255,255,0.2);border:none;color:white;border-radius:12px;
-          padding:2px 10px;font-size:11px;cursor:pointer;margin-left:8px;
-        ">✕</button>
+          padding:4px 10px;font-size:11px;cursor:pointer;margin-left:8px;display:inline-flex;align-items:center;
+        ">${icon('x', { size: 12, color: '#fff' })}</button>
       </div>`;
       document.body.appendChild(el);
       document.getElementById('netsus-history-close')?.addEventListener('click', () => {
@@ -692,16 +704,16 @@ export default defineContentScript({
       el.innerHTML = `<div style="
         position:fixed;bottom:0;left:0;right:0;z-index:999998;
         background:linear-gradient(90deg,#78350f,#b45309);
-        color:white;font-family:'Segoe UI',sans-serif;
+        color:white;font-family:'Montserrat','Segoe UI',sans-serif;
         box-shadow:0 -2px 12px rgba(0,0,0,0.4);
         display:flex;align-items:center;justify-content:center;gap:10px;padding:8px 20px;
       ">
-        <span style="font-size:15px">📋</span>
+        <span style="display:inline-flex">${icon('clipboard-list', { size: 16, color: '#fff' })}</span>
         <span style="font-size:12px;font-weight:600">Este ticket está asignado a <strong>${assignedTo}</strong></span>
         <button id="netsus-assign-close" style="
           background:rgba(255,255,255,0.2);border:none;color:white;border-radius:12px;
-          padding:2px 10px;font-size:11px;cursor:pointer;margin-left:8px;
-        ">✕</button>
+          padding:4px 10px;font-size:11px;cursor:pointer;margin-left:8px;display:inline-flex;align-items:center;
+        ">${icon('x', { size: 12, color: '#fff' })}</button>
       </div>`;
       document.body.appendChild(el);
       document.getElementById('netsus-assign-close')?.addEventListener('click', () => el.remove());

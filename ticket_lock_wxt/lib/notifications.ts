@@ -51,7 +51,7 @@ export const TYPE_META: Record<NotifType, { severity: Severity; icon: IconName; 
 export const SEVERITY_COLOR: Record<Severity, { base: string; grad: [string, string]; tint: string }> = {
   critical: { base: '#ef4444', grad: ['#991b1b', '#dc2626'], tint: 'rgba(239,68,68,0.12)' },
   warning:  { base: '#f97316', grad: ['#b45309', '#f97316'], tint: 'rgba(249,115,22,0.12)' },
-  info:     { base: '#3b82f6', grad: ['#1e3a8a', '#2563eb'], tint: 'rgba(59,130,246,0.12)' },
+  info:     { base: '#3867E9', grad: ['#1e3a8a', '#3867E9'], tint: 'rgba(56,103,233,0.12)' },
   success:  { base: '#22c55e', grad: ['#14532d', '#16a34a'], tint: 'rgba(34,197,94,0.12)' },
 };
 
