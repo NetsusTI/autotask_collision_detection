@@ -66,6 +66,75 @@
     input:checked + .slider { background: #f97316; }
     input:checked + .slider:before { transform: translateX(16px); }
     #modeDesc { font-size: 10px; color: rgba(255,255,255,0.3); text-align: right; margin-top: 3px; }
+    .renag-row { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+    .renag-row input {
+      width: 56px; padding: 5px 6px; margin: 0; text-align: center; font-size: 12px;
+    }
+    /* Centro de notificaciones (espejo del buzón in-page) */
+    #notifSection { margin-top: 6px; }
+    .notif-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    .notif-head .col-label { margin: 0; display: flex; align-items: center; gap: 6px; }
+    .notif-count {
+      background: #ef4444; color: #fff; font-size: 10px; font-weight: 800;
+      min-width: 16px; height: 16px; border-radius: 8px; padding: 0 4px;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .notif-readall {
+      background: none; border: none; color: rgba(255,255,255,0.4);
+      font-size: 10px; cursor: pointer; padding: 2px 4px;
+    }
+    .notif-readall:hover { color: #fff; }
+    .notif-list { display: flex; flex-direction: column; gap: 5px; max-height: 220px; overflow-y: auto; }
+    .notif-item {
+      display: flex; gap: 8px; align-items: flex-start; padding: 7px 9px;
+      border-radius: 8px; cursor: pointer; border-left: 3px solid transparent;
+      background: rgba(255,255,255,0.04);
+    }
+    .notif-item.unread { background: var(--tint); border-left-color: var(--sev); }
+    .notif-item.read { opacity: 0.55; }
+    .notif-item:hover { background: rgba(255,255,255,0.09); }
+    .notif-ico { flex-shrink: 0; margin-top: 1px; }
+    .notif-body { flex: 1; min-width: 0; }
+    .notif-title { font-size: 12px; font-weight: 700; color: #f1f5f9; display: flex; align-items: center; gap: 5px; }
+    .notif-text { font-size: 11px; color: rgba(255,255,255,0.55); line-height: 1.3; margin-top: 1px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .notif-time { font-size: 10px; color: rgba(255,255,255,0.35); margin-top: 2px; }
+    .notif-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .notif-empty { font-size: 11px; color: rgba(255,255,255,0.3); text-align: center; padding: 14px 0; }
+    /* Selector de tema */
+    .theme-seg { display: inline-flex; background: rgba(255,255,255,0.06); border-radius: 8px; padding: 2px; gap: 2px; }
+    .theme-seg button { border: none; background: transparent; color: rgba(255,255,255,0.5); font-size: 11px; padding: 4px 9px; border-radius: 6px; cursor: pointer; }
+    .theme-seg button.active { background: #f97316; color: #fff; font-weight: 600; }
+    /* Preferencias por tipo */
+    .prefs-details { margin-top: 10px; }
+    .prefs-details summary { font-size: 11px; color: rgba(255,255,255,0.45); cursor: pointer; list-style: none; padding: 4px 0; }
+    .prefs-details summary::-webkit-details-marker { display: none; }
+    .prefs-details summary::before { content: "▸ "; }
+    .prefs-details[open] summary::before { content: "▾ "; }
+    .pref-row { display: flex; align-items: center; justify-content: space-between; padding: 5px 0; }
+    .pref-label { font-size: 12px; color: rgba(255,255,255,0.7); }
+    /* Modo claro (override; oscuro es el default) */
+    html[data-theme="light"] body { background: #f1f5f9; color: #0f172a; }
+    html[data-theme="light"] #current { color: #0f172a; }
+    html[data-theme="light"] #autoLabel,
+    html[data-theme="light"] label,
+    html[data-theme="light"] .mode-label,
+    html[data-theme="light"] .col-label,
+    html[data-theme="light"] .prefs-details summary { color: rgba(15,23,42,0.55); }
+    html[data-theme="light"] .pref-label { color: rgba(15,23,42,0.75); }
+    html[data-theme="light"] input { background: rgba(15,23,42,0.05); border-color: rgba(15,23,42,0.15); color: #0f172a; }
+    html[data-theme="light"] .btn-ghost { background: rgba(15,23,42,0.05); color: rgba(15,23,42,0.6); border-color: rgba(15,23,42,0.12); }
+    html[data-theme="light"] hr { border-color: rgba(15,23,42,0.1); }
+    html[data-theme="light"] .theme-seg { background: rgba(15,23,42,0.06); }
+    html[data-theme="light"] .theme-seg button { color: rgba(15,23,42,0.55); }
+    html[data-theme="light"] .theme-seg button.active { color: #fff; }
+    html[data-theme="light"] .notif-item { background: rgba(15,23,42,0.04); }
+    html[data-theme="light"] .notif-item:hover { background: rgba(15,23,42,0.09); }
+    html[data-theme="light"] .notif-title { color: #0f172a; }
+    html[data-theme="light"] .notif-text { color: rgba(15,23,42,0.6); }
+    html[data-theme="light"] .notif-time { color: rgba(15,23,42,0.4); }
+    html[data-theme="light"] .col-users { color: rgba(15,23,42,0.6); }
+    html[data-theme="light"] .slider { background: rgba(15,23,42,0.2); }
   </style>
 </head>
 <body>
@@ -85,10 +154,37 @@
       <span class="slider"></span>
     </label>
   </div>
+  <div class="renag-row">
+    <span class="mode-label">🔔 Re-avisar cada</span>
+    <div style="display:flex;align-items:center;gap:5px">
+      <input id="renagInput" type="number" min="1" max="60" value="3" />
+      <span class="mode-label">min</span>
+    </div>
+  </div>
+  <div class="renag-row">
+    <span class="mode-label">🎨 Tema</span>
+    <div class="theme-seg" id="themeSeg">
+      <button type="button" data-theme-val="auto">Auto</button>
+      <button type="button" data-theme-val="light">☀️</button>
+      <button type="button" data-theme-val="dark">🌙</button>
+    </div>
+  </div>
+  <details class="prefs-details">
+    <summary>🔔 Tipos de notificación</summary>
+    <div id="typePrefsList"></div>
+  </details>
   <div id="collisionSection" style="display:none">
     <hr />
     <div class="col-label">⚠️ Colisiones activas</div>
     <div id="collisionList"></div>
+  </div>
+  <hr />
+  <div id="notifSection">
+    <div class="notif-head">
+      <div class="col-label">Notificaciones <span id="notifCount" class="notif-count" style="display:none">0</span></div>
+      <button id="notifReadAll" class="notif-readall">Marcar leídas</button>
+    </div>
+    <div id="notifList" class="notif-list"></div>
   </div>
   <hr style="border:none;border-top:1px solid rgba(255,255,255,0.08);margin:14px 0 10px"/>
   <button class="btn-ghost" id="adminBtn">Panel Admin</button>

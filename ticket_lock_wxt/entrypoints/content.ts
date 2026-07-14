@@ -1,5 +1,16 @@
+import { mountNotificationCenter } from '@/lib/notification-center';
+import {
+  add as addNotif,
+  getAll as getNotifs,
+  dueForRenag,
+  getRenagMinutes,
+  bumpNag,
+  type Severity,
+} from '@/lib/notifications';
+import { getTypePrefs, isMuted, subscribePrefs, type TypePrefs } from '@/lib/prefs';
+
 export default defineContentScript({
-  matches: ['https://ww12.autotask.net/*'],
+  matches: ['https://*.autotask.net/*'],
   runAt: 'document_idle',
   main() {
     let currentTicketId: string | null = null;
@@ -12,9 +23,14 @@ export default defineContentScript({
     let lastOthers: OtherUser[] = [];
     let minimizeTimerId: number | undefined;
     let pingCooldown = false;
+    let autoPingTimer: number | undefined;
+    let autoPingFired = false;
+    const AUTO_PING_MINUTES = 5;
 
     const AVATAR_COLORS = ['#f97316', '#3b82f6', '#8b5cf6', '#10b981', '#ec4899'];
     let minimizePref = false; // loaded from storage
+    let renagTimer: number | undefined;
+    let typePrefs: TypePrefs = {};
 
     interface OtherUser { name: string; minutes: number; }
 
@@ -187,6 +203,33 @@ export default defineContentScript({
       });
     }
 
+    const SEVERITY_SOUND: Record<Severity, 'alert' | 'free' | 'ping' | 'new_entry'> = {
+      critical: 'alert',
+      warning: 'ping',
+      info: 'new_entry',
+      success: 'free',
+    };
+
+    function playSoundForSeverity(sev: Severity) {
+      if (soundEnabled) playSound(SEVERITY_SOUND[sev]);
+    }
+
+    // Re-nag: si una notificación con re-insistencia sigue sin leerse tras X min,
+    // vuelve a avisar (sonido + pop-up del sistema). Config: netsus_renag_min.
+    function startRenagLoop() {
+      clearInterval(renagTimer);
+      renagTimer = window.setInterval(async () => {
+        const [list, renagMin] = await Promise.all([getNotifs(), getRenagMinutes()]);
+        const due = dueForRenag(list, renagMin);
+        for (const n of due) {
+          if (isMuted(typePrefs, n.type)) continue; // tipo silenciado: no re-insiste
+          playSoundForSeverity(n.severity);
+          sendChromeNotification(`🔔 ${n.title}`, n.body);
+          await bumpNag(n.id);
+        }
+      }, 30000);
+    }
+
     function lockUI() {
       if (document.getElementById('netsus-lock-style')) return;
       const style = document.createElement('style');
@@ -323,8 +366,9 @@ export default defineContentScript({
           border-radius:28px;padding:10px 18px;
           box-shadow:0 6px 24px rgba(0,0,0,0.45);
           display:flex;align-items:center;gap:8px;
-          cursor:pointer;animation:netsus-pop-in 0.2s ease-out;
+          cursor:grab;animation:netsus-pop-in 0.2s ease-out;
           border:1px solid rgba(255,255,255,0.15);
+          user-select:none;
         ">
           <span style="font-size:14px">🚫</span>
           <span id="netsus-pill-text" style="font-size:12px;font-weight:700">
@@ -334,7 +378,44 @@ export default defineContentScript({
           <span style="font-size:10px;opacity:0.55;margin-left:2px">ver</span>
         </div>
       `;
+
+      // Drag logic
+      const inner = pill.querySelector<HTMLElement>('#netsus-pill-inner')!;
+      let dragging = false;
+      let dragStartX = 0, dragStartY = 0, origRight = 24, origBottom = 24;
+      let moved = false;
+
+      inner.addEventListener('mousedown', (e) => {
+        dragging = true;
+        moved = false;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        const rect = inner.getBoundingClientRect();
+        origRight = window.innerWidth - rect.right;
+        origBottom = window.innerHeight - rect.bottom;
+        inner.style.cursor = 'grabbing';
+        e.preventDefault();
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!dragging) return;
+        const dx = e.clientX - dragStartX;
+        const dy = e.clientY - dragStartY;
+        if (Math.abs(dx) > 4 || Math.abs(dy) > 4) moved = true;
+        const newRight = Math.max(8, origRight - dx);
+        const newBottom = Math.max(8, origBottom - dy);
+        inner.style.right = newRight + 'px';
+        inner.style.bottom = newBottom + 'px';
+        inner.style.left = 'auto';
+        inner.style.top = 'auto';
+      });
+
+      document.addEventListener('mouseup', () => {
+        if (dragging) { dragging = false; inner.style.cursor = 'grab'; }
+      });
+
       pill.addEventListener('click', () => {
+        if (moved) return; // suppress click after drag
         clearTimeout(minimizeTimerId);
         bannerState = 'full';
         renderFullBanner(lastOthers);
@@ -358,6 +439,43 @@ export default defineContentScript({
       }
     }
 
+    function showOfflineBanner() {
+      if (document.getElementById('netsus-offline-banner')) return;
+      injectBannerStyles();
+      const el = document.createElement('div');
+      el.id = 'netsus-offline-banner';
+      el.innerHTML = `<div style="
+        position:fixed;bottom:0;left:0;right:0;z-index:999996;
+        background:linear-gradient(90deg,#374151,#4b5563);
+        color:white;font-family:'Segoe UI',sans-serif;
+        box-shadow:0 -2px 12px rgba(0,0,0,0.4);
+        display:flex;align-items:center;justify-content:center;gap:10px;padding:7px 20px;
+        animation:netsus-slide-in 0.22s ease-out;
+      ">
+        <span style="font-size:13px">⚠️</span>
+        <span style="font-size:11px;font-weight:600">Sin conexión con el servidor de detección — las colisiones no se están registrando</span>
+      </div>`;
+      document.body.appendChild(el);
+    }
+
+    function removeOfflineBanner() {
+      document.getElementById('netsus-offline-banner')?.remove();
+    }
+
+    function startAutoPing(others: OtherUser[]) {
+      clearTimeout(autoPingTimer);
+      if (autoPingFired || !others.length) return;
+      autoPingTimer = window.setTimeout(() => {
+        if (!currentTicketId || !currentUser || !others.length) return;
+        autoPingFired = true;
+        apiCall('POST', `/api/presence/${currentTicketId}`, {
+          user: currentUser,
+          ping: others.map(o => o.name),
+        }, () => {});
+        sendChromeNotification('📣 Auto-aviso enviado', `Se notificó a ${formatNames(others)} después de ${AUTO_PING_MINUTES} min de espera`);
+      }, AUTO_PING_MINUTES * 60 * 1000);
+    }
+
     function showBanner(others: OtherUser[]) {
       const prevNames = new Set(lastOthers.map(o => o.name));
       const hasNewEntry = others.some(o => !prevNames.has(o.name));
@@ -379,15 +497,29 @@ export default defineContentScript({
       bannerState = 'full';
       renderFullBanner(others);
       if (!wasLocked) {
-        if (soundEnabled) playSound('alert');
+        const colMuted = isMuted(typePrefs, 'collision');
+        if (soundEnabled && !colMuted) playSound('alert');
         const verb = others.length === 1 ? 'está' : 'están';
-        sendChromeNotification('Ticket ocupado', `${formatNames(others)} ${verb} trabajando en este ticket`);
+        if (!colMuted) sendChromeNotification('Ticket ocupado', `${formatNames(others)} ${verb} trabajando en este ticket`);
+        const ticketLabel = extractTicketNumber();
+        addNotif({
+          type: 'collision',
+          title: 'Colisión detectada',
+          body: `${formatNames(others)} ${verb} trabajando en ${ticketLabel ?? 'este ticket'}`,
+          ticketId: currentTicketId ?? undefined,
+          ticketNumber: ticketLabel ?? undefined,
+          ticketUrl: window.location.href,
+          silent: true, // el banner ya avisó; solo registrar en el buzón
+        });
       }
+      if (!wasLocked) startAutoPing(others); // start timer only on first collision detection
       wasLocked = true;
     }
 
     function showLiberationBanner() {
       clearTimeout(minimizeTimerId);
+      clearTimeout(autoPingTimer);
+      autoPingFired = false;
       bannerState = 'none';
       const existing = document.getElementById('netsus-presence-banner');
       if (existing) existing.remove();
@@ -410,8 +542,19 @@ export default defineContentScript({
         </div>
       `;
       document.body.prepend(banner);
-      if (soundEnabled) playSound('free');
-      sendChromeNotification('Ticket liberado', 'Ya puedes trabajar en este ticket');
+      const libMuted = isMuted(typePrefs, 'liberation');
+      if (soundEnabled && !libMuted) playSound('free');
+      if (!libMuted) sendChromeNotification('Ticket liberado', 'Ya puedes trabajar en este ticket');
+      const libLabel = extractTicketNumber();
+      addNotif({
+        type: 'liberation',
+        title: 'Ticket liberado',
+        body: `Ya puedes trabajar en ${libLabel ?? 'este ticket'}`,
+        ticketId: currentTicketId ?? undefined,
+        ticketNumber: libLabel ?? undefined,
+        ticketUrl: window.location.href,
+        silent: true,
+      });
       const escHandler = (e: KeyboardEvent) => { if (e.key === 'Escape') { removeBanner(); document.removeEventListener('keydown', escHandler); } };
       document.addEventListener('keydown', escHandler);
       setTimeout(() => { removeBanner(); document.removeEventListener('keydown', escHandler); }, 5000);
@@ -480,6 +623,8 @@ export default defineContentScript({
       }, 1000);
     }
 
+    let consecutiveFailures = 0;
+
     function apiCall(
       method: string,
       path: string,
@@ -489,10 +634,55 @@ export default defineContentScript({
       browser.runtime
         .sendMessage({ type: 'NETSUS_API', method, path, body })
         .then((res: any) => {
-          if (!res?.sent) return;
+          if (!res?.sent) {
+            consecutiveFailures++;
+            if (consecutiveFailures >= 3) showOfflineBanner();
+            return;
+          }
+          consecutiveFailures = 0;
+          removeOfflineBanner();
           callback?.(res.status, res.data);
         })
-        .catch(() => {});
+        .catch(() => {
+          consecutiveFailures++;
+          if (consecutiveFailures >= 3) showOfflineBanner();
+        });
+    }
+
+    let historyWarningShown = false;
+    let historyWarningTimer: number | undefined;
+
+    function showHistoryWarning(count: number) {
+      if (historyWarningShown) return;
+      if (document.getElementById('netsus-history-banner')) return;
+      historyWarningShown = true;
+
+      injectBannerStyles();
+      const el = document.createElement('div');
+      el.id = 'netsus-history-banner';
+      el.innerHTML = `<div style="
+        position:fixed;bottom:0;left:0;right:0;z-index:999997;
+        background:linear-gradient(90deg,#78350f,#d97706);
+        color:white;font-family:'Segoe UI',sans-serif;
+        box-shadow:0 -2px 12px rgba(0,0,0,0.4);
+        display:flex;align-items:center;justify-content:center;gap:10px;padding:8px 20px;
+        animation:netsus-slide-in 0.22s ease-out;
+      ">
+        <span style="font-size:15px">🔥</span>
+        <span style="font-size:12px;font-weight:600">
+          Este ticket tuvo <strong>${count} colisión${count !== 1 ? 'es' : ''}</strong> en el pasado — avisa cuando termines
+        </span>
+        <button id="netsus-history-close" style="
+          background:rgba(255,255,255,0.2);border:none;color:white;border-radius:12px;
+          padding:2px 10px;font-size:11px;cursor:pointer;margin-left:8px;
+        ">✕</button>
+      </div>`;
+      document.body.appendChild(el);
+      document.getElementById('netsus-history-close')?.addEventListener('click', () => {
+        clearTimeout(historyWarningTimer);
+        el.remove();
+      });
+      historyWarningTimer = window.setTimeout(() => el.remove(), 10000);
     }
 
     function showAssignmentWarning(assignedTo: string) {
@@ -538,6 +728,7 @@ export default defineContentScript({
           if (wasLocked) showLiberationBanner();
           else removeBanner();
           wasLocked = false;
+          if (data?.pastCollisions >= 2) showHistoryWarning(data.pastCollisions);
         }
 
         if (data?.assignedTo && data.assignedTo.trim().toLowerCase() !== user.trim().toLowerCase()) {
@@ -545,11 +736,23 @@ export default defineContentScript({
         }
 
         if (data?.pingedBy) {
-          if (soundEnabled) playSound('ping');
-          sendChromeNotification(
+          const pingMuted = isMuted(typePrefs, 'ping');
+          if (soundEnabled && !pingMuted) playSound('ping');
+          const pingLabel = extractTicketNumber();
+          if (!pingMuted) sendChromeNotification(
             '📣 ' + data.pingedBy + ' te está esperando',
-            `Quiere saber si terminaste en ${extractTicketNumber() ?? 'este ticket'}`
+            `Quiere saber si terminaste en ${pingLabel ?? 'este ticket'}`
           );
+          addNotif({
+            type: 'ping',
+            title: `${data.pingedBy} te está esperando`,
+            body: `Quiere saber si terminaste en ${pingLabel ?? 'este ticket'}`,
+            ticketId: ticketId,
+            ticketNumber: pingLabel ?? undefined,
+            ticketUrl: window.location.href,
+            dedupeKey: `ping:${ticketId}:${data.pingedBy}`,
+            silent: true,
+          });
         }
       });
     }
@@ -566,8 +769,13 @@ export default defineContentScript({
       if (currentTicketId) {
         leavePresence(currentTicketId, currentUser);
         clearInterval(pollInterval);
+        clearTimeout(autoPingTimer);
+        autoPingFired = false;
         removeBanner();
         wasLocked = false;
+        historyWarningShown = false;
+        clearTimeout(historyWarningTimer);
+        document.getElementById('netsus-history-banner')?.remove();
       }
 
       currentTicketId = ticketId;
@@ -578,6 +786,22 @@ export default defineContentScript({
         registerPresence(ticketId, currentUser as string);
       }, 5000);
     }
+
+    // Alt+C: toggle minimize/expand banner
+    document.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (!e.altKey || e.key !== 'c') return;
+      if (!currentTicketId) return;
+      if (bannerState === 'full' && document.getElementById('netsus-presence-banner')) {
+        clearTimeout(minimizeTimerId);
+        minimizePref = true;
+        chrome.storage.local.set({ netsus_minimize_pref: 'true' });
+        minimizeToPill();
+      } else if (bannerState === 'pill') {
+        clearTimeout(minimizeTimerId);
+        bannerState = 'full';
+        renderFullBanner(lastOthers);
+      }
+    });
 
     window.addEventListener('beforeunload', () => {
       if (currentTicketId && currentUser) leavePresence(currentTicketId, currentUser);
@@ -590,6 +814,18 @@ export default defineContentScript({
         setTimeout(loadUserAndInit, 500);
       }
     }).observe(document.body, { childList: true, subtree: true });
+
+    getTypePrefs().then((p) => { typePrefs = p; });
+    subscribePrefs(({ typePrefs: tp }) => { if (tp) typePrefs = tp; });
+
+    // Heartbeat: marca esta pestaña como "viva" para que el background solo haga el
+    // re-nag de respaldo (OS) cuando no hay ninguna pestaña de Autotask abierta.
+    const beat = () => chrome.storage.local.set({ netsus_cs_heartbeat: Date.now() });
+    beat();
+    window.setInterval(beat, 15000);
+
+    mountNotificationCenter({ playSound: playSoundForSeverity });
+    startRenagLoop();
 
     setTimeout(loadUserAndInit, 1000);
   },

@@ -1,3 +1,26 @@
+import {
+  getAll as getNotifs,
+  markAllRead,
+  markRead,
+  unreadCount,
+  subscribe,
+  getRenagMinutes,
+  RENAG_MIN_KEY,
+  SEVERITY_COLOR,
+  type AppNotification,
+} from '@/lib/notifications';
+import { icon } from '@/lib/icons';
+import {
+  getThemePref,
+  setThemePref,
+  resolveTheme,
+  getTypePrefs,
+  setTypeMuted,
+  typeList,
+  type ThemePref,
+  type TypePrefs,
+} from '@/lib/prefs';
+
 const avatar = document.getElementById('avatar') as HTMLDivElement;
 const current = document.getElementById('current') as HTMLDivElement;
 const autoLabel = document.getElementById('autoLabel') as HTMLDivElement;
@@ -82,3 +105,104 @@ chrome.runtime.sendMessage({ type: 'NETSUS_STATUS' }, (res: any) => {
     if (footer) footer.innerHTML = '<span style="color:#ef4444">⚠ Sin conexión al servidor</span>';
   }
 });
+
+// --- Centro de notificaciones (espejo del buzón compartido) ---
+const notifList = document.getElementById('notifList') as HTMLElement;
+const notifCount = document.getElementById('notifCount') as HTMLElement;
+
+function relTime(ts: number): string {
+  const secs = Math.floor((Date.now() - ts) / 1000);
+  if (secs < 60) return 'ahora';
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `hace ${mins} min`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `hace ${hrs} h`;
+  return `hace ${Math.floor(hrs / 24)} d`;
+}
+
+function escHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+}
+
+function renderNotifs(list: AppNotification[]) {
+  const n = unreadCount(list);
+  if (n > 0) { notifCount.textContent = n > 99 ? '99+' : String(n); notifCount.style.display = ''; }
+  else notifCount.style.display = 'none';
+
+  if (!list.length) {
+    notifList.innerHTML = '<div class="notif-empty">Sin notificaciones</div>';
+    return;
+  }
+  notifList.innerHTML = list.slice(0, 15).map((x) => {
+    const col = SEVERITY_COLOR[x.severity];
+    const unread = !x.read;
+    return `<div class="notif-item ${unread ? 'unread' : 'read'}" data-id="${x.id}" data-url="${escHtml(x.ticketUrl ?? '')}" style="--sev:${col.base};--tint:${col.tint}">
+      <div class="notif-ico" style="color:${col.base}">${icon(x.icon, { size: 16 })}</div>
+      <div class="notif-body">
+        <div class="notif-title">${unread ? `<span class="notif-dot" style="background:${col.base}"></span>` : ''}${escHtml(x.title)}</div>
+        <div class="notif-text">${escHtml(x.body)}</div>
+        <div class="notif-time">${relTime(x.ts)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+notifList.addEventListener('click', async (e) => {
+  const item = (e.target as HTMLElement).closest<HTMLElement>('.notif-item');
+  if (!item) return;
+  await markRead(item.dataset.id!);
+  const url = item.dataset.url;
+  if (url) chrome.tabs.create({ url });
+  renderNotifs(await getNotifs());
+});
+
+document.getElementById('notifReadAll')?.addEventListener('click', async () => {
+  await markAllRead();
+  renderNotifs(await getNotifs());
+});
+
+const renagInput = document.getElementById('renagInput') as HTMLInputElement;
+getRenagMinutes().then((m) => { renagInput.value = String(m); });
+renagInput.addEventListener('change', () => {
+  let v = parseInt(renagInput.value) || 3;
+  v = Math.max(1, Math.min(60, v));
+  renagInput.value = String(v);
+  chrome.storage.local.set({ [RENAG_MIN_KEY]: v });
+});
+
+getNotifs().then(renderNotifs);
+subscribe(renderNotifs);
+
+// --- Tema ---
+function applyTheme(pref: ThemePref) {
+  document.documentElement.dataset.theme = resolveTheme(pref);
+}
+function highlightSeg(pref: ThemePref) {
+  document.querySelectorAll<HTMLButtonElement>('#themeSeg button').forEach((b) => {
+    b.classList.toggle('active', b.dataset.themeVal === pref);
+  });
+}
+getThemePref().then((p) => { applyTheme(p); highlightSeg(p); });
+document.querySelectorAll<HTMLButtonElement>('#themeSeg button').forEach((b) => {
+  b.addEventListener('click', async () => {
+    const v = (b.dataset.themeVal || 'auto') as ThemePref;
+    await setThemePref(v);
+    applyTheme(v);
+    highlightSeg(v);
+  });
+});
+
+// --- Preferencias por tipo ---
+function renderTypePrefs(prefs: TypePrefs) {
+  const list = document.getElementById('typePrefsList') as HTMLElement;
+  list.innerHTML = typeList().map(function (t) {
+    var muted = prefs[t.type] && prefs[t.type]!.muted === true;
+    return '<div class="pref-row"><span class="pref-label">' + t.label + '</span>' +
+      '<label class="toggle"><input type="checkbox" data-type="' + t.type + '" ' + (muted ? '' : 'checked') + '><span class="slider"></span></label></div>';
+  }).join('');
+  list.querySelectorAll<HTMLInputElement>('input[data-type]').forEach((inp) => {
+    inp.addEventListener('change', () => setTypeMuted(inp.dataset.type as any, !inp.checked));
+  });
+}
+getTypePrefs().then(renderTypePrefs);
