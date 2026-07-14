@@ -79,6 +79,13 @@ async function activeResourceIds(now: number): Promise<number[]> {
   return (members ?? []).map(Number).filter((n) => !Number.isNaN(n));
 }
 
+// Cuántos técnicos tienen la extensión activa (resolvieron nombre→resourceID) en la
+// última ventana. Aproximación de "en línea" — usada para el stat "técnicos disponibles".
+export async function activeTeamCount(): Promise<number> {
+  const ids = await activeResourceIds(Date.now());
+  return ids.length;
+}
+
 // --- Feed ---
 export async function drainFeed(rid: number): Promise<FeedItem[]> {
   const key = `notif:feed:${rid}`;
