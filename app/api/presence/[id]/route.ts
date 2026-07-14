@@ -43,34 +43,25 @@ async function getAutotaskAssignee(ticketId: string): Promise<string | null> {
   }
 }
 
-async function addAutotaskNote(ticketId: string, users: string[]) {
-  const atUser = process.env.AUTOTASK_USER;
-  const atSecret = process.env.AUTOTASK_SECRET;
-  if (!atUser || !atSecret) return;
-  const base = 'https://webservices12.autotask.net/ATServicesRest/v1.0';
-  const headers = { 'ApiIntegrationCode': 'CCD-NETSUS', 'UserName': atUser, 'Secret': atSecret, 'Content-Type': 'application/json' };
-  const now = new Date().toLocaleString('es-CL');
-  const body = {
-    ticketID: parseInt(ticketId),
-    title: '⚠️ Colisión detectada — Autotask Collision Detection',
-    description: `${users.join(' y ')} abrieron este ticket simultáneamente el ${now}.\n\nDetectado automáticamente por Autotask Collision Detection (Netsus).`,
-    noteType: 1,
-    publish: 2,
-  };
-  fetch(`${base}/Tickets/${ticketId}/Notes`, {
-    method: 'POST', headers, body: JSON.stringify(body),
+async function getWebhookUrl(): Promise<string | null> {
+  return redis.get<string>('config:teams_webhook');
+}
+
+function postWebhook(webhookUrl: string, body: object) {
+  fetch(webhookUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
   }).catch(() => {});
 }
 
 async function sendTeamsWebhook(ticketDisplay: string, users: string[], ticketUrl?: string | null) {
-  const webhookUrl = await redis.get<string>('config:teams_webhook');
+  const webhookUrl = await getWebhookUrl();
   if (!webhookUrl) return;
 
   const first = users[0];
   const rest = users.slice(1);
-  const ticketLink = ticketUrl ? `[${ticketDisplay}](${ticketUrl})` : ticketDisplay;
-
-  const body = {
+  postWebhook(webhookUrl, {
     '@type': 'MessageCard',
     '@context': 'http://schema.org/extensions',
     themeColor: 'dc2626',
@@ -87,17 +78,62 @@ async function sendTeamsWebhook(ticketDisplay: string, users: string[], ticketUr
       ],
       markdown: true,
     }],
-    potentialAction: ticketUrl ? [{
-      '@type': 'OpenUri',
-      name: 'Abrir ticket',
-      targets: [{ os: 'default', uri: ticketUrl }],
-    }] : undefined,
-  };
-  fetch(webhookUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  }).catch(() => {});
+    potentialAction: ticketUrl ? [{ '@type': 'OpenUri', name: 'Abrir ticket', targets: [{ os: 'default', uri: ticketUrl }] }] : undefined,
+  });
+}
+
+async function sendPingWebhook(ticketDisplay: string, from: string, targets: string[], ticketUrl?: string | null) {
+  const webhookUrl = await getWebhookUrl();
+  if (!webhookUrl) return;
+
+  postWebhook(webhookUrl, {
+    '@type': 'MessageCard',
+    '@context': 'http://schema.org/extensions',
+    themeColor: 'f97316',
+    summary: `📣 ${from} te está esperando`,
+    sections: [{
+      activityTitle: `📣 ${from} necesita que termines`,
+      activitySubtitle: `${ticketDisplay} · Autotask Collision Detection`,
+      activityImage: 'https://netsus-two.vercel.app/icon/128.png',
+      facts: [
+        { name: 'Ticket', value: ticketUrl ? `<a href="${ticketUrl}">${ticketDisplay}</a>` : ticketDisplay },
+        { name: 'Esperando a', value: targets.join(', ') },
+        { name: 'Hora', value: new Date().toLocaleString('es-CL') },
+      ],
+      markdown: true,
+    }],
+    potentialAction: ticketUrl ? [{ '@type': 'OpenUri', name: 'Abrir ticket', targets: [{ os: 'default', uri: ticketUrl }] }] : undefined,
+  });
+}
+
+async function sendResolutionWebhook(ticketDisplay: string, users: string[], durationMs: number, ticketUrl?: string | null) {
+  const webhookUrl = await getWebhookUrl();
+  if (!webhookUrl) return;
+
+  const totalSecs = Math.round(durationMs / 1000);
+  const mins = Math.floor(totalSecs / 60);
+  const secs = totalSecs % 60;
+  const durStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+
+  postWebhook(webhookUrl, {
+    '@type': 'MessageCard',
+    '@context': 'http://schema.org/extensions',
+    themeColor: '16a34a',
+    summary: `✅ Colisión resuelta en ${ticketDisplay}`,
+    sections: [{
+      activityTitle: `✅ Colisión resuelta`,
+      activitySubtitle: `${ticketDisplay} · Autotask Collision Detection`,
+      activityImage: 'https://netsus-two.vercel.app/icon/128.png',
+      facts: [
+        { name: 'Ticket', value: ticketUrl ? `<a href="${ticketUrl}">${ticketDisplay}</a>` : ticketDisplay },
+        { name: 'Técnicos', value: users.join(', ') },
+        { name: 'Duración', value: durStr },
+        { name: 'Hora', value: new Date().toLocaleString('es-CL') },
+      ],
+      markdown: true,
+    }],
+    potentialAction: ticketUrl ? [{ '@type': 'OpenUri', name: 'Abrir ticket', targets: [{ os: 'default', uri: ticketUrl }] }] : undefined,
+  });
 }
 
 export async function GET(
@@ -127,9 +163,18 @@ export async function POST(
   if (ticketUrl) await redis.set(`ticketurl:${id}`, ticketUrl, { ex: 300, nx: true });
 
   if (Array.isArray(ping) && ping.length) {
-    await Promise.all(ping.map((target: string) =>
-      redis.set(`ping:${id}:${target}`, user, { ex: 60 })
-    ));
+    // Server-side rate limit: one ping per user per ticket every 30 seconds
+    const pingRateKey = `pingrate:${id}:${user}`;
+    const rateLimited = await redis.get(pingRateKey);
+    if (!rateLimited) {
+      await redis.set(pingRateKey, '1', { ex: 30 });
+      await Promise.all(ping.map((target: string) =>
+        redis.set(`ping:${id}:${target}`, user, { ex: 60 })
+      ));
+      const storedTicketNumber = ticketNumber ?? await redis.get<string>(`ticketnumber:${id}`);
+      const storedUrl = ticketUrl ?? await redis.get<string>(`ticketurl:${id}`);
+      sendPingWebhook(storedTicketNumber ?? `#${id}`, user, ping, storedUrl);
+    }
   }
 
   const pingKey = `ping:${id}:${user}`;
@@ -152,25 +197,37 @@ export async function POST(
     const colKey = `colactive:${id}:${user}`;
     const alreadyLogged = await redis.get(colKey);
     if (!alreadyLogged) {
-      await redis.set(colKey, '1', { ex: PRESENCE_TTL * 3 });
-      await redis.set(`colstart:${id}`, Date.now().toString(), { ex: 600, nx: true });
+      const allInCollision = [user, ...otherNames];
+      await Promise.all([
+        redis.set(colKey, '1', { ex: PRESENCE_TTL * 3 }),
+        redis.incr(`colcount:${id}`).then(() => redis.expire(`colcount:${id}`, 180 * 24 * 3600)),
+        redis.set(`colstart:${id}`, Date.now().toString(), { ex: 600, nx: true }),
+        redis.set(`colusers:${id}`, JSON.stringify(allInCollision), { ex: 600 }),
+      ]);
       const storedUrl = ticketUrl ?? await redis.get<string>(`ticketurl:${id}`);
       const event = JSON.stringify({
         ts: Date.now(),
         ticketId: id,
         ticketNumber: ticketNumber ?? null,
-        users: [user, ...otherNames],
+        users: allInCollision,
       });
       await redis.lpush('collision_history', event);
       await redis.ltrim('collision_history', 0, 199);
-      sendTeamsWebhook(ticketNumber ?? `#${id}`, [user, ...otherNames], storedUrl);
-      addAutotaskNote(id, [user, ...otherNames]);
+      sendTeamsWebhook(ticketNumber ?? `#${id}`, allInCollision, storedUrl);
+    } else {
+      // Update participant list in case someone new joined mid-collision
+      const allInCollision = [user, ...otherNames];
+      await redis.set(`colusers:${id}`, JSON.stringify(allInCollision), { ex: 600 });
     }
   }
 
-  const assignedTo = await getAutotaskAssignee(id);
+  const [assignedTo, pastCollisionsRaw] = await Promise.all([
+    getAutotaskAssignee(id),
+    redis.get<number>(`colcount:${id}`),
+  ]);
+  const pastCollisions = pastCollisionsRaw ?? 0;
 
-  return NextResponse.json({ ok: true, others, assignedTo: assignedTo ?? null, pingedBy: pingedBy ?? null });
+  return NextResponse.json({ ok: true, others, assignedTo: assignedTo ?? null, pingedBy: pingedBy ?? null, pastCollisions });
 }
 
 export async function DELETE(
@@ -184,16 +241,26 @@ export async function DELETE(
     await redis.del(presenceKey(id, user));
     await redis.del(`ticketentry:${id}:${user}`);
 
-    // Track collision duration when it resolves
     const remaining = await redis.keys(`ticketpresence:${id}:*`);
     if (remaining.length < 2) {
-      const startTs = await redis.get<string>(`colstart:${id}`);
+      const [startTs, colUsersRaw, ticketNumber, ticketUrl] = await Promise.all([
+        redis.get<string>(`colstart:${id}`),
+        redis.get<string>(`colusers:${id}`),
+        redis.get<string>(`ticketnumber:${id}`),
+        redis.get<string>(`ticketurl:${id}`),
+      ]);
       if (startTs) {
         const duration = Date.now() - parseInt(startTs);
-        await redis.del(`colstart:${id}`);
+        await Promise.all([
+          redis.del(`colstart:${id}`),
+          redis.del(`colusers:${id}`),
+        ]);
         if (duration > 5000) {
           await redis.lpush('collision_durations', JSON.stringify({ ticketId: id, duration, ts: Date.now() }));
           await redis.ltrim('collision_durations', 0, 199);
+          // Notify Teams that the collision was resolved
+          const colUsers: string[] = colUsersRaw ? JSON.parse(colUsersRaw) : [user];
+          sendResolutionWebhook(ticketNumber ?? `#${id}`, colUsers, duration, ticketUrl);
         }
       }
     }

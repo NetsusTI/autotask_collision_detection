@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkApiKey, redis } from '@/lib/ticket-lock';
 
+function checkCronSecret(request: NextRequest) {
+  const secret = process.env.CRON_SECRET;
+  return secret && request.headers.get('authorization') === `Bearer ${secret}`;
+}
+
 export async function GET(request: NextRequest) {
-  if (!checkApiKey(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  const isCron = checkCronSecret(request);
+  if (!isCron && !checkApiKey(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
   const raw = await redis.lrange('collision_history', 0, -1);
   const events = raw.map(e => {
@@ -15,7 +21,7 @@ export async function GET(request: NextRequest) {
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
 
-  const send = request.nextUrl.searchParams.get('send') === 'true';
+  const send = isCron || request.nextUrl.searchParams.get('send') === 'true';
   const period = request.nextUrl.searchParams.get('period') ?? 'yesterday';
   const from = period === 'today' ? todayStart.getTime() : yesterday.getTime();
   const to = period === 'today' ? Date.now() : todayStart.getTime();

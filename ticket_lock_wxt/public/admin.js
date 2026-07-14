@@ -1,7 +1,6 @@
 (function () {
   var BASE_URL = 'https://netsus-two.vercel.app';
   var API_KEY = '-_-ErJy9v64XRiDbpuPFZ3uLs4nVFmXm';
-  var ADMIN_PASSWORD = 'netsus2026';
   var REFRESH_SECS = 10;
 
   var countdownInterval = null;
@@ -12,6 +11,7 @@
   var lastHistory = [];
   var historyFilter = '';
   var historyPeriod = 'all';
+  var historyTechFilter = '';
   var dateFrom = null;
   var dateTo = null;
   var historyOffset = 0;
@@ -35,14 +35,29 @@
 
   function doLogin() {
     var pwd = document.getElementById('pwdInput').value;
-    if (pwd === ADMIN_PASSWORD) {
-      sessionStorage.setItem('netsus_admin', '1');
-      showPanel();
-    } else {
+    var btn = document.getElementById('loginBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Verificando...'; }
+    fetch(BASE_URL + '/api/admin/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pwd }),
+    }).then(function (r) {
+      if (r.ok) {
+        sessionStorage.setItem('netsus_admin', '1');
+        showPanel();
+      } else {
+        var err = document.getElementById('loginError');
+        err.style.display = 'block';
+        setTimeout(function () { err.style.display = 'none'; }, 2000);
+      }
+    }).catch(function () {
       var err = document.getElementById('loginError');
+      err.textContent = 'Error de conexión';
       err.style.display = 'block';
-      setTimeout(function () { err.style.display = 'none'; }, 2000);
-    }
+      setTimeout(function () { err.style.display = 'none'; err.textContent = 'Contraseña incorrecta'; }, 3000);
+    }).finally(function () {
+      if (btn) { btn.disabled = false; btn.textContent = 'Ingresar'; }
+    });
   }
 
   function doLogout() {
@@ -100,7 +115,8 @@
 
   function fetchHistory(append) {
     var offset = append ? historyOffset : 0;
-    fetch(BASE_URL + '/api/presence/history?offset=' + offset + '&limit=' + HISTORY_PAGE, { headers: { 'x-api-key': API_KEY } })
+    var techParam = historyTechFilter ? '&tech=' + encodeURIComponent(historyTechFilter) : '';
+    fetch(BASE_URL + '/api/presence/history?offset=' + offset + '&limit=' + HISTORY_PAGE + techParam, { headers: { 'x-api-key': API_KEY } })
       .then(function (r) { return r.json(); })
       .then(function (data) {
         var events = Array.isArray(data.events) ? data.events : (Array.isArray(data) ? data : []);
@@ -225,9 +241,27 @@
     });
   }
 
+  function populateTechFilter() {
+    var techSet = {};
+    lastHistory.forEach(function (e) {
+      (e.users || []).forEach(function (u) { techSet[userName(u)] = true; });
+    });
+    var sel = document.getElementById('techFilter');
+    var current = sel.value;
+    while (sel.options.length > 1) sel.remove(1);
+    Object.keys(techSet).sort().forEach(function (name) {
+      var opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      sel.appendChild(opt);
+    });
+    sel.value = current;
+  }
+
   function renderHistory(history) {
     var today = lastHistory.filter(function (e) { return Date.now() - e.ts < 86400000; }).length;
     document.getElementById('statHistory').textContent = today;
+    populateTechFilter();
     var el = document.getElementById('historyTab');
     if (!history.length) {
       el.innerHTML = '<div class="empty"><div class="emptyIcon">📋</div><div class="emptyText">Sin resultados</div><div class="emptySub">Prueba cambiando los filtros</div></div>';
@@ -334,7 +368,24 @@
             '</div></div>';
         }
 
+        var dayHtml = '';
+        if (data.byDay && data.byDay.length) {
+          var maxDay = Math.max.apply(null, data.byDay.map(function (d) { return d.count; })) || 1;
+          var dayBars = data.byDay.map(function (d) {
+            var pct = Math.round((d.count / maxDay) * 100);
+            return '<div class="dayBar" style="height:' + Math.max(pct, d.count > 0 ? 8 : 2) + '%" title="' + d.date + ' — ' + d.count + ' col."></div>';
+          }).join('');
+          var dayLabels = data.byDay.map(function (d, i) {
+            var day = d.date.slice(8); // DD
+            return '<div class="dayLbl">' + (i % 5 === 0 ? day : '') + '</div>';
+          }).join('');
+          dayHtml = '<div class="anlSection"><div class="anlTitle">📅 Tendencia últimos 30 días</div>' +
+            '<div class="dayGrid">' + dayBars + '</div>' +
+            '<div class="dayLabels">' + dayLabels + '</div></div>';
+        }
+
         el.innerHTML =
+          dayHtml +
           '<div class="anlSection"><div class="anlTitle">👤 Técnicos con más colisiones <span style="font-weight:400;color:rgba(255,255,255,0.35);font-size:12px">· total ' + data.total + '</span></div>' + techBars + '</div>' +
           pairsHtml +
           '<div class="anlSection"><div class="anlTitle">🕐 Colisiones por hora del día</div>' +
@@ -353,7 +404,59 @@
       .then(function (data) {
         document.getElementById('webhookInput').value = data.teamsWebhook || '';
         document.getElementById('ttlInput').value = data.presenceTtl || 40;
+        document.getElementById('notifEnabledInput').checked = data.notifEnabled !== false;
+        try { document.getElementById('watchQueuesInput').value = (JSON.parse(data.watchQueues || '[]')).join(', '); } catch (e) { document.getElementById('watchQueuesInput').value = ''; }
+        try { document.getElementById('criticalPrioritiesInput').value = (JSON.parse(data.criticalPriorities || '[1]')).join(', '); } catch (e) { document.getElementById('criticalPrioritiesInput').value = '1'; }
+        document.getElementById('slaWarnMinInput').value = data.slaWarnMin || 30;
+        document.getElementById('autotaskUiBaseInput').value = data.autotaskUiBase || '';
       }).catch(function () {});
+  }
+
+  function saveNotifConfig() {
+    var status = document.getElementById('notifStatus');
+    fetch(BASE_URL + '/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
+      body: JSON.stringify({
+        notifEnabled: document.getElementById('notifEnabledInput').checked,
+        watchQueues: document.getElementById('watchQueuesInput').value,
+        criticalPriorities: document.getElementById('criticalPrioritiesInput').value,
+        slaWarnMin: parseInt(document.getElementById('slaWarnMinInput').value) || 30,
+        autotaskUiBase: document.getElementById('autotaskUiBaseInput').value.trim(),
+      })
+    }).then(function () {
+      status.className = 'configStatus ok';
+      status.textContent = '✓ Configuración de notificaciones guardada';
+      setTimeout(function () { status.textContent = ''; }, 3000);
+    }).catch(function () {
+      status.className = 'configStatus err';
+      status.textContent = '✗ Error al guardar';
+    });
+  }
+
+  function pollNow() {
+    var status = document.getElementById('notifStatus');
+    status.className = 'configStatus';
+    status.style.color = 'rgba(255,255,255,0.5)';
+    status.textContent = 'Sondeando Autotask...';
+    fetch(BASE_URL + '/api/notifications/poll?force=1', { headers: { 'x-api-key': API_KEY } })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        status.style.color = '';
+        if (!data.ran) {
+          status.className = 'configStatus err';
+          status.textContent = '⚠ No se ejecutó (poller desactivado o Autotask sin credenciales)';
+        } else {
+          var c = data.counts || {};
+          status.className = 'configStatus ok';
+          status.textContent = '✓ Sondeo OK · n1:' + (c.n1 || 0) + ' n2:' + (c.n2 || 0) + ' n3:' + (c.n3 || 0) + ' n4:' + (c.n4 || 0) + ' n5:' + (c.n5 || 0);
+        }
+        setTimeout(function () { status.textContent = ''; }, 6000);
+      }).catch(function () {
+        status.style.color = '';
+        status.className = 'configStatus err';
+        status.textContent = '✗ Error al sondear';
+      });
   }
 
   function saveTtl() {
@@ -439,6 +542,8 @@
   document.getElementById('tabConfig').addEventListener('click', function () { setTab('config'); });
   document.getElementById('exportCsvBtn').addEventListener('click', exportCsv);
   document.getElementById('saveTtlBtn').addEventListener('click', saveTtl);
+  document.getElementById('saveNotifBtn').addEventListener('click', saveNotifConfig);
+  document.getElementById('pollNowBtn').addEventListener('click', pollNow);
   document.getElementById('saveWebhookBtn').addEventListener('click', saveWebhook);
   document.getElementById('testWebhookBtn').addEventListener('click', testWebhook);
   document.getElementById('clearWebhookBtn').addEventListener('click', clearWebhook);
@@ -471,6 +576,24 @@
   document.getElementById('historySearch').addEventListener('input', function () {
     historyFilter = this.value;
     renderHistory(applyFilters(lastHistory));
+  });
+
+  document.getElementById('techFilter').addEventListener('change', function () {
+    historyTechFilter = this.value;
+    historyOffset = 0;
+    fetchHistory(false);
+  });
+
+  document.getElementById('clearHistoryBtn').addEventListener('click', function () {
+    if (!confirm('¿Borrar todo el historial de colisiones? Esta acción no se puede deshacer.')) return;
+    fetch(BASE_URL + '/api/presence/history', { method: 'DELETE', headers: { 'x-api-key': API_KEY } })
+      .then(function () {
+        lastHistory = [];
+        historyOffset = 0;
+        historyTotal = 0;
+        renderHistory([]);
+        document.getElementById('statHistory').textContent = '0';
+      }).catch(function () { alert('Error al borrar el historial'); });
   });
 
   document.querySelectorAll('.periodBtn').forEach(function (btn) {

@@ -21,6 +21,15 @@ export async function GET(request: NextRequest) {
   const byHour: number[] = Array(24).fill(0);
   const byTicket: Record<string, number> = {};
 
+  // Last 30 days trend — keyed by YYYY-MM-DD
+  const byDay: Record<string, number> = {};
+  const now = Date.now();
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(now - i * 86400000);
+    byDay[d.toISOString().slice(0, 10)] = 0;
+  }
+  const thirtyDaysAgo = now - 30 * 86400000;
+
   for (const e of events) {
     const hour = new Date(e.ts).getHours();
     byHour[hour]++;
@@ -29,6 +38,10 @@ export async function GET(request: NextRequest) {
     for (const u of (e.users || [])) {
       const name = typeof u === 'string' ? u : u.name;
       byTech[name] = (byTech[name] || 0) + 1;
+    }
+    if (e.ts >= thirtyDaysAgo) {
+      const dayKey = new Date(e.ts).toISOString().slice(0, 10);
+      if (dayKey in byDay) byDay[dayKey]++;
     }
   }
 
@@ -65,9 +78,13 @@ export async function GET(request: NextRequest) {
     ? Math.round(Math.max(...durations.map((d: any) => d.duration || 0)) / 1000)
     : null;
 
+  // Ordered array of { date, count } for the last 30 days
+  const byDayArray = Object.entries(byDay).map(([date, count]) => ({ date, count }));
+
   return NextResponse.json({
     byTech: techList,
     byHour,
+    byDay: byDayArray,
     topTickets: ticketList,
     pairs: pairList,
     total: events.length,

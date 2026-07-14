@@ -83,6 +83,12 @@
     .configStatus { font-size: 12px; margin-top: 8px; min-height: 18px; }
     .configStatus.ok { color: #22c55e; }
     .configStatus.err { color: #ef4444; }
+    .toggle { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle .slider { position: absolute; cursor: pointer; inset: 0; background: rgba(255,255,255,0.15); transition: .3s; border-radius: 22px; }
+    .toggle .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background: #fff; transition: .3s; border-radius: 50%; }
+    .toggle input:checked + .slider { background: #f97316; }
+    .toggle input:checked + .slider:before { transform: translateX(18px); }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
     .anlSection { background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:16px;padding:24px;margin-bottom:16px; }
     .anlTitle { font-size:14px;font-weight:700;margin-bottom:16px; }
@@ -102,6 +108,11 @@
     .chipLink { color: inherit; text-decoration: none; }
     .chipLink:hover { opacity: 0.8; }
     #apiError { display:none; background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.3); border-radius: 10px; padding: 10px 16px; margin-bottom: 16px; font-size: 12px; color: #f87171; }
+    .dayGrid { display:grid;grid-template-columns:repeat(30,1fr);gap:3px;align-items:end;height:64px; }
+    .dayBar { background:rgba(56,103,233,0.3);border-radius:2px 2px 0 0;min-height:2px;transition:height .5s;cursor:default; }
+    .dayBar:hover { background:rgba(56,103,233,0.7); }
+    .dayLabels { display:grid;grid-template-columns:repeat(30,1fr);gap:3px;margin-top:4px; }
+    .dayLbl { font-size:7px;color:rgba(255,255,255,0.2);text-align:center;overflow:hidden; }
   </style>
 </head>
 <body>
@@ -154,6 +165,9 @@
     </div>
     <div id="filterBar" class="filterBar" style="display:none">
       <input id="historySearch" class="filterInput" type="text" placeholder="Filtrar por técnico o ticket...">
+      <select id="techFilter" class="filterInput" style="max-width:160px">
+        <option value="">Todos los técnicos</option>
+      </select>
       <div class="periodBtns">
         <button class="periodBtn active" data-period="all">Todo</button>
         <button class="periodBtn" data-period="week">Semana</button>
@@ -165,6 +179,7 @@
         <span style="color:rgba(255,255,255,0.3);font-size:12px">→</span>
         <input id="dateTo" type="date" class="filterInput" style="width:130px;padding:5px 8px">
       </div>
+      <button class="csvBtn" id="clearHistoryBtn" style="color:#ef4444;border-color:rgba(239,68,68,0.3);margin-left:auto">🗑 Borrar</button>
     </div>
     <div id="liveViewToggle" style="display:flex;gap:6px;margin-bottom:14px">
       <button class="viewBtn active" id="viewByTicket">🎫 Por ticket</button>
@@ -194,6 +209,31 @@
           <button class="configBtn primary" id="saveTtlBtn" style="width:auto">Guardar</button>
         </div>
         <div class="configStatus" id="ttlStatus"></div>
+      </div>
+      <div class="configSection">
+        <div class="configTitle">🛰️ Notificaciones Autotask (n1–n5)</div>
+        <div class="configSub">Centro de notificaciones "COLview". El servidor sondea Autotask y avisa a cada técnico en su extensión: ticket entrante en la cola (n1), asignación (n2), respuesta de cliente (n3), SLA por vencer (n4) y ticket crítico en la cola (n5).</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin:10px 0">
+          <span style="font-size:13px;color:rgba(255,255,255,0.7)">Activar poller n1–n5</span>
+          <label class="toggle"><input type="checkbox" id="notifEnabledInput"><span class="slider"></span></label>
+        </div>
+        <div class="configSub" style="margin-top:6px">Colas a vigilar (queueID, separados por coma) — para n1 y n5</div>
+        <input id="watchQueuesInput" class="configInput" type="text" placeholder="Ej: 8, 29, 14">
+        <div class="configSub" style="margin-top:10px">IDs de prioridad considerada "crítica" — para n5</div>
+        <input id="criticalPrioritiesInput" class="configInput" type="text" placeholder="Ej: 1">
+        <div style="display:flex;align-items:center;gap:10px;margin-top:10px">
+          <div style="flex:1">
+            <div class="configSub">Aviso de SLA (min antes de vencer) — n4</div>
+            <input id="slaWarnMinInput" class="configInput" type="number" min="5" max="1440" step="5" placeholder="30" style="max-width:120px">
+          </div>
+        </div>
+        <div class="configSub" style="margin-top:10px">Base de la UI de Autotask (para enlazar tickets) — opcional</div>
+        <input id="autotaskUiBaseInput" class="configInput" type="url" placeholder="https://ww5.autotask.net">
+        <div class="configBtns">
+          <button class="configBtn primary" id="saveNotifBtn">Guardar</button>
+          <button class="configBtn secondary" id="pollNowBtn">Sondear ahora</button>
+        </div>
+        <div class="configStatus" id="notifStatus"></div>
       </div>
       <div class="configSection">
         <div class="configTitle">📊 Resumen diario a Teams</div>
