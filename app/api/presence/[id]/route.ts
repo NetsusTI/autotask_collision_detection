@@ -68,7 +68,7 @@ async function sendTeamsWebhook(ticketDisplay: string, users: string[], ticketUr
     summary: `⚠️ Colisión en ${ticketDisplay}`,
     sections: [{
       activityTitle: `⚠️ Colisión detectada`,
-      activitySubtitle: `${ticketDisplay} · Autotask Collision Detection`,
+      activitySubtitle: `${ticketDisplay} · Autotask CoView`,
       activityImage: 'https://netsus-two.vercel.app/icon/128.png',
       facts: [
         { name: 'Ticket', value: ticketUrl ? `<a href="${ticketUrl}">${ticketDisplay}</a>` : ticketDisplay },
@@ -93,7 +93,7 @@ async function sendPingWebhook(ticketDisplay: string, from: string, targets: str
     summary: `📣 ${from} te está esperando`,
     sections: [{
       activityTitle: `📣 ${from} necesita que termines`,
-      activitySubtitle: `${ticketDisplay} · Autotask Collision Detection`,
+      activitySubtitle: `${ticketDisplay} · Autotask CoView`,
       activityImage: 'https://netsus-two.vercel.app/icon/128.png',
       facts: [
         { name: 'Ticket', value: ticketUrl ? `<a href="${ticketUrl}">${ticketDisplay}</a>` : ticketDisplay },
@@ -122,7 +122,7 @@ async function sendResolutionWebhook(ticketDisplay: string, users: string[], dur
     summary: `✅ Colisión resuelta en ${ticketDisplay}`,
     sections: [{
       activityTitle: `✅ Colisión resuelta`,
-      activitySubtitle: `${ticketDisplay} · Autotask Collision Detection`,
+      activitySubtitle: `${ticketDisplay} · Autotask CoView`,
       activityImage: 'https://netsus-two.vercel.app/icon/128.png',
       facts: [
         { name: 'Ticket', value: ticketUrl ? `<a href="${ticketUrl}">${ticketDisplay}</a>` : ticketDisplay },
