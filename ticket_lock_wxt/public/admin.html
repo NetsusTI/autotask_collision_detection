@@ -28,11 +28,11 @@
       --text: #3B3B3B;
       --date-scheme: light;
       /* Misma alfa que en oscuro se ve ilegible sobre fondo claro (contraste invertido);
-         estos dos tokens quedan con alfa más alta en modo claro para cumplir ~4.5:1 / ~3:1 */
-      --dim: rgba(59,59,59,0.78);
-      --faint: rgba(59,59,59,0.6);
+         estos dos tokens quedan con alfa más alta en modo claro para un contraste marcado */
+      --dim: rgba(59,59,59,0.92);
+      --faint: rgba(59,59,59,0.75);
     }
-    body { font-family: 'Montserrat', 'Segoe UI', system-ui, sans-serif; font-weight: 300; background: var(--bg-grad); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+    body { font-family: 'Montserrat', 'Segoe UI', system-ui, sans-serif; font-weight: 400; background: var(--bg-grad); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
     #loginScreen { min-height: 100vh; display: flex; align-items: center; justify-content: center; position: relative; flex: 1; }
     .loginBox { background: rgba(var(--ink-rgb),0.04); border: 1px solid rgba(var(--ink-rgb),0.08); border-radius: 20px; padding: 40px 36px; width: 320px; text-align: center; }
     .loginIcon { width: 52px; height: 52px; border-radius: 14px; margin: 0 auto 20px; background: none; display: flex; align-items: center; justify-content: center; }
@@ -65,7 +65,7 @@
     .stat { background: rgba(var(--ink-rgb),0.04); border: 1px solid rgba(var(--ink-rgb),0.08); border-radius: 16px; padding: 20px 24px; }
     .statIcon { margin-bottom: 8px; color: var(--accent); }
     .statValue { font-size: 28px; font-weight: 800; color: var(--accent); }
-    .statLabel { font-size: 12px; color: var(--dim); margin-top: 2px; }
+    .statLabel { font-size: 12px; font-weight: 600; color: var(--dim); margin-top: 2px; }
     .tabBar { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
     .tab { padding: 6px 18px; border-radius: 20px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; border: none; color: var(--text); background: rgba(var(--ink-rgb),0.06); display: flex; align-items: center; gap: 6px; }
     .tab.active { background: var(--accent); color: #fff; }
