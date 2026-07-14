@@ -51,8 +51,8 @@ const PALETTE: Record<ResolvedTheme, Record<string, string>> = {
     cardBg: '#ffffff',
     cardBorder: 'rgba(59,59,59,0.1)',
     accentBorder: 'rgba(239,68,68,0.35)',
-    dim: 'rgba(59,59,59,0.78)',
-    faint: 'rgba(59,59,59,0.6)',
+    dim: 'rgba(59,59,59,0.92)',
+    faint: 'rgba(59,59,59,0.75)',
     headerBg: 'rgba(255,255,255,0.75)',
     headerBorder: 'rgba(59,59,59,0.08)',
     chipBg: 'rgba(59,59,59,0.08)',
@@ -192,7 +192,7 @@ export default function AdminPage() {
     return (
       <div className={montserrat.className} style={{
         minHeight: '100vh', display: 'flex', flexDirection: 'column',
-        background: p.pageBg, color: p.text, fontWeight: 300, position: 'relative',
+        background: p.pageBg, color: p.text, fontWeight: 400, position: 'relative',
       }}>
         <div style={{ position: 'absolute', top: 20, right: 20 }}>
           <ThemeToggle pref={themePref} onChange={changeTheme} />
@@ -239,7 +239,7 @@ export default function AdminPage() {
   return (
     <div className={montserrat.className} style={{
       minHeight: '100vh', display: 'flex', flexDirection: 'column',
-      background: p.pageBg, color: p.text, fontWeight: 300,
+      background: p.pageBg, color: p.text, fontWeight: 400,
     }}>
       {/* Header */}
       <div style={{
@@ -286,7 +286,7 @@ export default function AdminPage() {
             }}>
               <div style={{ marginBottom: 8, color }}><Icon name={icon} size={22} /></div>
               <div style={{ fontSize: 28, fontWeight: 800, color }}>{value}</div>
-              <div style={{ fontSize: 12, color: p.dim, marginTop: 2 }}>{label}</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: p.dim, marginTop: 2 }}>{label}</div>
             </div>
           ))}
         </div>
