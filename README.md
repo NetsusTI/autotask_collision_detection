@@ -1,4 +1,4 @@
-# Autotask Collision Detection
+# Autotask CoView
 
 Extensión de Chrome para detectar colisiones entre técnicos trabajando en el mismo ticket de Autotask simultáneamente.
 

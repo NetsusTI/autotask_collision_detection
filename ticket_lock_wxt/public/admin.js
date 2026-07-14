@@ -501,7 +501,7 @@
     var body = {
       '@type': 'MessageCard', '@context': 'http://schema.org/extensions',
       themeColor: 'f97316', summary: '✅ Prueba de webhook',
-      sections: [{ activityTitle: '✅ Webhook configurado correctamente', activitySubtitle: 'Autotask Collision Detection · Netsus', activityText: 'Las alertas de colisión llegarán a este canal.' }]
+      sections: [{ activityTitle: '✅ Webhook configurado correctamente', activitySubtitle: 'Autotask CoView · Netsus', activityText: 'Las alertas de colisión llegarán a este canal.' }]
     };
     fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       .then(function () {

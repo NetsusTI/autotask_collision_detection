@@ -2,7 +2,7 @@ export default function PrivacyPage() {
   return (
     <div style={{ fontFamily: 'Segoe UI, sans-serif', maxWidth: 720, margin: '60px auto', padding: '0 24px', color: '#1a1a2e' }}>
       <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Política de Privacidad</h1>
-      <p style={{ color: '#666', marginBottom: 32 }}>Autotask Collision Detection · Netsus · Última actualización: junio 2026</p>
+      <p style={{ color: '#666', marginBottom: 32 }}>Autotask CoView · Netsus · Última actualización: junio 2026</p>
 
       <h2 style={{ fontSize: 18, marginTop: 32, marginBottom: 8 }}>¿Qué datos recopila la extensión?</h2>
       <p>La extensión recopila únicamente:</p>

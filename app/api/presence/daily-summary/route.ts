@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
         summary: `📊 Resumen de colisiones — ${label}`,
         sections: [{
           activityTitle: `📊 Resumen de colisiones — ${label} ${dateLabel}`,
-          activitySubtitle: 'Autotask Collision Detection · Netsus',
+          activitySubtitle: 'Autotask CoView · Netsus',
           facts,
         }],
       };
