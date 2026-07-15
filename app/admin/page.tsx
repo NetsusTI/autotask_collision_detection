@@ -19,6 +19,39 @@ interface CollisionEvent {
   users: string[];
 }
 
+interface NotifLogEntry {
+  type: string;
+  title: string;
+  body: string;
+  ticketId?: string;
+  ticketNumber?: string;
+  ticketUrl?: string;
+  targets?: string[];
+  ts: number;
+}
+
+const NOTIF_META: Record<string, { icon: Parameters<typeof Icon>[0]['name']; color: string; tint: string }> = {
+  collision:   { icon: 'alert-triangle', color: '#ef4444', tint: 'rgba(239,68,68,0.12)' },
+  ping:        { icon: 'megaphone',      color: '#f97316', tint: 'rgba(249,115,22,0.12)' },
+  liberation:  { icon: 'check-circle',   color: '#22c55e', tint: 'rgba(34,197,94,0.12)' },
+  n1_queue:    { icon: 'inbox',          color: '#3867E9', tint: 'rgba(56,103,233,0.12)' },
+  n2_assign:   { icon: 'user-plus',      color: '#f97316', tint: 'rgba(249,115,22,0.12)' },
+  n3_client:   { icon: 'message-square', color: '#f97316', tint: 'rgba(249,115,22,0.12)' },
+  n4_sla:      { icon: 'timer',          color: '#ef4444', tint: 'rgba(239,68,68,0.12)' },
+  n5_critical: { icon: 'flame',          color: '#ef4444', tint: 'rgba(239,68,68,0.12)' },
+};
+const NOTIF_META_DEFAULT = { icon: 'bell' as const, color: '#3867E9', tint: 'rgba(56,103,233,0.12)' };
+
+function relTime(ts: number): string {
+  const secs = Math.floor((Date.now() - ts) / 1000);
+  if (secs < 60) return 'ahora';
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `hace ${mins} min`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `hace ${hrs} h`;
+  return `hace ${Math.floor(hrs / 24)} d`;
+}
+
 const API_KEY = '-_-ErJy9v64XRiDbpuPFZ3uLs4nVFmXm';
 const ADMIN_PASSWORD = 'netsus2026';
 
@@ -120,9 +153,12 @@ export default function AdminPage() {
   const [history, setHistory] = useState<CollisionEvent[]>([]);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'live' | 'history'>('live');
+  const [tab, setTab] = useState<'live' | 'history' | 'notifications'>('live');
   const [online, setOnline] = useState(0);
   const [teamConfigured, setTeamConfigured] = useState(false);
+  const [notifLog, setNotifLog] = useState<NotifLogEntry[]>([]);
+  const [notifTotal, setNotifTotal] = useState(0);
+  const [notifLoadingMore, setNotifLoadingMore] = useState(false);
 
   const [themePref, setThemePref] = useState<ThemePref>('auto');
   const [resolved, setResolved] = useState<ResolvedTheme>('dark');
@@ -161,21 +197,37 @@ export default function AdminPage() {
 
   async function fetchData() {
     try {
-      const [presRes, histRes, onlineRes] = await Promise.all([
+      const [presRes, histRes, onlineRes, notifRes] = await Promise.all([
         fetch('/api/presence/status', { headers: { 'x-api-key': API_KEY } }),
         fetch('/api/presence/history', { headers: { 'x-api-key': API_KEY } }),
         fetch('/api/team/online', { headers: { 'x-api-key': API_KEY } }),
+        fetch('/api/notifications/log?offset=0&limit=50', { headers: { 'x-api-key': API_KEY } }),
       ]);
       const presence: TicketPresence[] = await presRes.json().catch(() => []);
       const hist: CollisionEvent[] = await histRes.json().catch(() => []);
       const onlineData = await onlineRes.json().catch(() => ({ online: 0, configured: false }));
+      const notifData = await notifRes.json().catch(() => ({ events: [], total: 0 }));
       setTickets(Array.isArray(presence) ? presence : []);
       setHistory(Array.isArray(hist) ? hist : []);
       setOnline(onlineData.online ?? 0);
       setTeamConfigured(!!onlineData.configured);
+      setNotifLog(Array.isArray(notifData.events) ? notifData.events : []);
+      setNotifTotal(notifData.total ?? 0);
       setLastUpdate(new Date());
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadMoreNotifs() {
+    setNotifLoadingMore(true);
+    try {
+      const res = await fetch(`/api/notifications/log?offset=${notifLog.length}&limit=50`, { headers: { 'x-api-key': API_KEY } });
+      const data = await res.json().catch(() => ({ events: [], total: notifTotal }));
+      setNotifLog(prev => [...prev, ...(Array.isArray(data.events) ? data.events : [])]);
+      setNotifTotal(data.total ?? notifTotal);
+    } finally {
+      setNotifLoadingMore(false);
     }
   }
 
@@ -293,15 +345,15 @@ export default function AdminPage() {
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-          {(['live', 'history'] as const).map(t => (
+          {(['live', 'history', 'notifications'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)} style={{
               padding: '6px 18px', borderRadius: 20, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', border: 'none',
               display: 'flex', alignItems: 'center', gap: 6,
               background: tab === t ? ACCENT : p.chipBg2,
               color: tab === t ? '#fff' : p.text,
             }}>
-              <Icon name={t === 'live' ? 'circle' : 'clipboard-list'} size={13} />
-              {t === 'live' ? 'En vivo' : 'Historial'}
+              <Icon name={t === 'live' ? 'circle' : t === 'history' ? 'clipboard-list' : 'bell'} size={13} />
+              {t === 'live' ? 'En vivo' : t === 'history' ? 'Historial' : 'Centro de Notificaciones'}
             </button>
           ))}
         </div>
@@ -353,7 +405,7 @@ export default function AdminPage() {
               ))}
             </div>
           )
-        ) : (
+        ) : tab === 'history' ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {history.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '60px 0', color: p.faint, fontSize: 14 }}>
@@ -385,6 +437,52 @@ export default function AdminPage() {
                 </div>
               </div>
             ))}
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {notifLog.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '80px 0', background: p.emptyBg, border: `1px dashed ${p.dashedBorder}`, borderRadius: 20 }}>
+                <div style={{ marginBottom: 12, color: ACCENT, display: 'flex', justifyContent: 'center' }}><Icon name="inbox" size={40} /></div>
+                <div style={{ fontSize: 15, color: p.dim }}>Sin notificaciones aún</div>
+                <div style={{ fontSize: 12, color: p.faint, marginTop: 4 }}>Aquí aparecerán colisiones, avisos y alertas de Autotask (n1–n5) de todo el equipo</div>
+              </div>
+            ) : (
+              <>
+                {notifLog.map((n, i) => {
+                  const meta = NOTIF_META[n.type] ?? NOTIF_META_DEFAULT;
+                  return (
+                    <div key={i} style={{
+                      background: p.chipBg2, border: `1px solid ${p.headerBorder}`,
+                      borderLeft: `3px solid ${meta.color}`,
+                      borderRadius: 12, padding: '12px 18px',
+                      display: 'flex', alignItems: 'flex-start', gap: 12,
+                    }}>
+                      <div style={{ color: meta.color, marginTop: 2, flexShrink: 0 }}><Icon name={meta.icon} size={17} /></div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700 }}>{n.title}</div>
+                        <div style={{ fontSize: 12, color: p.dim, marginTop: 2 }}>{n.body}</div>
+                        <div style={{ fontSize: 11, color: p.faint, marginTop: 4, display: 'flex', gap: 6, alignItems: 'center' }}>
+                          {(n.ticketNumber || n.ticketId) && (
+                            <span style={{ color: ACCENT, fontWeight: 600 }}>{n.ticketNumber ?? `#${n.ticketId}`}</span>
+                          )}
+                          <span>·</span>
+                          <span>{relTime(n.ts)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {notifLog.length < notifTotal && (
+                  <button onClick={loadMoreNotifs} disabled={notifLoadingMore} style={{
+                    margin: '4px auto 0', padding: '8px 20px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                    fontFamily: 'inherit', cursor: notifLoadingMore ? 'default' : 'pointer', border: `1px solid ${p.inputBorder}`,
+                    background: p.chipBg2, color: p.dim,
+                  }}>
+                    {notifLoadingMore ? 'Cargando...' : `Cargar más (${notifTotal - notifLog.length} restantes)`}
+                  </button>
+                )}
+              </>
+            )}
           </div>
         )}
       </div>

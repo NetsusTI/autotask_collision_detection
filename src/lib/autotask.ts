@@ -180,7 +180,14 @@ export async function resolveResourceIdByName(fullName: string): Promise<number 
   const match = resources.find((r) => r.isActive) ?? resources[0];
   const id = match?.id ?? null;
   await redis.set(cacheKey, id === null ? '' : String(id), { ex: 7 * 24 * 3600 });
+  if (id !== null) await redis.set(`resource:byid:${id}`, clean, { ex: 7 * 24 * 3600 });
   return id;
+}
+
+// Reverso del cache anterior — nombre a mostrar para un resourceID ya resuelto antes.
+// Best-effort: si nunca se resolvió ese ID, devuelve null (no dispara una consulta nueva).
+export async function resolveNameByResourceId(id: number): Promise<string | null> {
+  return redis.get<string>(`resource:byid:${id}`);
 }
 
 // URL del ticket en la UI de Autotask, si se configuró la base (config:autotask_ui_base).

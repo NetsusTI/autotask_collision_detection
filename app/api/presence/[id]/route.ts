@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkApiKey, redis } from '@/lib/ticket-lock';
+import { logCentralNotification } from '@/lib/notif-poll';
 
 const PRESENCE_TTL = 40;
 
@@ -174,6 +175,16 @@ export async function POST(
       const storedTicketNumber = ticketNumber ?? await redis.get<string>(`ticketnumber:${id}`);
       const storedUrl = ticketUrl ?? await redis.get<string>(`ticketurl:${id}`);
       sendPingWebhook(storedTicketNumber ?? `#${id}`, user, ping, storedUrl);
+      logCentralNotification({
+        type: 'ping',
+        title: `${user} espera respuesta`,
+        body: `Avisó a ${ping.join(', ')} en ${storedTicketNumber ?? `#${id}`}`,
+        ticketId: id,
+        ticketNumber: storedTicketNumber ?? undefined,
+        ticketUrl: storedUrl ?? undefined,
+        targets: ping,
+        ts: Date.now(),
+      });
     }
   }
 
@@ -214,6 +225,16 @@ export async function POST(
       await redis.lpush('collision_history', event);
       await redis.ltrim('collision_history', 0, 199);
       sendTeamsWebhook(ticketNumber ?? `#${id}`, allInCollision, storedUrl);
+      logCentralNotification({
+        type: 'collision',
+        title: 'Colisión detectada',
+        body: `${allInCollision.join(', ')} coinciden en ${ticketNumber ?? `#${id}`}`,
+        ticketId: id,
+        ticketNumber: ticketNumber ?? undefined,
+        ticketUrl: storedUrl ?? undefined,
+        targets: allInCollision,
+        ts: Date.now(),
+      });
     } else {
       // Update participant list in case someone new joined mid-collision
       const allInCollision = [user, ...otherNames];
@@ -261,6 +282,18 @@ export async function DELETE(
           // Notify Teams that the collision was resolved
           const colUsers: string[] = colUsersRaw ? JSON.parse(colUsersRaw) : [user];
           sendResolutionWebhook(ticketNumber ?? `#${id}`, colUsers, duration, ticketUrl);
+          const durSecs = Math.round(duration / 1000);
+          const durLabel = durSecs >= 60 ? `${Math.floor(durSecs / 60)}m ${durSecs % 60}s` : `${durSecs}s`;
+          logCentralNotification({
+            type: 'liberation',
+            title: 'Colisión resuelta',
+            body: `${ticketNumber ?? `#${id}`} liberado tras ${durLabel}`,
+            ticketId: id,
+            ticketNumber: ticketNumber ?? undefined,
+            ticketUrl: ticketUrl ?? undefined,
+            targets: colUsers,
+            ts: Date.now(),
+          });
         }
       }
     }
