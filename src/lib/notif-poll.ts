@@ -11,9 +11,32 @@ import {
   ticketsByIds,
   clientNotesSince,
   resolveResourceIdByName,
+  resolveNameByResourceId,
   buildTicketUrl,
   type AutotaskTicket,
 } from '@/lib/autotask';
+
+// Log central de notificaciones — feed agregado de TODO el equipo (n1–n5 + eventos
+// de colisión), independiente del feed por-recurso que cada extensión drena. Alimenta
+// el tab "Centro de Notificaciones" del panel web.
+export const NOTIFICATION_LOG_KEY = 'notification_log';
+const NOTIFICATION_LOG_MAX = 300;
+
+export interface CentralLogEntry {
+  type: string;
+  title: string;
+  body: string;
+  ticketId?: string;
+  ticketNumber?: string;
+  ticketUrl?: string;
+  targets?: string[]; // nombres resueltos, best-effort
+  ts: number;
+}
+
+export async function logCentralNotification(entry: CentralLogEntry): Promise<void> {
+  await redis.lpush(NOTIFICATION_LOG_KEY, JSON.stringify(entry));
+  await redis.ltrim(NOTIFICATION_LOG_KEY, 0, NOTIFICATION_LOG_MAX - 1);
+}
 
 export type FeedType = 'n1_queue' | 'n2_assign' | 'n3_client' | 'n4_sla' | 'n5_critical';
 
@@ -111,6 +134,20 @@ async function pushEvent(resourceIDs: number[], item: FeedItem, seenTtlSec: numb
     await redis.ltrim(key, 0, FEED_MAX - 1);
     await redis.expire(key, FEED_TTL);
   }));
+
+  const targets = (await Promise.all(resourceIDs.map((rid) => resolveNameByResourceId(rid))))
+    .filter((n): n is string => n !== null);
+  await logCentralNotification({
+    type: item.type,
+    title: item.title,
+    body: item.body,
+    ticketId: item.ticketId,
+    ticketNumber: item.ticketNumber,
+    ticketUrl: item.ticketUrl,
+    targets,
+    ts: item.ts,
+  });
+
   return true;
 }
 
