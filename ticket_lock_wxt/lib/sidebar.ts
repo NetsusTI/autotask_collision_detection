@@ -26,7 +26,12 @@ const PREFIX = 'nsb';
 // ticket y Autotask ocultaba parte de su propia barra de herramientas. 340px fijo
 // en ventanas normales; el min(...,38vw) solo entra a tallar en ventanas angostas
 // para que el panel nunca supere ~38% del ancho disponible.
-const SIDEBAR_WIDTH = 'min(340px, 38vw)';
+const EXPANDED_WIDTH = 'min(340px, 38vw)';
+const COLLAPSED_WIDTH = '48px';
+const COLLAPSE_KEY = 'netsus_sidebar_collapsed';
+// Variable CSS compartida entre el panel y el "push" del body — cambiar un solo
+// valor mueve ambos a la vez al plegar/desplegar.
+const WIDTH_VAR = '--netsus-sidebar-w';
 
 export interface OtherUser { name: string; minutes: number; }
 
@@ -85,13 +90,14 @@ export function mountSidebar(): SidebarHandle {
 
   injectFont();
   injectStyles();
+  document.documentElement.style.setProperty(WIDTH_VAR, EXPANDED_WIDTH);
 
-  // Empuja el contenido de la página (normal-flow) para reservar el 30%.
+  // Empuja el contenido de la página (normal-flow) para reservar el ancho del panel.
   const push = document.createElement('style');
   push.id = `${PREFIX}-push-style`;
   push.textContent = `
     html { overflow-x: hidden !important; }
-    body { margin-right: ${SIDEBAR_WIDTH} !important; box-sizing: border-box !important; }
+    body { margin-right: var(${WIDTH_VAR}) !important; box-sizing: border-box !important; transition: margin-right .18s ease; }
   `;
   document.head.appendChild(push);
 
@@ -104,6 +110,7 @@ export function mountSidebar(): SidebarHandle {
         <div class="${PREFIX}-hdr-title">Autotask CoView</div>
         <div class="${PREFIX}-hdr-sub">Netsus · Panel de control</div>
       </div>
+      <button id="${PREFIX}-toggle" class="${PREFIX}-toggle" title="Minimizar panel (Alt+M)">${icon('chevron-right', { size: 16 })}</button>
     </div>
     <div id="${PREFIX}-warnings"></div>
     <div id="${PREFIX}-status"></div>
@@ -114,13 +121,36 @@ export function mountSidebar(): SidebarHandle {
       </div>
       <div id="${PREFIX}-notif-list" class="${PREFIX}-notif-list"></div>
     </div>
+    <button id="${PREFIX}-mini-bell" class="${PREFIX}-mini-bell" title="Expandir panel">${icon('bell', { size: 20 })}<span id="${PREFIX}-mini-badge" class="${PREFIX}-notif-count ${PREFIX}-mini-badge" style="display:none">0</span></button>
   `;
   document.body.appendChild(root);
+
+  // --- Colapsar / expandir (persistido) ---
+  let collapsed = false;
+  function applyCollapsed(next: boolean) {
+    collapsed = next;
+    root.dataset.collapsed = String(next);
+    document.documentElement.style.setProperty(WIDTH_VAR, next ? COLLAPSED_WIDTH : EXPANDED_WIDTH);
+    const toggleBtn = root.querySelector<HTMLButtonElement>(`#${PREFIX}-toggle`);
+    if (toggleBtn) toggleBtn.innerHTML = icon(next ? 'chevron-left' : 'chevron-right', { size: 16 });
+  }
+  if (typeof chrome !== 'undefined') {
+    chrome.storage.local.get([COLLAPSE_KEY], (r) => applyCollapsed(r[COLLAPSE_KEY] === true));
+  }
+  function toggleCollapsed() {
+    applyCollapsed(!collapsed);
+    if (typeof chrome !== 'undefined') chrome.storage.local.set({ [COLLAPSE_KEY]: collapsed });
+  }
+  root.querySelector(`#${PREFIX}-toggle`)!.addEventListener('click', toggleCollapsed);
+  root.querySelector(`#${PREFIX}-mini-bell`)!.addEventListener('click', toggleCollapsed);
+  const collapseKeyHandler = (e: KeyboardEvent) => { if (e.altKey && e.key.toLowerCase() === 'm') toggleCollapsed(); };
+  document.addEventListener('keydown', collapseKeyHandler);
 
   const statusEl = root.querySelector<HTMLElement>(`#${PREFIX}-status`)!;
   const warningsEl = root.querySelector<HTMLElement>(`#${PREFIX}-warnings`)!;
   const notifCountEl = root.querySelector<HTMLElement>(`#${PREFIX}-notif-count`)!;
   const notifListEl = root.querySelector<HTMLElement>(`#${PREFIX}-notif-list`)!;
+  const miniBadgeEl = root.querySelector<HTMLElement>(`#${PREFIX}-mini-badge`)!;
 
   let offline = false;
   let historyCount: number | null = null;
@@ -202,8 +232,13 @@ export function mountSidebar(): SidebarHandle {
   async function refreshNotifs(list?: AppNotification[]) {
     const data = list ?? (await getAll());
     const n = unreadCount(data);
-    if (n > 0) { notifCountEl.textContent = n > 99 ? '99+' : String(n); notifCountEl.style.display = ''; }
-    else notifCountEl.style.display = 'none';
+    if (n > 0) {
+      notifCountEl.textContent = n > 99 ? '99+' : String(n); notifCountEl.style.display = '';
+      miniBadgeEl.textContent = notifCountEl.textContent; miniBadgeEl.style.display = '';
+    } else {
+      notifCountEl.style.display = 'none';
+      miniBadgeEl.style.display = 'none';
+    }
 
     if (!data.length) {
       notifListEl.innerHTML = `<div class="${PREFIX}-notif-empty">Sin notificaciones</div>`;
@@ -272,6 +307,7 @@ export function mountSidebar(): SidebarHandle {
       unsubPrefs();
       resilienceObserver.disconnect();
       mq?.removeEventListener('change', mqHandler);
+      document.removeEventListener('keydown', collapseKeyHandler);
       root.remove();
       document.getElementById(`${PREFIX}-push-style`)?.remove();
     },
@@ -293,10 +329,11 @@ function injectStyles() {
   s.id = `${PREFIX}-styles`;
   s.textContent = `
     #${PREFIX}-root {
-      position: fixed; top: 0; right: 0; bottom: 0; width: ${SIDEBAR_WIDTH};
+      position: fixed; top: 0; right: 0; bottom: 0; width: var(${WIDTH_VAR});
       z-index: 999995; display: flex; flex-direction: column;
       font-family: 'Montserrat', 'Segoe UI', system-ui, sans-serif;
       box-shadow: -8px 0 30px rgba(0,0,0,0.35);
+      transition: width .18s ease;
       --bg: linear-gradient(180deg, #190637 0%, #0d0320 100%);
       --text: #fff; --dim: rgba(255,255,255,0.65); --faint: rgba(255,255,255,0.4);
       --border: rgba(255,255,255,0.1); --hover: rgba(255,255,255,0.06);
@@ -312,8 +349,36 @@ function injectStyles() {
     }
     .${PREFIX}-hdr { display: flex; align-items: center; gap: 10px; padding: 16px 18px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
     .${PREFIX}-logo { height: 22px; }
-    .${PREFIX}-hdr-title { font-size: 13px; font-weight: 800; }
-    .${PREFIX}-hdr-sub { font-size: 10px; color: var(--dim); margin-top: -1px; }
+    .${PREFIX}-hdr-text { flex: 1; min-width: 0; }
+    .${PREFIX}-hdr-title { font-size: 13px; font-weight: 800; white-space: nowrap; }
+    .${PREFIX}-hdr-sub { font-size: 10px; color: var(--dim); margin-top: -1px; white-space: nowrap; }
+    .${PREFIX}-toggle {
+      flex-shrink: 0; width: 28px; height: 28px; border-radius: 7px; cursor: pointer;
+      background: var(--hover); border: none; color: var(--dim);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .${PREFIX}-toggle:hover { background: var(--border); color: var(--text); }
+    #${PREFIX}-mini-bell { display: none; }
+    /* --- Colapsado: solo logo + toggle en el header, resto oculto, campanita flotante --- */
+    #${PREFIX}-root[data-collapsed="true"] { overflow: visible; }
+    #${PREFIX}-root[data-collapsed="true"] .${PREFIX}-hdr-text,
+    #${PREFIX}-root[data-collapsed="true"] #${PREFIX}-warnings,
+    #${PREFIX}-root[data-collapsed="true"] #${PREFIX}-status,
+    #${PREFIX}-root[data-collapsed="true"] .${PREFIX}-notif-section {
+      display: none;
+    }
+    #${PREFIX}-root[data-collapsed="true"] .${PREFIX}-hdr { padding: 16px 10px; justify-content: center; }
+    #${PREFIX}-root[data-collapsed="true"] .${PREFIX}-logo { display: none; }
+    #${PREFIX}-root[data-collapsed="true"] #${PREFIX}-mini-bell {
+      display: flex; position: relative; margin: 16px auto 0;
+      width: 36px; height: 36px; border-radius: 50%; border: none; cursor: pointer;
+      background: var(--hover); color: var(--accent);
+      align-items: center; justify-content: center;
+    }
+    #${PREFIX}-root[data-collapsed="true"] #${PREFIX}-mini-bell:hover { background: var(--border); }
+    .${PREFIX}-mini-badge {
+      position: absolute; top: -4px; right: -4px; display: none;
+    }
     #${PREFIX}-warnings { flex-shrink: 0; }
     .${PREFIX}-warn {
       display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 600;
