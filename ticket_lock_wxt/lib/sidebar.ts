@@ -235,6 +235,15 @@ export function mountSidebar(): SidebarHandle {
   const unsubNotifs = subscribe((list) => refreshNotifs(list));
   refreshNotifs();
 
+  // Resiliencia: algunas vistas de Autotask (ticket detail, muy dinámicas) pueden
+  // vaciar el <body> después de que montamos el panel, borrándolo del DOM.
+  // Si eso pasa, lo re-adjuntamos (mismo nodo, mismo estado interno) automáticamente.
+  const resilienceObserver = new MutationObserver(() => {
+    if (!document.body.contains(root)) document.body.appendChild(root);
+    if (!document.head.contains(push)) document.head.appendChild(push);
+  });
+  resilienceObserver.observe(document.body, { childList: true });
+
   // --- Tema ---
   function applyTheme(t: ResolvedTheme) { root.dataset.nsbTheme = t; }
   let themePref: Awaited<ReturnType<typeof getThemePref>> = 'auto';
@@ -255,6 +264,7 @@ export function mountSidebar(): SidebarHandle {
     destroy() {
       unsubNotifs();
       unsubPrefs();
+      resilienceObserver.disconnect();
       mq?.removeEventListener('change', mqHandler);
       root.remove();
       document.getElementById(`${PREFIX}-push-style`)?.remove();

@@ -31,7 +31,8 @@ export default defineContentScript({
     let typePrefs: TypePrefs = {};
     let historyWarningShown = false;
 
-    let sidebar: SidebarHandle;
+    // El panel solo existe mientras hay un ticket abierto — se monta/destruye en init().
+    let sidebar: SidebarHandle | null = null;
 
     function getUserFromDOM(): string | null {
       const selectors = [
@@ -75,8 +76,13 @@ export default defineContentScript({
     function extractTicketId(): string | null {
       const url = window.location.href;
       if (!url.includes('TicketEdit') && !url.includes('TicketDetail')) return null;
-      const match = url.match(/[?&]ticketId=(\d+)/i);
-      return match ? match[1] : null;
+      const direct = url.match(/[?&]ticketId=(\d+)/i);
+      if (direct) return direct[1];
+      // Vista "workspace" multi-ticket (paginador "N de M"): la URL usa ids[0]=/ids%5B0%5D=
+      // en vez de ticketId=. El primer id de la lista es el ticket actualmente mostrado
+      // (confirmado: la lista se reordena al pasar de ticket en ticket, no queda fija).
+      const workspace = url.match(/[?&]ids(?:\[0\]|%5[bB]0%5[dD])=(\d+)/i);
+      return workspace ? workspace[1] : null;
     }
 
     function extractTicketNumber(): string | null {
@@ -197,8 +203,10 @@ export default defineContentScript({
       document.getElementById('netsus-lock-style')?.remove();
     }
 
+    // Estas funciones solo se invocan mientras hay un ticket abierto (sidebar montado);
+    // sidebar! es seguro aquí — si alguna vez fuera null sería un bug real, no un caso normal.
     function wireCollisionButtons(others: OtherUser[]) {
-      const root = sidebar.el;
+      const root = sidebar!.el;
       root.querySelector('#nsb-finish-btn')?.addEventListener('click', () => {
         if (currentTicketId && currentUser) {
           leavePresence(currentTicketId, currentUser);
@@ -207,7 +215,7 @@ export default defineContentScript({
           wasLocked = false;
           unlockUI();
           currentTicketId = null;
-          sidebar.setState({ kind: 'idle' });
+          sidebar!.setState({ kind: 'idle' });
         }
       });
       root.querySelectorAll<HTMLButtonElement>('[data-pause]').forEach(btn => {
@@ -216,7 +224,7 @@ export default defineContentScript({
       root.querySelector('#nsb-ping-btn')?.addEventListener('click', () => {
         if (pingCooldown || !currentTicketId || !currentUser) return;
         pingCooldown = true;
-        const btn = sidebar.el.querySelector<HTMLButtonElement>('#nsb-ping-btn');
+        const btn = sidebar!.el.querySelector<HTMLButtonElement>('#nsb-ping-btn');
         if (btn) { btn.innerHTML = `${icon('check', { size: 13 })} Enviado`; btn.style.opacity = '0.6'; }
         apiCall('POST', `/api/presence/${currentTicketId}`, {
           user: currentUser,
@@ -224,7 +232,7 @@ export default defineContentScript({
         }, () => {});
         setTimeout(() => {
           pingCooldown = false;
-          const btn2 = sidebar.el.querySelector<HTMLButtonElement>('#nsb-ping-btn');
+          const btn2 = sidebar!.el.querySelector<HTMLButtonElement>('#nsb-ping-btn');
           if (btn2) { btn2.innerHTML = `${icon('megaphone', { size: 13 })} Avisar`; btn2.style.opacity = '1'; }
         }, 15000);
       });
@@ -249,7 +257,7 @@ export default defineContentScript({
       const hasNewEntry = others.some(o => !prevNames.has(o.name));
       lastOthers = others;
 
-      sidebar.setState({ kind: 'collision', others, ticketLabel: ticketLabel() });
+      sidebar!.setState({ kind: 'collision', others, ticketLabel: ticketLabel() });
       wireCollisionButtons(others);
 
       if (!wasLocked) {
@@ -280,7 +288,7 @@ export default defineContentScript({
       autoPingFired = false;
       unlockUI();
       const label = ticketLabel();
-      sidebar.setState({ kind: 'liberated', ticketLabel: label });
+      sidebar!.setState({ kind: 'liberated', ticketLabel: label });
       const libMuted = isMuted(typePrefs, 'liberation');
       if (soundEnabled && !libMuted) playSound('free');
       if (!libMuted) sendChromeNotification('Ticket liberado', 'Ya puedes trabajar en este ticket');
@@ -295,7 +303,7 @@ export default defineContentScript({
         silent: true,
       });
       setTimeout(() => {
-        if (currentTicketId) sidebar.setState({ kind: 'solo', ticketLabel: label });
+        if (currentTicketId) sidebar?.setState({ kind: 'solo', ticketLabel: label });
       }, 4000);
     }
 
@@ -314,8 +322,8 @@ export default defineContentScript({
 
       let secsLeft = minutes * 60;
       const renderPause = () => {
-        sidebar.setState({ kind: 'paused', secsLeft });
-        sidebar.el.querySelector('#nsb-cancel-pause')?.addEventListener('click', () => {
+        sidebar!.setState({ kind: 'paused', secsLeft });
+        sidebar!.el.querySelector('#nsb-cancel-pause')?.addEventListener('click', () => {
           clearTimeout(pauseTimeout);
           resumeAfterPause();
         });
@@ -342,16 +350,16 @@ export default defineContentScript({
         .then((res: any) => {
           if (!res?.sent) {
             consecutiveFailures++;
-            if (consecutiveFailures >= 3) sidebar.setOffline(true);
+            if (consecutiveFailures >= 3) sidebar?.setOffline(true);
             return;
           }
           consecutiveFailures = 0;
-          sidebar.setOffline(false);
+          sidebar?.setOffline(false);
           callback?.(res.status, res.data);
         })
         .catch(() => {
           consecutiveFailures++;
-          if (consecutiveFailures >= 3) sidebar.setOffline(true);
+          if (consecutiveFailures >= 3) sidebar?.setOffline(true);
         });
     }
 
@@ -374,16 +382,16 @@ export default defineContentScript({
           showCollision(others);
         } else {
           if (wasLocked) showLiberation();
-          else sidebar.setState({ kind: 'solo', ticketLabel: ticketLabel() });
+          else sidebar?.setState({ kind: 'solo', ticketLabel: ticketLabel() });
           wasLocked = false;
           if (data?.pastCollisions >= 2) {
             historyWarningShown = true;
-            sidebar.setHistoryWarning(data.pastCollisions);
+            sidebar?.setHistoryWarning(data.pastCollisions);
           }
         }
 
         const mismatchedAssignee = data?.assignedTo && data.assignedTo.trim().toLowerCase() !== user.trim().toLowerCase();
-        sidebar.setAssignment(mismatchedAssignee ? data.assignedTo : null);
+        sidebar?.setAssignment(mismatchedAssignee ? data.assignedTo : null);
 
         if (data?.pingedBy) {
           const pingMuted = isMuted(typePrefs, 'ping');
@@ -424,16 +432,21 @@ export default defineContentScript({
         wasLocked = false;
         unlockUI();
         historyWarningShown = false;
-        sidebar.setHistoryWarning(null);
-        sidebar.setAssignment(null);
       }
 
       currentTicketId = ticketId;
+
+      // Sin ticket abierto: el panel no debe existir (no se monta en páginas de
+      // búsqueda, tableros, calendario, etc. — solo cuando hay un ticket real).
       if (!ticketId) {
-        sidebar.setState({ kind: 'idle' });
+        sidebar?.destroy();
+        sidebar = null;
         return;
       }
 
+      if (!sidebar) sidebar = mountSidebar();
+      sidebar.setHistoryWarning(null);
+      sidebar.setAssignment(null);
       sidebar.setState({ kind: 'solo', ticketLabel: ticketLabel() });
       registerPresence(ticketId, currentUser);
       pollInterval = window.setInterval(() => {
@@ -462,7 +475,8 @@ export default defineContentScript({
     beat();
     window.setInterval(beat, 15000);
 
-    sidebar = mountSidebar();
+    // El panel (sidebar) se monta/destruye desde init() según haya o no un ticket
+    // abierto — no debe aparecer en búsquedas, tableros u otras páginas de Autotask.
     startRenagLoop();
 
     setTimeout(loadUserAndInit, 1000);
