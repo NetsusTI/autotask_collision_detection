@@ -1,7 +1,9 @@
-// Panel lateral persistente (70/30): reemplaza el banner/pill flotante anterior.
+// Panel lateral persistente: reemplaza el banner/pill flotante anterior.
 // Empuja el contenido de Autotask con margin-right (no zoom/scale — eso rompe
-// coordenadas de clic) e inyecta un panel fijo a la derecha con todo el estado
-// de la extensión: presencia del ticket, warnings y el centro de notificaciones.
+// coordenadas de clic) e inyecta un panel de ancho fijo (no % de ventana — un
+// 30vw le quitaba demasiado espacio al ticket y Autotask ocultaba parte de su
+// propia barra de herramientas) con todo el estado de la extensión: presencia
+// del ticket, warnings y el centro de notificaciones.
 //
 // Riesgo conocido: si Autotask tiene elementos position:fixed a pantalla completa
 // (menús, modales), pueden seguir extendiéndose bajo el panel — mismo comportamiento
@@ -20,7 +22,11 @@ import { icon } from './icons';
 import { getThemePref, resolveTheme, subscribePrefs, type ResolvedTheme } from './prefs';
 
 const PREFIX = 'nsb';
-const SIDEBAR_WIDTH = 'clamp(300px, 30vw, 460px)';
+// Ancho fijo (no un % de la ventana) — a 30vw le quitaba demasiado espacio al
+// ticket y Autotask ocultaba parte de su propia barra de herramientas. 340px fijo
+// en ventanas normales; el min(...,38vw) solo entra a tallar en ventanas angostas
+// para que el panel nunca supere ~38% del ancho disponible.
+const SIDEBAR_WIDTH = 'min(340px, 38vw)';
 
 export interface OtherUser { name: string; minutes: number; }
 
