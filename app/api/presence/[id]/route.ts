@@ -161,7 +161,11 @@ export async function POST(
   const configTtl = await redis.get<string>('config:presence_ttl');
   const ttl = configTtl ? Math.max(15, Math.min(300, parseInt(configTtl))) : PRESENCE_TTL;
   await redis.set(presenceKey(id, user), '1', { ex: ttl });
+  // nx: solo se fija la primera vez (conserva el momento real de llegada). El expire
+  // aparte renueva el TTL en cada poll para que no venza a los 5 min y "reinicie" el
+  // conteo de "quién llegó primero" en colisiones más largas que eso.
   await redis.set(`ticketentry:${id}:${user}`, Date.now().toString(), { ex: 300, nx: true });
+  await redis.expire(`ticketentry:${id}:${user}`, 300);
   if (ticketNumber) await redis.set(`ticketnumber:${id}`, ticketNumber, { ex: 300 });
   if (ticketUrl) await redis.set(`ticketurl:${id}`, ticketUrl, { ex: 300, nx: true });
 
