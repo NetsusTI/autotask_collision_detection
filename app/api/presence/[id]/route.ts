@@ -262,9 +262,16 @@ export async function POST(
         ts: Date.now(),
       });
     } else {
-      // Update participant list in case someone new joined mid-collision
+      // Colisión ya en curso: renovamos los TTL de colactive/colstart en cada poll
+      // (en vez de dejarlos vencer a los ~2 min) — si no, el servidor la trataba como
+      // "nueva" cada ~2 minutos, reenviando el webhook de Teams, duplicando la fila en
+      // collision_history/Supabase y truncando la duración real si pasaba de 10 min.
       const allInCollision = [user, ...otherNames];
-      await redis.set(`colusers:${id}`, JSON.stringify(allInCollision), { ex: 600 });
+      await Promise.all([
+        redis.expire(colKey, PRESENCE_TTL * 3),
+        redis.expire(`colstart:${id}`, 600),
+        redis.set(`colusers:${id}`, JSON.stringify(allInCollision), { ex: 600 }),
+      ]);
     }
   }
 
