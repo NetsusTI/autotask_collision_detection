@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkApiKey } from '@/lib/ticket-lock';
 import { autotaskConfigured } from '@/lib/autotask';
-import { syncResourcesFromAutotask } from '@/lib/resources';
+import { syncResourcesFromAutotask } from '@/lib/supabase/resources';
 
 export async function POST(request: NextRequest) {
   if (!checkApiKey(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });

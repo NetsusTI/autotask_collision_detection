@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkApiKey, redis } from '@/lib/ticket-lock';
 import { logCentralNotification } from '@/lib/notif-poll';
-import { supabase } from '@/lib/supabase';
-import { lookupResourceId } from '@/lib/resources';
+import { supabase } from '@/lib/supabase/client';
+import { lookupResourceId } from '@/lib/supabase/resources';
 
 const PRESENCE_TTL = 40;
 
