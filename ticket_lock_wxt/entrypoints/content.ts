@@ -1,4 +1,3 @@
-import { mountSidebar, type SidebarHandle, type OtherUser } from '@/lib/sidebar';
 import {
   add as addNotif,
   getAll as getNotifs,
@@ -8,7 +7,7 @@ import {
   type Severity,
 } from '@/lib/notifications';
 import { getTypePrefs, isMuted, subscribePrefs, type TypePrefs } from '@/lib/prefs';
-import { icon } from '@/lib/icons';
+import type { OtherUser, TicketState, TicketWarnings, PanelToContentMessage } from '@/lib/messaging';
 
 export default defineContentScript({
   matches: ['https://*.autotask.net/*'],
@@ -29,10 +28,20 @@ export default defineContentScript({
 
     let renagTimer: number | undefined;
     let typePrefs: TypePrefs = {};
-    let historyWarningShown = false;
 
-    // El panel solo existe mientras hay un ticket abierto — se monta/destruye en init().
-    let sidebar: SidebarHandle | null = null;
+    // Estado enviado al side panel por mensajes — el panel ya no vive en el DOM
+    // de esta página (el margin-push con CSS no dividía el espacio de verdad en
+    // apps con contenedor raíz fixed/vw; el Side Panel nativo de Chrome sí lo hace).
+    let currentState: TicketState = { kind: 'idle' };
+    let currentWarnings: TicketWarnings = { offline: false, historyCount: null, assignedTo: null };
+
+    function pushState() {
+      chrome.runtime.sendMessage({ type: 'NSB_STATE', payload: { state: currentState, warnings: currentWarnings } }).catch(() => {});
+    }
+    function setState(s: TicketState) { currentState = s; pushState(); }
+    function setOffline(v: boolean) { currentWarnings = { ...currentWarnings, offline: v }; pushState(); }
+    function setHistoryWarning(v: number | null) { currentWarnings = { ...currentWarnings, historyCount: v }; pushState(); }
+    function setAssignment(v: string | null) { currentWarnings = { ...currentWarnings, assignedTo: v }; pushState(); }
 
     function getUserFromDOM(): string | null {
       const selectors = [
@@ -184,16 +193,17 @@ export default defineContentScript({
       }, 30000);
     }
 
-    // Bloquea la interacción con el ticket durante una colisión — excluye el panel
-    // lateral (#nsb-root) para que sus propios botones sigan siendo clicables.
+    // Bloquea la interacción con el ticket durante una colisión. El panel ya no
+    // vive en el DOM de la página (ahora es el side panel de Chrome), así que no
+    // hace falta excluir nada del bloqueo.
     function lockUI() {
       if (document.getElementById('netsus-lock-style')) return;
       const style = document.createElement('style');
       style.id = 'netsus-lock-style';
       style.textContent = `
-        body.netsus-locked button:not(#nsb-root button),
-        body.netsus-locked textarea:not(#nsb-root textarea),
-        body.netsus-locked input:not(#nsb-root input):not([type="search"]):not([type="text"][readonly]) {
+        body.netsus-locked button,
+        body.netsus-locked textarea,
+        body.netsus-locked input:not([type="search"]):not([type="text"][readonly]) {
           pointer-events: none !important; opacity: 0.45 !important; cursor: not-allowed !important;
         }
       `;
@@ -204,41 +214,6 @@ export default defineContentScript({
     function unlockUI() {
       document.body.classList.remove('netsus-locked');
       document.getElementById('netsus-lock-style')?.remove();
-    }
-
-    // Estas funciones solo se invocan mientras hay un ticket abierto (sidebar montado);
-    // sidebar! es seguro aquí — si alguna vez fuera null sería un bug real, no un caso normal.
-    function wireCollisionButtons(others: OtherUser[]) {
-      const root = sidebar!.el;
-      root.querySelector('#nsb-finish-btn')?.addEventListener('click', () => {
-        if (currentTicketId && currentUser) {
-          leavePresence(currentTicketId, currentUser);
-          clearInterval(pollInterval);
-          clearTimeout(autoPingTimer);
-          wasLocked = false;
-          unlockUI();
-          currentTicketId = null;
-          sidebar!.setState({ kind: 'idle' });
-        }
-      });
-      root.querySelectorAll<HTMLButtonElement>('[data-pause]').forEach(btn => {
-        btn.addEventListener('click', () => pausePresence(parseInt(btn.dataset.pause!)));
-      });
-      root.querySelector('#nsb-ping-btn')?.addEventListener('click', () => {
-        if (pingCooldown || !currentTicketId || !currentUser) return;
-        pingCooldown = true;
-        const btn = sidebar!.el.querySelector<HTMLButtonElement>('#nsb-ping-btn');
-        if (btn) { btn.innerHTML = `${icon('check', { size: 13 })} Enviado`; btn.style.opacity = '0.6'; }
-        apiCall('POST', `/api/presence/${currentTicketId}`, {
-          user: currentUser,
-          ping: others.map(u => u.name),
-        }, () => {});
-        setTimeout(() => {
-          pingCooldown = false;
-          const btn2 = sidebar!.el.querySelector<HTMLButtonElement>('#nsb-ping-btn');
-          if (btn2) { btn2.innerHTML = `${icon('megaphone', { size: 13 })} Avisar`; btn2.style.opacity = '1'; }
-        }, 15000);
-      });
     }
 
     function startAutoPing(others: OtherUser[]) {
@@ -260,8 +235,7 @@ export default defineContentScript({
       const hasNewEntry = others.some(o => !prevNames.has(o.name));
       lastOthers = others;
 
-      sidebar!.setState({ kind: 'collision', others, ticketLabel: ticketLabel() });
-      wireCollisionButtons(others);
+      setState({ kind: 'collision', others, ticketLabel: ticketLabel() });
 
       if (!wasLocked) {
         const colMuted = isMuted(typePrefs, 'collision');
@@ -291,7 +265,7 @@ export default defineContentScript({
       autoPingFired = false;
       unlockUI();
       const label = ticketLabel();
-      sidebar!.setState({ kind: 'liberated', ticketLabel: label });
+      setState({ kind: 'liberated', ticketLabel: label });
       const libMuted = isMuted(typePrefs, 'liberation');
       if (soundEnabled && !libMuted) playSound('free');
       if (!libMuted) sendChromeNotification('Ticket liberado', 'Ya puedes trabajar en este ticket');
@@ -306,7 +280,7 @@ export default defineContentScript({
         silent: true,
       });
       setTimeout(() => {
-        if (currentTicketId) sidebar?.setState({ kind: 'solo', ticketLabel: label });
+        if (currentTicketId) setState({ kind: 'solo', ticketLabel: label });
       }, 4000);
     }
 
@@ -324,20 +298,35 @@ export default defineContentScript({
       unlockUI();
 
       let secsLeft = minutes * 60;
-      const renderPause = () => {
-        sidebar!.setState({ kind: 'paused', secsLeft });
-        sidebar!.el.querySelector('#nsb-cancel-pause')?.addEventListener('click', () => {
-          clearTimeout(pauseTimeout);
-          resumeAfterPause();
-        });
-      };
-      renderPause();
+      setState({ kind: 'paused', secsLeft });
       pauseTickInterval = window.setInterval(() => {
         secsLeft--;
         if (secsLeft <= 0) { clearInterval(pauseTickInterval); return; }
-        renderPause();
+        setState({ kind: 'paused', secsLeft });
       }, 1000);
       pauseTimeout = window.setTimeout(resumeAfterPause, minutes * 60 * 1000);
+    }
+
+    function triggerFinish() {
+      if (currentTicketId && currentUser) {
+        leavePresence(currentTicketId, currentUser);
+        clearInterval(pollInterval);
+        clearTimeout(autoPingTimer);
+        wasLocked = false;
+        unlockUI();
+        currentTicketId = null;
+        setState({ kind: 'idle' });
+      }
+    }
+
+    function triggerPing() {
+      if (pingCooldown || !currentTicketId || !currentUser) return;
+      pingCooldown = true;
+      apiCall('POST', `/api/presence/${currentTicketId}`, {
+        user: currentUser,
+        ping: lastOthers.map(u => u.name),
+      }, () => {});
+      setTimeout(() => { pingCooldown = false; }, 15000);
     }
 
     let consecutiveFailures = 0;
@@ -353,16 +342,16 @@ export default defineContentScript({
         .then((res: any) => {
           if (!res?.sent) {
             consecutiveFailures++;
-            if (consecutiveFailures >= 3) sidebar?.setOffline(true);
+            if (consecutiveFailures >= 3) setOffline(true);
             return;
           }
           consecutiveFailures = 0;
-          sidebar?.setOffline(false);
+          setOffline(false);
           callback?.(res.status, res.data);
         })
         .catch(() => {
           consecutiveFailures++;
-          if (consecutiveFailures >= 3) sidebar?.setOffline(true);
+          if (consecutiveFailures >= 3) setOffline(true);
         });
     }
 
@@ -385,16 +374,13 @@ export default defineContentScript({
           showCollision(others);
         } else {
           if (wasLocked) showLiberation();
-          else sidebar?.setState({ kind: 'solo', ticketLabel: ticketLabel() });
+          else setState({ kind: 'solo', ticketLabel: ticketLabel() });
           wasLocked = false;
-          if (data?.pastCollisions >= 2) {
-            historyWarningShown = true;
-            sidebar?.setHistoryWarning(data.pastCollisions);
-          }
+          if (data?.pastCollisions >= 2) setHistoryWarning(data.pastCollisions);
         }
 
         const mismatchedAssignee = data?.assignedTo && data.assignedTo.trim().toLowerCase() !== user.trim().toLowerCase();
-        sidebar?.setAssignment(mismatchedAssignee ? data.assignedTo : null);
+        setAssignment(mismatchedAssignee ? data.assignedTo : null);
 
         if (data?.pingedBy) {
           const pingMuted = isMuted(typePrefs, 'ping');
@@ -434,28 +420,40 @@ export default defineContentScript({
         autoPingFired = false;
         wasLocked = false;
         unlockUI();
-        historyWarningShown = false;
       }
 
       currentTicketId = ticketId;
+      setHistoryWarning(null);
+      setAssignment(null);
 
-      // Sin ticket abierto: el panel no debe existir (no se monta en páginas de
-      // búsqueda, tableros, calendario, etc. — solo cuando hay un ticket real).
       if (!ticketId) {
-        sidebar?.destroy();
-        sidebar = null;
+        setState({ kind: 'idle' });
         return;
       }
 
-      if (!sidebar) sidebar = mountSidebar();
-      sidebar.setHistoryWarning(null);
-      sidebar.setAssignment(null);
-      sidebar.setState({ kind: 'solo', ticketLabel: ticketLabel() });
+      setState({ kind: 'solo', ticketLabel: ticketLabel() });
       registerPresence(ticketId, currentUser);
       pollInterval = window.setInterval(() => {
         registerPresence(ticketId, currentUser as string);
       }, 5000);
     }
+
+    // El side panel pide el estado actual al abrirse o cambiar de pestaña, y
+    // envía acciones (avisar, terminé, pausar, cancelar pausa) que antes eran
+    // botones dentro del panel inyectado en la página.
+    chrome.runtime.onMessage.addListener((msg: PanelToContentMessage, _sender, sendResponse) => {
+      if (msg?.type === 'NSB_REQUEST_STATE') {
+        sendResponse({ payload: { state: currentState, warnings: currentWarnings } });
+        return false;
+      }
+      if (msg?.type === 'NSB_ACTION') {
+        if (msg.action === 'ping') triggerPing();
+        else if (msg.action === 'finish') triggerFinish();
+        else if (msg.action === 'pause') pausePresence(msg.minutes);
+        else if (msg.action === 'cancelPause') { clearTimeout(pauseTimeout); resumeAfterPause(); }
+      }
+      return false;
+    });
 
     window.addEventListener('beforeunload', () => {
       if (currentTicketId && currentUser) leavePresence(currentTicketId, currentUser);
@@ -478,8 +476,6 @@ export default defineContentScript({
     beat();
     window.setInterval(beat, 15000);
 
-    // El panel (sidebar) se monta/destruye desde init() según haya o no un ticket
-    // abierto — no debe aparecer en búsquedas, tableros u otras páginas de Autotask.
     startRenagLoop();
 
     setTimeout(loadUserAndInit, 1000);
