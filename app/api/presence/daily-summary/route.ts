@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkApiKey, redis } from '@/lib/ticket-lock';
+import { supabase } from '@/lib/supabase/client';
 
 function checkCronSecret(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
@@ -10,11 +11,6 @@ export async function GET(request: NextRequest) {
   const isCron = checkCronSecret(request);
   if (!isCron && !checkApiKey(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
-  const raw = await redis.lrange('collision_history', 0, -1);
-  const events = raw.map(e => {
-    try { return typeof e === 'string' ? JSON.parse(e) : e; } catch { return null; }
-  }).filter(Boolean);
-
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
   yesterday.setHours(0, 0, 0, 0);
@@ -23,10 +19,21 @@ export async function GET(request: NextRequest) {
 
   const send = isCron || request.nextUrl.searchParams.get('send') === 'true';
   const period = request.nextUrl.searchParams.get('period') ?? 'yesterday';
-  const from = period === 'today' ? todayStart.getTime() : yesterday.getTime();
-  const to = period === 'today' ? Date.now() : todayStart.getTime();
+  const from = period === 'today' ? todayStart : yesterday;
+  const to = period === 'today' ? new Date() : todayStart;
 
-  const filtered = events.filter(e => e.ts >= from && e.ts < to);
+  const { data, error } = await supabase
+    .from('collision_history')
+    .select('ticket_id, ticket_number, users, created_at')
+    .gte('created_at', from.toISOString())
+    .lt('created_at', to.toISOString());
+  if (error) return NextResponse.json({ error: 'query failed' }, { status: 500 });
+
+  const filtered = (data ?? []).map((row) => ({
+    ticketId: row.ticket_id,
+    ticketNumber: row.ticket_number,
+    users: (row.users ?? []) as (string | { name: string })[],
+  }));
 
   if (!filtered.length) {
     return NextResponse.json({ total: 0, message: 'Sin colisiones en el período' });
@@ -37,7 +44,7 @@ export async function GET(request: NextRequest) {
   for (const e of filtered) {
     const key = e.ticketNumber || '#' + e.ticketId;
     byTicket[key] = (byTicket[key] || 0) + 1;
-    for (const u of (e.users || [])) {
+    for (const u of e.users) {
       const name = typeof u === 'string' ? u : u.name;
       byTech[name] = (byTech[name] || 0) + 1;
     }

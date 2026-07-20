@@ -1,21 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { checkApiKey, redis } from '@/lib/ticket-lock';
+import { checkApiKey } from '@/lib/ticket-lock';
+import { supabase } from '@/lib/supabase/client';
+
+// Leído desde Supabase (sin el cap de 200 que tenía la lista `collision_history` en
+// Redis) — se trae una ventana amplia y se agrega en memoria, igual que hace
+// history/route.ts para el filtro por técnico.
+const SCAN_WINDOW = 5000;
 
 export async function GET(request: NextRequest) {
   if (!checkApiKey(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
-  const [raw, durRaw] = await Promise.all([
-    redis.lrange('collision_history', 0, -1),
-    redis.lrange('collision_durations', 0, -1),
-  ]);
+  const { data, error } = await supabase
+    .from('collision_history')
+    .select('ticket_id, ticket_number, users, duration_ms, created_at')
+    .order('created_at', { ascending: false })
+    .limit(SCAN_WINDOW);
+  if (error || !data) return NextResponse.json({ error: 'query failed' }, { status: 500 });
 
-  const events = raw.map(e => {
-    try { return typeof e === 'string' ? JSON.parse(e) : e; } catch { return null; }
-  }).filter(Boolean);
-
-  const durations = durRaw.map(e => {
-    try { return typeof e === 'string' ? JSON.parse(e) : e; } catch { return null; }
-  }).filter(Boolean);
+  const events = data.map((row) => ({
+    ts: new Date(row.created_at).getTime(),
+    ticketId: row.ticket_id,
+    ticketNumber: row.ticket_number,
+    users: (row.users ?? []) as (string | { name: string })[],
+  }));
+  const durations = data
+    .map((row) => row.duration_ms)
+    .filter((d): d is number => d != null);
 
   const byTech: Record<string, number> = {};
   const byHour: number[] = Array(24).fill(0);
@@ -35,7 +45,7 @@ export async function GET(request: NextRequest) {
     byHour[hour]++;
     const key = e.ticketNumber || '#' + e.ticketId;
     byTicket[key] = (byTicket[key] || 0) + 1;
-    for (const u of (e.users || [])) {
+    for (const u of e.users) {
       const name = typeof u === 'string' ? u : u.name;
       byTech[name] = (byTech[name] || 0) + 1;
     }
@@ -58,7 +68,7 @@ export async function GET(request: NextRequest) {
 
   const pairs: Record<string, number> = {};
   for (const e of events) {
-    const users = (e.users || []).map((u: string | { name: string }) => (typeof u === 'string' ? u : u.name));
+    const users = e.users.map((u) => (typeof u === 'string' ? u : u.name));
     for (let i = 0; i < users.length; i++) {
       for (let j = i + 1; j < users.length; j++) {
         const key = [users[i], users[j]].sort().join(' ↔ ');
@@ -72,10 +82,10 @@ export async function GET(request: NextRequest) {
     .map(([pair, count]) => ({ pair, count }));
 
   const avgDuration = durations.length
-    ? Math.round(durations.reduce((sum: number, d: { duration?: number }) => sum + (d.duration || 0), 0) / durations.length / 1000)
+    ? Math.round(durations.reduce((sum, d) => sum + d, 0) / durations.length / 1000)
     : null;
   const maxDuration = durations.length
-    ? Math.round(Math.max(...durations.map((d: { duration?: number }) => d.duration || 0)) / 1000)
+    ? Math.round(Math.max(...durations) / 1000)
     : null;
 
   // Ordered array of { date, count } for the last 30 days
