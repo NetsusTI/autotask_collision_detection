@@ -220,7 +220,9 @@ export default function AdminPage() {
         body: JSON.stringify({ password: pwd }),
       });
       if (res.ok) {
+        const data = await res.json().catch(() => ({}));
         sessionStorage.setItem('netsus_admin', '1');
+        if (data.token) sessionStorage.setItem('netsus_admin_token', data.token);
         setAuth(true);
         return;
       }
@@ -229,6 +231,13 @@ export default function AdminPage() {
     }
     setPwdError(true);
     setTimeout(() => setPwdError(false), 2000);
+  }
+
+  // Token de sesión de admin (emitido por /api/admin/auth) — exigido además del
+  // x-api-key en endpoints administrativos (/api/config POST, etc.), ya que el
+  // x-api-key por sí solo viene embebido en la extensión pública.
+  function adminHeaders(extra?: Record<string, string>) {
+    return { ...extra, 'x-api-key': API_KEY, 'x-admin-token': sessionStorage.getItem('netsus_admin_token') || '' };
   }
 
   async function fetchData() {
@@ -307,12 +316,12 @@ export default function AdminPage() {
   async function saveNotifConfig() {
     setConfigStatus('saving');
     try {
-      await fetch('/api/config', {
+      const res = await fetch('/api/config', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
+        headers: adminHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ notifEnabled, watchQueues, criticalPriorities, slaWarnMin, autotaskUiBase: autotaskUiBase.trim() }),
       });
-      setConfigStatus('✓ Configuración guardada');
+      setConfigStatus(res.ok ? '✓ Configuración guardada' : (res.status === 403 ? '✗ Sesión expirada, vuelve a ingresar' : '✗ Error al guardar'));
     } catch {
       setConfigStatus('✗ Error al guardar');
     }
