@@ -3,6 +3,8 @@ import { checkApiKey, redis } from '@/lib/ticket-lock';
 import { logCentralNotification } from '@/lib/notif-poll';
 import { supabase } from '@/lib/supabase/client';
 import { lookupResourceId } from '@/lib/supabase/resources';
+import { dedupeOthers, minutesSince, formatDuration } from '@/lib/collision';
+import { clampInt } from '@/lib/num';
 
 const PRESENCE_TTL = 40;
 
@@ -113,10 +115,7 @@ async function sendResolutionWebhook(ticketDisplay: string, users: string[], dur
   const webhookUrl = await getWebhookUrl();
   if (!webhookUrl) return;
 
-  const totalSecs = Math.round(durationMs / 1000);
-  const mins = Math.floor(totalSecs / 60);
-  const secs = totalSecs % 60;
-  const durStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+  const durStr = formatDuration(durationMs);
 
   postWebhook(webhookUrl, {
     '@type': 'MessageCard',
@@ -159,7 +158,7 @@ export async function POST(
   const { user, ticketNumber, ticketUrl, ping, autotaskTicketId } = await request.json().catch(() => ({ user: 'Desconocido', ticketNumber: null, ticketUrl: null, ping: null, autotaskTicketId: null }));
 
   const configTtl = await redis.get<string>('config:presence_ttl');
-  const ttl = configTtl ? Math.max(15, Math.min(300, parseInt(configTtl))) : PRESENCE_TTL;
+  const ttl = clampInt(configTtl, 15, 300, PRESENCE_TTL);
   await redis.set(presenceKey(id, user), '1', { ex: ttl });
   // nx: solo se fija la primera vez (conserva el momento real de llegada). El expire
   // aparte renueva el TTL en cada poll para que no venza a los 5 min y "reinicie" el
@@ -199,15 +198,16 @@ export async function POST(
   if (pingedBy) await redis.del(pingKey);
 
   const allKeys = await redis.keys(`ticketpresence:${id}:*`);
-  const otherNames = allKeys.map(k => extractUser(k, id)).filter(u => u !== user);
+  const otherNames = dedupeOthers(allKeys.map(k => extractUser(k, id)), user);
 
   const entryTimes = otherNames.length > 0
     ? await Promise.all(otherNames.map(u => redis.get<string>(`ticketentry:${id}:${u}`)))
     : [];
 
+  const now = Date.now();
   const others = otherNames.map((name, i) => ({
     name,
-    minutes: entryTimes[i] ? Math.floor((Date.now() - Number(entryTimes[i])) / 60000) : 0,
+    minutes: minutesSince(entryTimes[i], now),
   }));
 
   if (others.length > 0) {
@@ -222,15 +222,8 @@ export async function POST(
         redis.set(`colusers:${id}`, JSON.stringify(allInCollision), { ex: 600 }),
       ]);
       const storedUrl = ticketUrl ?? await redis.get<string>(`ticketurl:${id}`);
-      const event = JSON.stringify({
-        ts: Date.now(),
-        ticketId: id,
-        ticketNumber: ticketNumber ?? null,
-        users: allInCollision,
-      });
-      await redis.lpush('collision_history', event);
-      await redis.ltrim('collision_history', 0, 199);
-      // Copia durable en Supabase — guardamos el id para completar duration_ms cuando se resuelva.
+      // Registro durable en Supabase (history/analytics/daily-summary leen de ahí) —
+      // guardamos el id para completar duration_ms cuando se resuelva.
       try {
         const { data: supaRow } = await supabase
           .from('collision_history')
@@ -314,8 +307,6 @@ export async function DELETE(
           redis.del(`colusers:${id}`),
         ]);
         if (duration > 5000) {
-          await redis.lpush('collision_durations', JSON.stringify({ ticketId: id, duration, ts: Date.now() }));
-          await redis.ltrim('collision_durations', 0, 199);
           // Completa la fila de Supabase abierta en la detección; si no la encontramos
           // (TTL venció o se perdió), insertamos una fila nueva ya con la duración.
           try {
@@ -339,8 +330,7 @@ export async function DELETE(
           // Notify Teams that the collision was resolved
           const colUsers: string[] = colUsersRaw ? JSON.parse(colUsersRaw) : [user];
           sendResolutionWebhook(ticketNumber ?? `#${id}`, colUsers, duration, ticketUrl);
-          const durSecs = Math.round(duration / 1000);
-          const durLabel = durSecs >= 60 ? `${Math.floor(durSecs / 60)}m ${durSecs % 60}s` : `${durSecs}s`;
+          const durLabel = formatDuration(duration);
           logCentralNotification({
             type: 'liberation',
             title: 'Colisión resuelta',

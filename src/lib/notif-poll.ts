@@ -6,6 +6,7 @@
 import { redis } from '@/lib/ticket-lock';
 import { supabase } from '@/lib/supabase/client';
 import { lookupResourceId } from '@/lib/supabase/resources';
+import { clampInt } from '@/lib/num';
 import {
   autotaskConfigured,
   ticketsInQueues,
@@ -104,7 +105,7 @@ export async function getNotifConfig() {
     redis.get<string>('config:autotask_ui_base'),
     redis.get<string>('config:notif_enabled'),
   ]);
-  const slaWarnMin = slaRaw ? Math.max(5, Math.min(1440, parseInt(slaRaw))) : 30;
+  const slaWarnMin = clampInt(slaRaw, 5, 1440, 30);
   return {
     watchQueues,
     criticalPriorities,
@@ -176,14 +177,14 @@ async function pushEvent(resourceIDs: number[], item: FeedItem, seenTtlSec: numb
   return true;
 }
 
-function tParsed(s?: string | null): number | null {
+export function tParsed(s?: string | null): number | null {
   if (!s) return null;
   const t = Date.parse(s);
   return Number.isNaN(t) ? null : t;
 }
 
 // SLA por vencer/vencido (n4): due presente, aún no cumplido, y dentro de la ventana de aviso.
-function slaEvents(t: AutotaskTicket, warnMin: number, now: number): { kind: string; label: string; overdue: boolean }[] {
+export function slaEvents(t: AutotaskTicket, warnMin: number, now: number): { kind: string; label: string; overdue: boolean }[] {
   const out: { kind: string; label: string; overdue: boolean }[] = [];
   const warnMs = warnMin * 60000;
   const check = (kind: string, label: string, due?: string | null, met?: string | null) => {
