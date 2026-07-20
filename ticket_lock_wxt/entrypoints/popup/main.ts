@@ -84,6 +84,16 @@ document.getElementById('adminBtn')?.addEventListener('click', () => {
   chrome.tabs.create({ url: chrome.runtime.getURL('admin.html') });
 });
 
+// Chrome exige un gesto del usuario para abrir el side panel — este clic cuenta.
+// Solo hace falta una vez por pestaña: una vez abierto, sigue la pestaña activa solo.
+document.getElementById('openPanelBtn')?.addEventListener('click', async () => {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (tab?.id !== undefined) {
+    await chrome.sidePanel.open({ tabId: tab.id });
+    window.close();
+  }
+});
+
 function loadCollisions() {
   chrome.runtime.sendMessage(
     { type: 'NETSUS_API', method: 'GET', path: '/api/presence/status', body: null },
