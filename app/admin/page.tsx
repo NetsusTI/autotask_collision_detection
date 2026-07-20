@@ -68,7 +68,6 @@ function relTime(ts: number): string {
 }
 
 const API_KEY = '-_-ErJy9v64XRiDbpuPFZ3uLs4nVFmXm';
-const ADMIN_PASSWORD = 'netsus2026';
 
 type ThemePref = 'auto' | 'light' | 'dark';
 type ResolvedTheme = 'light' | 'dark';
@@ -204,14 +203,23 @@ export default function AdminPage() {
     localStorage.setItem(THEME_STORAGE_KEY, p);
   }
 
-  function login() {
-    if (pwd === ADMIN_PASSWORD) {
-      sessionStorage.setItem('netsus_admin', '1');
-      setAuth(true);
-    } else {
-      setPwdError(true);
-      setTimeout(() => setPwdError(false), 2000);
+  async function login() {
+    try {
+      const res = await fetch('/api/admin/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pwd }),
+      });
+      if (res.ok) {
+        sessionStorage.setItem('netsus_admin', '1');
+        setAuth(true);
+        return;
+      }
+    } catch {
+      // cae al bloque de error de abajo
     }
+    setPwdError(true);
+    setTimeout(() => setPwdError(false), 2000);
   }
 
   async function fetchData() {
