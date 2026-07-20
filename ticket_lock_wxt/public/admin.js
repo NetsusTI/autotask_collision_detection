@@ -113,8 +113,11 @@
       body: JSON.stringify({ password: pwd }),
     }).then(function (r) {
       if (r.ok) {
-        sessionStorage.setItem('netsus_admin', '1');
-        showPanel();
+        return r.json().catch(function () { return {}; }).then(function (data) {
+          sessionStorage.setItem('netsus_admin', '1');
+          if (data && data.token) sessionStorage.setItem('netsus_admin_token', data.token);
+          showPanel();
+        });
       } else {
         var err = document.getElementById('loginError');
         err.style.display = 'block';
@@ -132,11 +135,22 @@
 
   function doLogout() {
     sessionStorage.removeItem('netsus_admin');
+    sessionStorage.removeItem('netsus_admin_token');
     clearInterval(countdownInterval);
     countdownInterval = null;
     document.getElementById('panel').style.display = 'none';
     document.getElementById('loginScreen').style.display = '';
     document.getElementById('pwdInput').value = '';
+  }
+
+  // Endpoints administrativos (config, sync de roster, borrar historial) exigen
+  // este token de sesión además del x-api-key — ese solo, embebido en la extensión
+  // pública, no alcanza para gatear acciones destructivas.
+  function adminHeaders(extra) {
+    var h = Object.assign({}, extra || {});
+    h['x-api-key'] = API_KEY;
+    h['x-admin-token'] = sessionStorage.getItem('netsus_admin_token') || '';
+    return h;
   }
 
   function setTab(tab) {
@@ -482,8 +496,11 @@
     status.className = 'configStatus';
     status.style.color = 'var(--dim)';
     status.textContent = 'Sincronizando con Autotask...';
-    fetch(BASE_URL + '/api/resources/sync', { method: 'POST', headers: { 'x-api-key': API_KEY } })
-      .then(function (r) { return r.json(); })
+    fetch(BASE_URL + '/api/resources/sync', { method: 'POST', headers: adminHeaders() })
+      .then(function (r) {
+        if (r.status === 403) throw new Error('session');
+        return r.json();
+      })
       .then(function (data) {
         status.style.color = '';
         if (!data.ran) {
@@ -494,10 +511,10 @@
           status.textContent = '✓ Roster actualizado · ' + data.synced + ' activos' + (data.deactivated ? ', ' + data.deactivated + ' desactivados' : '');
         }
         setTimeout(function () { status.textContent = ''; }, 6000);
-      }).catch(function () {
+      }).catch(function (err) {
         status.style.color = '';
         status.className = 'configStatus err';
-        status.textContent = '✗ Error al sincronizar';
+        status.textContent = err && err.message === 'session' ? '✗ Sesión expirada, vuelve a ingresar' : '✗ Error al sincronizar';
       });
   }
 
@@ -507,15 +524,16 @@
     var status = document.getElementById('ttlStatus');
     fetch(BASE_URL + '/api/config', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
+      headers: adminHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ presenceTtl: val })
-    }).then(function () {
+    }).then(function (r) {
+      if (!r.ok) throw new Error(r.status === 403 ? 'session' : 'http');
       status.className = 'configStatus ok';
       status.textContent = '✓ TTL guardado: ' + val + 's';
       setTimeout(function () { status.textContent = ''; }, 3000);
-    }).catch(function () {
+    }).catch(function (err) {
       status.className = 'configStatus err';
-      status.textContent = '✗ Error al guardar';
+      status.textContent = err && err.message === 'session' ? '✗ Sesión expirada, vuelve a ingresar' : '✗ Error al guardar';
     });
   }
 
@@ -524,15 +542,16 @@
     var status = document.getElementById('webhookStatus');
     fetch(BASE_URL + '/api/config', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
+      headers: adminHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ teamsWebhook: url })
-    }).then(function () {
+    }).then(function (r) {
+      if (!r.ok) throw new Error(r.status === 403 ? 'session' : 'http');
       status.className = 'configStatus ok';
       status.textContent = '✓ Webhook guardado';
       setTimeout(function () { status.textContent = ''; }, 3000);
-    }).catch(function () {
+    }).catch(function (err) {
       status.className = 'configStatus err';
-      status.textContent = '✗ Error al guardar';
+      status.textContent = err && err.message === 'session' ? '✗ Sesión expirada, vuelve a ingresar' : '✗ Error al guardar';
     });
   }
 
@@ -627,14 +646,17 @@
 
   document.getElementById('clearHistoryBtn').addEventListener('click', function () {
     if (!confirm('¿Borrar todo el historial de colisiones? Esta acción no se puede deshacer.')) return;
-    fetch(BASE_URL + '/api/presence/history', { method: 'DELETE', headers: { 'x-api-key': API_KEY } })
-      .then(function () {
+    fetch(BASE_URL + '/api/presence/history', { method: 'DELETE', headers: adminHeaders() })
+      .then(function (r) {
+        if (!r.ok) throw new Error(r.status === 403 ? 'session' : 'http');
         lastHistory = [];
         historyOffset = 0;
         historyTotal = 0;
         renderHistory([]);
         document.getElementById('statHistory').textContent = '0';
-      }).catch(function () { alert('Error al borrar el historial'); });
+      }).catch(function (err) {
+        alert(err && err.message === 'session' ? 'Sesión expirada, vuelve a ingresar' : 'Error al borrar el historial');
+      });
   });
 
   document.querySelectorAll('.periodBtn').forEach(function (btn) {

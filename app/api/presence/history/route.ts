@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkApiKey } from '@/lib/ticket-lock';
+import { checkAdminSession } from '@/lib/admin-auth';
 import { supabase } from '@/lib/supabase/client';
 
 // Historial de colisiones — leído desde Supabase (una fila por colisión, sin el cap de
@@ -52,6 +53,9 @@ export async function GET(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   if (!checkApiKey(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  // Borra TODO el historial de colisiones — irreversible, exige la sesión de
+  // /api/admin/auth además del x-api-key (ver nota en /api/config).
+  if (!(await checkAdminSession(request))) return NextResponse.json({ error: 'admin session required' }, { status: 403 });
   await supabase.from('collision_history').delete().not('id', 'is', null);
   return NextResponse.json({ ok: true });
 }

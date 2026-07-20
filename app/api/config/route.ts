@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkApiKey, redis } from '@/lib/ticket-lock';
+import { checkAdminSession } from '@/lib/admin-auth';
 
 export async function GET(request: NextRequest) {
   if (!checkApiKey(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
@@ -25,6 +26,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   if (!checkApiKey(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  // Cambiar config (webhook de Teams, TTL, colas vigiladas, etc.) es una acción
+  // administrativa — exige la sesión de /api/admin/auth además del x-api-key, que
+  // por sí solo no alcanza (viene embebido en la extensión pública).
+  if (!(await checkAdminSession(request))) return NextResponse.json({ error: 'admin session required' }, { status: 403 });
   const body = await request.json().catch(() => ({}));
   const ops: Promise<unknown>[] = [];
   if ('teamsWebhook' in body) {
