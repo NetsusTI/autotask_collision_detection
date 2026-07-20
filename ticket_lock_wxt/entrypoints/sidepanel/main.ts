@@ -4,11 +4,24 @@ import {
   markAllRead,
   markRead,
   unreadCount,
+  getRenagMinutes,
+  RENAG_MIN_KEY,
   SEVERITY_COLOR,
   type AppNotification,
 } from '@/lib/notifications';
 import { icon } from '@/lib/icons';
-import { getThemePref, resolveTheme, subscribePrefs, type ResolvedTheme } from '@/lib/prefs';
+import {
+  getThemePref,
+  setThemePref,
+  resolveTheme,
+  getTypePrefs,
+  setTypeMuted,
+  typeList,
+  subscribePrefs,
+  type ThemePref,
+  type ResolvedTheme,
+  type TypePrefs,
+} from '@/lib/prefs';
 import type {
   TicketState,
   TicketWarnings,
@@ -243,12 +256,113 @@ document.getElementById('notif-readall')!.addEventListener('click', async () => 
 subscribe((list) => refreshNotifs(list));
 refreshNotifs();
 
-// --- Tema ---
+// --- Tema (aplicación automática, sigue al sistema si está en "auto") ---
 function applyTheme(t: ResolvedTheme) { document.documentElement.dataset.theme = t; }
-let themePref: Awaited<ReturnType<typeof getThemePref>> = 'auto';
-getThemePref().then((p) => { themePref = p; applyTheme(resolveTheme(p)); });
+let themePref: ThemePref = 'auto';
+getThemePref().then((p) => { themePref = p; applyTheme(resolveTheme(p)); highlightThemeSeg(p); });
 const mq = typeof matchMedia !== 'undefined' ? matchMedia('(prefers-color-scheme: dark)') : null;
 mq?.addEventListener('change', () => { if (themePref === 'auto') applyTheme(resolveTheme('auto')); });
 subscribePrefs(({ theme }) => {
-  if (theme !== undefined) { themePref = theme; applyTheme(resolveTheme(theme)); }
+  if (theme !== undefined) { themePref = theme; applyTheme(resolveTheme(theme)); highlightThemeSeg(theme); }
 });
+
+// --- Ajustes (antes vivían en el popup — fusionados aquí para que el ícono de la
+// extensión abra el panel directamente, sin un popup intermedio) ---
+const settingsBtn = document.getElementById('settingsBtn') as HTMLButtonElement;
+const settingsPanel = document.getElementById('settingsPanel') as HTMLElement;
+settingsBtn.addEventListener('click', () => {
+  const open = settingsPanel.style.display !== 'none';
+  settingsPanel.style.display = open ? 'none' : '';
+  settingsBtn.classList.toggle('active', !open);
+});
+
+document.getElementById('soundLabel')!.innerHTML = icon('volume-2', { size: 13 }) + ' Sonido de alerta';
+document.getElementById('renagLabel')!.innerHTML = icon('bell', { size: 13 }) + ' Re-avisar cada';
+document.getElementById('themeLabel')!.innerHTML = icon('palette', { size: 13 }) + ' Tema';
+document.getElementById('prefsSummary')!.innerHTML = icon('bell', { size: 12 }) + ' Tipos de notificación';
+document.querySelector<HTMLButtonElement>('#themeSeg button[data-theme-val="light"]')!.innerHTML = icon('sun', { size: 12 });
+document.querySelector<HTMLButtonElement>('#themeSeg button[data-theme-val="dark"]')!.innerHTML = icon('moon', { size: 12 });
+const nameWarningEl = document.getElementById('nameWarning')!;
+nameWarningEl.innerHTML = `<span style="display:inline-flex;vertical-align:middle;margin-right:4px">${icon('alert-triangle', { size: 12 })}</span>${nameWarningEl.textContent!.trim()}`;
+
+const avatarEl = document.getElementById('avatar') as HTMLDivElement;
+const currentEl = document.getElementById('current') as HTMLDivElement;
+const autoLabelEl = document.getElementById('autoLabel') as HTMLDivElement;
+const nameInputEl = document.getElementById('nameInput') as HTMLInputElement;
+const saveBtnEl = document.getElementById('saveBtn') as HTMLButtonElement;
+const saveStatusEl = document.getElementById('saveStatus') as HTMLDivElement;
+const soundToggleEl = document.getElementById('soundToggle') as HTMLInputElement;
+
+function initials(name: string): string {
+  return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
+}
+function showUser(name: string, isAuto: boolean) {
+  avatarEl.textContent = initials(name);
+  currentEl.textContent = name;
+  autoLabelEl.textContent = isAuto ? 'Detectado automáticamente desde Autotask' : 'Configurado manualmente';
+  nameInputEl.value = name;
+}
+chrome.storage.local.get(['netsus_user', 'netsus_user_auto', 'netsus_sound'], ({ netsus_user, netsus_user_auto, netsus_sound }) => {
+  if (netsus_user) {
+    showUser(netsus_user, !!netsus_user_auto);
+  } else {
+    currentEl.textContent = 'Sin nombre detectado';
+    autoLabelEl.textContent = 'Abre un ticket para detectar automáticamente';
+    avatarEl.textContent = '?';
+    nameWarningEl.style.display = 'block';
+  }
+  soundToggleEl.checked = netsus_sound !== 'off';
+});
+soundToggleEl.addEventListener('change', () => {
+  chrome.storage.local.set({ netsus_sound: soundToggleEl.checked ? 'on' : 'off' });
+});
+saveBtnEl.addEventListener('click', () => {
+  const name = nameInputEl.value.trim();
+  if (!name) return;
+  chrome.storage.local.set({ netsus_user: name, netsus_user_auto: false }, () => {
+    showUser(name, false);
+    saveStatusEl.textContent = '✓ Guardado';
+    setTimeout(() => (saveStatusEl.textContent = ''), 2000);
+  });
+});
+
+document.getElementById('adminBtn')?.addEventListener('click', () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL('admin.html') });
+});
+
+const renagInputEl = document.getElementById('renagInput') as HTMLInputElement;
+getRenagMinutes().then((m) => { renagInputEl.value = String(m); });
+renagInputEl.addEventListener('change', () => {
+  let v = parseInt(renagInputEl.value) || 3;
+  v = Math.max(1, Math.min(60, v));
+  renagInputEl.value = String(v);
+  chrome.storage.local.set({ [RENAG_MIN_KEY]: v });
+});
+
+function highlightThemeSeg(pref: ThemePref) {
+  document.querySelectorAll<HTMLButtonElement>('#themeSeg button').forEach((b) => {
+    b.classList.toggle('active', b.dataset.themeVal === pref);
+  });
+}
+document.querySelectorAll<HTMLButtonElement>('#themeSeg button').forEach((b) => {
+  b.addEventListener('click', async () => {
+    const v = (b.dataset.themeVal || 'auto') as ThemePref;
+    themePref = v;
+    await setThemePref(v);
+    applyTheme(resolveTheme(v));
+    highlightThemeSeg(v);
+  });
+});
+
+function renderTypePrefs(prefs: TypePrefs) {
+  const list = document.getElementById('typePrefsList') as HTMLElement;
+  list.innerHTML = typeList().map(function (t) {
+    const muted = prefs[t.type]?.muted === true;
+    return '<div class="pref-row"><span class="pref-label">' + t.label + '</span>' +
+      '<label class="toggle"><input type="checkbox" data-type="' + t.type + '" ' + (muted ? '' : 'checked') + '><span class="tgl-slider"></span></label></div>';
+  }).join('');
+  list.querySelectorAll<HTMLInputElement>('input[data-type]').forEach((inp) => {
+    inp.addEventListener('change', () => setTypeMuted(inp.dataset.type as any, !inp.checked));
+  });
+}
+getTypePrefs().then(renderTypePrefs);
