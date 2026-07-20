@@ -330,6 +330,54 @@ document.getElementById('adminBtn')?.addEventListener('click', () => {
   chrome.tabs.create({ url: chrome.runtime.getURL('admin.html') });
 });
 
+// --- Feedback (mejorar / agregar / quitar) — va directo a Supabase vía el backend ---
+const feedbackBtn = document.getElementById('feedbackBtn') as HTMLButtonElement;
+const feedbackForm = document.getElementById('feedbackForm') as HTMLElement;
+const feedbackTypeSegEl = document.getElementById('feedbackTypeSeg') as HTMLElement;
+const feedbackMessageEl = document.getElementById('feedbackMessage') as HTMLTextAreaElement;
+const feedbackSubmitEl = document.getElementById('feedbackSubmit') as HTMLButtonElement;
+const feedbackStatusEl = document.getElementById('feedbackStatus') as HTMLDivElement;
+
+feedbackBtn.addEventListener('click', () => {
+  const open = feedbackForm.style.display !== 'none';
+  feedbackForm.style.display = open ? 'none' : '';
+});
+
+let feedbackType = 'mejorar';
+feedbackTypeSegEl.querySelectorAll<HTMLButtonElement>('button').forEach((b) => {
+  b.addEventListener('click', () => {
+    feedbackType = b.dataset.fbType!;
+    feedbackTypeSegEl.querySelectorAll<HTMLButtonElement>('button').forEach((x) => x.classList.toggle('active', x === b));
+  });
+});
+
+feedbackSubmitEl.addEventListener('click', async () => {
+  const message = feedbackMessageEl.value.trim();
+  if (!message) return;
+  feedbackSubmitEl.disabled = true;
+  const { netsus_user } = await chrome.storage.local.get(['netsus_user']);
+  try {
+    const res = await chrome.runtime.sendMessage({
+      type: 'NETSUS_API',
+      method: 'POST',
+      path: '/api/feedback',
+      body: { user: netsus_user || 'Desconocido', type: feedbackType, message },
+    });
+    if (res?.sent && res.status === 200) {
+      feedbackMessageEl.value = '';
+      feedbackStatusEl.textContent = '✓ Enviado, ¡gracias!';
+    } else if (res?.status === 403) {
+      feedbackStatusEl.textContent = 'No te reconocimos como técnico — revisa tu nombre arriba';
+    } else {
+      feedbackStatusEl.textContent = 'Error al enviar, intenta de nuevo';
+    }
+  } catch {
+    feedbackStatusEl.textContent = 'Error al enviar, intenta de nuevo';
+  }
+  feedbackSubmitEl.disabled = false;
+  setTimeout(() => (feedbackStatusEl.textContent = ''), 3000);
+});
+
 const renagInputEl = document.getElementById('renagInput') as HTMLInputElement;
 getRenagMinutes().then((m) => { renagInputEl.value = String(m); });
 renagInputEl.addEventListener('change', () => {

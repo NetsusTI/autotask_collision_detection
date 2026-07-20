@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkApiKey, redis } from '@/lib/ticket-lock';
 import { logCentralNotification } from '@/lib/notif-poll';
+import { supabase } from '@/lib/supabase';
+import { lookupResourceId } from '@/lib/resources';
 
 const PRESENCE_TTL = 40;
 
@@ -224,6 +226,30 @@ export async function POST(
       });
       await redis.lpush('collision_history', event);
       await redis.ltrim('collision_history', 0, 199);
+      // Copia durable en Supabase — guardamos el id para completar duration_ms cuando se resuelva.
+      try {
+        const { data: supaRow } = await supabase
+          .from('collision_history')
+          .insert({
+            ticket_id: id,
+            ticket_number: ticketNumber ?? null,
+            ticket_url: storedUrl ?? null,
+            users: allInCollision,
+          })
+          .select('id')
+          .single();
+        if (supaRow) {
+          await redis.set(`colsupaid:${id}`, supaRow.id, { ex: 600 });
+          // Solo se vinculan los participantes que resuelven a un técnico real conocido.
+          const resolved = await Promise.all(allInCollision.map(async (name) => ({ name, resource_id: await lookupResourceId(name) })));
+          const participantRows = resolved
+            .filter((r) => r.resource_id !== null)
+            .map((r) => ({ collision_id: supaRow.id, resource_id: r.resource_id }));
+          if (participantRows.length) await supabase.from('collision_participants').insert(participantRows);
+        }
+      } catch {
+        // silencioso: Redis ya tiene el registro
+      }
       sendTeamsWebhook(ticketNumber ?? `#${id}`, allInCollision, storedUrl);
       logCentralNotification({
         type: 'collision',
@@ -279,6 +305,26 @@ export async function DELETE(
         if (duration > 5000) {
           await redis.lpush('collision_durations', JSON.stringify({ ticketId: id, duration, ts: Date.now() }));
           await redis.ltrim('collision_durations', 0, 199);
+          // Completa la fila de Supabase abierta en la detección; si no la encontramos
+          // (TTL venció o se perdió), insertamos una fila nueva ya con la duración.
+          try {
+            const supaId = await redis.get<string>(`colsupaid:${id}`);
+            const colUsersForSupa: string[] = colUsersRaw ? JSON.parse(colUsersRaw) : [user];
+            if (supaId) {
+              await supabase.from('collision_history').update({ duration_ms: duration }).eq('id', supaId);
+              await redis.del(`colsupaid:${id}`);
+            } else {
+              await supabase.from('collision_history').insert({
+                ticket_id: id,
+                ticket_number: ticketNumber ?? null,
+                ticket_url: ticketUrl ?? null,
+                users: colUsersForSupa,
+                duration_ms: duration,
+              });
+            }
+          } catch {
+            // silencioso: Redis ya tiene el registro
+          }
           // Notify Teams that the collision was resolved
           const colUsers: string[] = colUsersRaw ? JSON.parse(colUsersRaw) : [user];
           sendResolutionWebhook(ticketNumber ?? `#${id}`, colUsers, duration, ticketUrl);

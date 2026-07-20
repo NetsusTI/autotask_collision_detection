@@ -30,6 +30,21 @@ interface NotifLogEntry {
   ts: number;
 }
 
+interface FeedbackItem {
+  id: string;
+  resource_name: string;
+  type: string;
+  message: string;
+  created_at: string;
+}
+
+const FEEDBACK_META: Record<string, { label: string; color: string }> = {
+  mejorar: { label: 'Mejorar', color: '#3867E9' },
+  agregar: { label: 'Agregar', color: '#22c55e' },
+  quitar:  { label: 'Quitar', color: '#f97316' },
+  otro:    { label: 'Otro', color: '#8C52FF' },
+};
+
 const NOTIF_META: Record<string, { icon: Parameters<typeof Icon>[0]['name']; color: string; tint: string }> = {
   collision:   { icon: 'alert-triangle', color: '#ef4444', tint: 'rgba(239,68,68,0.12)' },
   ping:        { icon: 'megaphone',      color: '#f97316', tint: 'rgba(249,115,22,0.12)' },
@@ -153,12 +168,15 @@ export default function AdminPage() {
   const [history, setHistory] = useState<CollisionEvent[]>([]);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'live' | 'history' | 'notifications'>('live');
+  const [tab, setTab] = useState<'live' | 'history' | 'notifications' | 'feedback'>('live');
   const [online, setOnline] = useState(0);
   const [teamConfigured, setTeamConfigured] = useState(false);
   const [notifLog, setNotifLog] = useState<NotifLogEntry[]>([]);
   const [notifTotal, setNotifTotal] = useState(0);
   const [notifLoadingMore, setNotifLoadingMore] = useState(false);
+  const [feedbackItems, setFeedbackItems] = useState<FeedbackItem[]>([]);
+  const [feedbackTotal, setFeedbackTotal] = useState(0);
+  const [feedbackLoadingMore, setFeedbackLoadingMore] = useState(false);
 
   const [themePref, setThemePref] = useState<ThemePref>('auto');
   const [resolved, setResolved] = useState<ResolvedTheme>('dark');
@@ -197,22 +215,26 @@ export default function AdminPage() {
 
   async function fetchData() {
     try {
-      const [presRes, histRes, onlineRes, notifRes] = await Promise.all([
+      const [presRes, histRes, onlineRes, notifRes, feedbackRes] = await Promise.all([
         fetch('/api/presence/status', { headers: { 'x-api-key': API_KEY } }),
         fetch('/api/presence/history', { headers: { 'x-api-key': API_KEY } }),
         fetch('/api/team/online', { headers: { 'x-api-key': API_KEY } }),
         fetch('/api/notifications/log?offset=0&limit=50', { headers: { 'x-api-key': API_KEY } }),
+        fetch('/api/feedback?offset=0&limit=50', { headers: { 'x-api-key': API_KEY } }),
       ]);
       const presence: TicketPresence[] = await presRes.json().catch(() => []);
       const hist: CollisionEvent[] = await histRes.json().catch(() => []);
       const onlineData = await onlineRes.json().catch(() => ({ online: 0, configured: false }));
       const notifData = await notifRes.json().catch(() => ({ events: [], total: 0 }));
+      const feedbackData = await feedbackRes.json().catch(() => ({ items: [], total: 0 }));
       setTickets(Array.isArray(presence) ? presence : []);
       setHistory(Array.isArray(hist) ? hist : []);
       setOnline(onlineData.online ?? 0);
       setTeamConfigured(!!onlineData.configured);
       setNotifLog(Array.isArray(notifData.events) ? notifData.events : []);
       setNotifTotal(notifData.total ?? 0);
+      setFeedbackItems(Array.isArray(feedbackData.items) ? feedbackData.items : []);
+      setFeedbackTotal(feedbackData.total ?? 0);
       setLastUpdate(new Date());
     } finally {
       setLoading(false);
@@ -228,6 +250,18 @@ export default function AdminPage() {
       setNotifTotal(data.total ?? notifTotal);
     } finally {
       setNotifLoadingMore(false);
+    }
+  }
+
+  async function loadMoreFeedback() {
+    setFeedbackLoadingMore(true);
+    try {
+      const res = await fetch(`/api/feedback?offset=${feedbackItems.length}&limit=50`, { headers: { 'x-api-key': API_KEY } });
+      const data = await res.json().catch(() => ({ items: [], total: feedbackTotal }));
+      setFeedbackItems(prev => [...prev, ...(Array.isArray(data.items) ? data.items : [])]);
+      setFeedbackTotal(data.total ?? feedbackTotal);
+    } finally {
+      setFeedbackLoadingMore(false);
     }
   }
 
@@ -345,15 +379,15 @@ export default function AdminPage() {
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-          {(['live', 'history', 'notifications'] as const).map(t => (
+          {(['live', 'history', 'notifications', 'feedback'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)} style={{
               padding: '6px 18px', borderRadius: 20, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', border: 'none',
               display: 'flex', alignItems: 'center', gap: 6,
               background: tab === t ? ACCENT : p.chipBg2,
               color: tab === t ? '#fff' : p.text,
             }}>
-              <Icon name={t === 'live' ? 'circle' : t === 'history' ? 'clipboard-list' : 'bell'} size={13} />
-              {t === 'live' ? 'En vivo' : t === 'history' ? 'Historial' : 'Centro de Notificaciones'}
+              <Icon name={t === 'live' ? 'circle' : t === 'history' ? 'clipboard-list' : t === 'notifications' ? 'bell' : 'message-square'} size={13} />
+              {t === 'live' ? 'En vivo' : t === 'history' ? 'Historial' : t === 'notifications' ? 'Centro de Notificaciones' : 'Feedback'}
             </button>
           ))}
         </div>
@@ -438,7 +472,7 @@ export default function AdminPage() {
               </div>
             ))}
           </div>
-        ) : (
+        ) : tab === 'notifications' ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {notifLog.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '80px 0', background: p.emptyBg, border: `1px dashed ${p.dashedBorder}`, borderRadius: 20 }}>
@@ -479,6 +513,51 @@ export default function AdminPage() {
                     background: p.chipBg2, color: p.dim,
                   }}>
                     {notifLoadingMore ? 'Cargando...' : `Cargar más (${notifTotal - notifLog.length} restantes)`}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {feedbackItems.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '80px 0', background: p.emptyBg, border: `1px dashed ${p.dashedBorder}`, borderRadius: 20 }}>
+                <div style={{ marginBottom: 12, color: ACCENT, display: 'flex', justifyContent: 'center' }}><Icon name="message-square" size={40} /></div>
+                <div style={{ fontSize: 15, color: p.dim }}>Sin feedback aún</div>
+                <div style={{ fontSize: 12, color: p.faint, marginTop: 4 }}>Lo que envíen los técnicos desde la extensión aparecerá aquí</div>
+              </div>
+            ) : (
+              <>
+                {feedbackItems.map((f) => {
+                  const meta = FEEDBACK_META[f.type] ?? FEEDBACK_META.otro;
+                  return (
+                    <div key={f.id} style={{
+                      background: p.chipBg2, border: `1px solid ${p.headerBorder}`,
+                      borderLeft: `3px solid ${meta.color}`,
+                      borderRadius: 12, padding: '12px 18px',
+                      display: 'flex', alignItems: 'flex-start', gap: 12,
+                    }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                          <span style={{
+                            padding: '2px 9px', borderRadius: 20, fontSize: 10, fontWeight: 700,
+                            background: `${meta.color}22`, color: meta.color,
+                          }}>{meta.label}</span>
+                          <span style={{ fontSize: 12, fontWeight: 600 }}>{f.resource_name}</span>
+                        </div>
+                        <div style={{ fontSize: 13, color: p.text, lineHeight: 1.4 }}>{f.message}</div>
+                        <div style={{ fontSize: 11, color: p.faint, marginTop: 6 }}>{relTime(new Date(f.created_at).getTime())}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {feedbackItems.length < feedbackTotal && (
+                  <button onClick={loadMoreFeedback} disabled={feedbackLoadingMore} style={{
+                    margin: '4px auto 0', padding: '8px 20px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                    fontFamily: 'inherit', cursor: feedbackLoadingMore ? 'default' : 'pointer', border: `1px solid ${p.inputBorder}`,
+                    background: p.chipBg2, color: p.dim,
+                  }}>
+                    {feedbackLoadingMore ? 'Cargando...' : `Cargar más (${feedbackTotal - feedbackItems.length} restantes)`}
                   </button>
                 )}
               </>

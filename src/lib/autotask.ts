@@ -190,6 +190,33 @@ export async function resolveNameByResourceId(id: number): Promise<string | null
   return redis.get<string>(`resource:byid:${id}`);
 }
 
+export interface AutotaskActiveResource {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email?: string | null;
+  title?: string | null;
+}
+
+// Técnicos activos en Autotask — roster fuente de verdad para sincronizar la tabla
+// `resources` de Supabase (validar que un nombre corresponde a un técnico real).
+export async function activeResources(maxRecords = 500): Promise<AutotaskActiveResource[]> {
+  const resources = await query<AutotaskResource & { email?: string; title?: string }>('Resources', {
+    MaxRecords: maxRecords,
+    IncludeFields: ['id', 'firstName', 'lastName', 'email', 'title', 'isActive'],
+    Filter: [{ op: 'eq', field: 'isActive', value: true }],
+  });
+  return resources
+    .filter((r) => r.firstName || r.lastName)
+    .map((r) => ({
+      id: r.id,
+      firstName: r.firstName ?? '',
+      lastName: r.lastName ?? '',
+      email: r.email ?? null,
+      title: r.title ?? null,
+    }));
+}
+
 // URL del ticket en la UI de Autotask, si se configuró la base (config:autotask_ui_base).
 export function buildTicketUrl(uiBase: string | null, ticketId: number): string | undefined {
   if (!uiBase) return undefined;

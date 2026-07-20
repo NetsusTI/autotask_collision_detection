@@ -4,6 +4,8 @@
 // que la extensión drena y vuelca en el buzón (lib/notifications de la extensión).
 
 import { redis } from '@/lib/ticket-lock';
+import { supabase } from '@/lib/supabase';
+import { lookupResourceId } from '@/lib/resources';
 import {
   autotaskConfigured,
   ticketsInQueues,
@@ -18,9 +20,8 @@ import {
 
 // Log central de notificaciones — feed agregado de TODO el equipo (n1–n5 + eventos
 // de colisión), independiente del feed por-recurso que cada extensión drena. Alimenta
-// el tab "Centro de Notificaciones" del panel web.
-export const NOTIFICATION_LOG_KEY = 'notification_log';
-const NOTIFICATION_LOG_MAX = 300;
+// el tab "Centro de Notificaciones" del panel web (GET /api/notifications/log lee
+// directo de Supabase, no de Redis — no hay lista intermedia que mantener aquí).
 
 export interface CentralLogEntry {
   type: string;
@@ -34,8 +35,32 @@ export interface CentralLogEntry {
 }
 
 export async function logCentralNotification(entry: CentralLogEntry): Promise<void> {
-  await redis.lpush(NOTIFICATION_LOG_KEY, JSON.stringify(entry));
-  await redis.ltrim(NOTIFICATION_LOG_KEY, 0, NOTIFICATION_LOG_MAX - 1);
+  // Una fila por destinatario (la tabla es por-técnico). Solo se guardan los que
+  // resuelven a un técnico real conocido (evita que un nombre inventado quede
+  // registrado). Best-effort — si Supabase falla, no bloqueamos el resto del poll.
+  if (entry.targets?.length) {
+    try {
+      const resolved = await Promise.all(
+        entry.targets.map(async (resource_name) => ({ resource_name, resource_id: await lookupResourceId(resource_name) })),
+      );
+      const rows = resolved
+        .filter((r) => r.resource_id !== null)
+        .map((r) => ({
+          resource_name: r.resource_name,
+          resource_id: r.resource_id,
+          type: entry.type,
+          title: entry.title,
+          body: entry.body,
+          ticket_id: entry.ticketId ?? null,
+          ticket_number: entry.ticketNumber ?? null,
+          ticket_url: entry.ticketUrl ?? null,
+          read: false,
+        }));
+      if (rows.length) await supabase.from('notifications').insert(rows);
+    } catch {
+      // silencioso: no queremos que un problema de Supabase tumbe el ciclo de poll
+    }
+  }
 }
 
 export type FeedType = 'n1_queue' | 'n2_assign' | 'n3_client' | 'n4_sla' | 'n5_critical';

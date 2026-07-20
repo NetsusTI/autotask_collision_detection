@@ -521,11 +521,33 @@
           status.className = 'configStatus ok';
           status.textContent = '✓ Sondeo OK · n1:' + (c.n1 || 0) + ' n2:' + (c.n2 || 0) + ' n3:' + (c.n3 || 0) + ' n4:' + (c.n4 || 0) + ' n5:' + (c.n5 || 0);
         }
+      }).catch(function () {
+        status.className = 'configStatus err';
+        status.textContent = '✗ Error de conexión';
+      });
+  }
+
+  function syncResources() {
+    var status = document.getElementById('syncResourcesStatus');
+    status.className = 'configStatus';
+    status.style.color = 'var(--dim)';
+    status.textContent = 'Sincronizando con Autotask...';
+    fetch(BASE_URL + '/api/resources/sync', { method: 'POST', headers: { 'x-api-key': API_KEY } })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        status.style.color = '';
+        if (!data.ran) {
+          status.className = 'configStatus err';
+          status.textContent = '⚠ No se ejecutó (Autotask sin credenciales o error de Supabase)';
+        } else {
+          status.className = 'configStatus ok';
+          status.textContent = '✓ Roster actualizado · ' + data.synced + ' activos' + (data.deactivated ? ', ' + data.deactivated + ' desactivados' : '');
+        }
         setTimeout(function () { status.textContent = ''; }, 6000);
       }).catch(function () {
         status.style.color = '';
         status.className = 'configStatus err';
-        status.textContent = '✗ Error al sondear';
+        status.textContent = '✗ Error al sincronizar';
       });
   }
 
@@ -614,6 +636,7 @@
   document.getElementById('saveTtlBtn').addEventListener('click', saveTtl);
   document.getElementById('saveNotifBtn').addEventListener('click', saveNotifConfig);
   document.getElementById('pollNowBtn').addEventListener('click', pollNow);
+  document.getElementById('syncResourcesBtn').addEventListener('click', syncResources);
   document.getElementById('saveWebhookBtn').addEventListener('click', saveWebhook);
   document.getElementById('testWebhookBtn').addEventListener('click', testWebhook);
   document.getElementById('clearWebhookBtn').addEventListener('click', clearWebhook);

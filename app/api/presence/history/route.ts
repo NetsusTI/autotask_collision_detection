@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { checkApiKey, redis } from '@/lib/ticket-lock';
+import { checkApiKey } from '@/lib/ticket-lock';
+import { supabase } from '@/lib/supabase';
+
+// Historial de colisiones — leído desde Supabase (una fila por colisión, sin el cap de
+// 200 que tenía la lista en Redis). El filtro por técnico escanea una ventana acotada
+// de las más recientes y filtra en memoria, igual que hacía antes con la lista de Redis.
+const SCAN_WINDOW = 1000;
 
 export async function GET(request: NextRequest) {
   if (!checkApiKey(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
@@ -9,26 +15,35 @@ export async function GET(request: NextRequest) {
   const tech = url.searchParams.get('tech')?.toLowerCase() ?? '';
 
   if (!tech) {
-    const total = await redis.llen('collision_history');
-    const raw = await redis.lrange('collision_history', offset, offset + limit - 1);
-    const events = raw.map(e => {
-      try { return typeof e === 'string' ? JSON.parse(e) : e; } catch { return null; }
-    }).filter(Boolean);
-    return NextResponse.json({ events, total, offset, limit });
+    const { data, count, error } = await supabase
+      .from('collision_history')
+      .select('ticket_id, ticket_number, users, created_at', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (error || !data) return NextResponse.json({ events: [], total: 0, offset, limit });
+    const events = data.map((row) => ({
+      ts: new Date(row.created_at).getTime(),
+      ticketId: row.ticket_id,
+      ticketNumber: row.ticket_number,
+      users: row.users ?? [],
+    }));
+    return NextResponse.json({ events, total: count ?? events.length, offset, limit });
   }
 
-  // Tech filter: scan full list (capped at 200) and filter server-side
-  const raw = await redis.lrange('collision_history', 0, -1);
-  const all = raw.map(e => {
-    try { return typeof e === 'string' ? JSON.parse(e) : e; } catch { return null; }
-  }).filter(Boolean);
+  const { data, error } = await supabase
+    .from('collision_history')
+    .select('ticket_id, ticket_number, users, created_at')
+    .order('created_at', { ascending: false })
+    .limit(SCAN_WINDOW);
+  if (error || !data) return NextResponse.json({ events: [], total: 0, offset, limit });
 
-  const filtered = all.filter(e =>
-    (e.users || []).some((u: any) => {
-      const name = typeof u === 'string' ? u : u.name;
-      return name?.toLowerCase().includes(tech);
-    })
-  );
+  const all = data.map((row) => ({
+    ts: new Date(row.created_at).getTime(),
+    ticketId: row.ticket_id,
+    ticketNumber: row.ticket_number,
+    users: row.users ?? [],
+  }));
+  const filtered = all.filter((e) => e.users.some((u: string) => u?.toLowerCase().includes(tech)));
 
   const total = filtered.length;
   const events = filtered.slice(offset, offset + limit);
@@ -37,9 +52,6 @@ export async function GET(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   if (!checkApiKey(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  await Promise.all([
-    redis.del('collision_history'),
-    redis.del('collision_durations'),
-  ]);
+  await supabase.from('collision_history').delete().not('id', 'is', null);
   return NextResponse.json({ ok: true });
 }

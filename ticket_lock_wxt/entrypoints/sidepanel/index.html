@@ -67,6 +67,14 @@
     .prefs-details summary::-webkit-details-marker { display: none; }
     .pref-row { display: flex; align-items: center; justify-content: space-between; padding: 5px 0; }
     .pref-label { font-size: 12px; color: var(--dim); }
+    textarea.settings-panel-input { resize: vertical; min-height: 56px; }
+    .feedback-type-seg { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+    .feedback-type-seg button {
+      flex: 1 1 45%; border: 1px solid var(--border); background: var(--card-bg); color: var(--dim);
+      font-size: 11px; font-family: inherit; font-weight: 500; padding: 7px 6px; border-radius: 8px;
+      cursor: pointer; text-align: center;
+    }
+    .feedback-type-seg button.active { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
     .btn {
       border: none; border-radius: 16px; padding: 7px 14px; font-size: 12px; font-weight: 600;
       font-family: inherit; cursor: pointer; background: var(--accent); color: #fff;
@@ -167,6 +175,19 @@
       <div id="typePrefsList"></div>
     </details>
     <button class="btn ghost block" id="adminBtn">Panel Admin</button>
+    <button class="btn ghost block" id="feedbackBtn">Enviar feedback</button>
+    <div id="feedbackForm" style="display:none;margin-top:10px">
+      <label class="settings-label">¿Qué nos quieres decir?</label>
+      <div class="feedback-type-seg" id="feedbackTypeSeg">
+        <button type="button" data-fb-type="mejorar" class="active">Mejorar algo</button>
+        <button type="button" data-fb-type="agregar">Agregar algo</button>
+        <button type="button" data-fb-type="quitar">Quitar algo</button>
+        <button type="button" data-fb-type="otro">Otro</button>
+      </div>
+      <textarea id="feedbackMessage" class="settings-panel-input" rows="3" placeholder="Cuéntanos qué mejorarías, agregarías o quitarías..."></textarea>
+      <button class="btn block" id="feedbackSubmit">Enviar</button>
+      <div id="feedbackStatus" class="save-status"></div>
+    </div>
   </div>
 
   <div id="app">

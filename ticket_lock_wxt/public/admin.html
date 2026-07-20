@@ -284,6 +284,14 @@
         <div class="configStatus" id="notifStatus"></div>
       </div>
       <div class="configSection">
+        <div class="configTitle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Roster de técnicos</div>
+        <div class="configSub">Trae los técnicos activos desde Autotask y los guarda en Supabase. Solo los técnicos en este roster pueden quedar registrados en colisiones, notificaciones y feedback — así ningún nombre inventado o externo se cuela en el historial.</div>
+        <div class="configBtns">
+          <button class="configBtn primary" id="syncResourcesBtn">Sincronizar desde Autotask</button>
+        </div>
+        <div class="configStatus" id="syncResourcesStatus"></div>
+      </div>
+      <div class="configSection">
         <div class="configTitle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M7 16h8"/><path d="M7 11h12"/><path d="M7 6h3"/></svg> Resumen diario a Teams</div>
         <div class="configSub">Envía un resumen de las colisiones de ayer (o de hoy) al canal de Teams configurado arriba. También puedes llamar este endpoint desde n8n con un trigger programado a las 9:00 AM.</div>
         <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
