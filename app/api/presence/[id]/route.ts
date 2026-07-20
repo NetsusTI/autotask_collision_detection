@@ -156,7 +156,7 @@ export async function POST(
 ) {
   if (!checkApiKey(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   const { id } = await params;
-  const { user, ticketNumber, ticketUrl, ping } = await request.json().catch(() => ({ user: 'Desconocido', ticketNumber: null, ticketUrl: null, ping: null }));
+  const { user, ticketNumber, ticketUrl, ping, autotaskTicketId } = await request.json().catch(() => ({ user: 'Desconocido', ticketNumber: null, ticketUrl: null, ping: null, autotaskTicketId: null }));
 
   const configTtl = await redis.get<string>('config:presence_ttl');
   const ttl = configTtl ? Math.max(15, Math.min(300, parseInt(configTtl))) : PRESENCE_TTL;
@@ -269,7 +269,7 @@ export async function POST(
   }
 
   const [assignedTo, pastCollisionsRaw] = await Promise.all([
-    getAutotaskAssignee(id),
+    getAutotaskAssignee(autotaskTicketId ? String(autotaskTicketId) : id),
     redis.get<number>(`colcount:${id}`),
   ]);
   const pastCollisions = pastCollisionsRaw ?? 0;
