@@ -14,6 +14,11 @@ export default defineContentScript({
   runAt: 'document_idle',
   main() {
     let currentTicketId: string | null = null;
+    // Última identidad de presencia realmente registrada en el servidor (número de
+    // ticket, o el ID crudo como fallback) — se usa para liberar la presencia correcta
+    // al salir/cambiar de ticket, en vez de recalcularla (el título de la página puede
+    // ya haber cambiado al nuevo ticket en ese momento).
+    let lastPresenceId: string | null = null;
     let pollInterval: number | undefined;
     let pauseTimeout: number | undefined;
     let pauseTickInterval: number | undefined;
@@ -104,6 +109,19 @@ export default defineContentScript({
 
     function ticketLabel(): string {
       return extractTicketNumber() ?? (currentTicketId ? `#${currentTicketId}` : '');
+    }
+
+    // Identidad real usada para detectar colisiones: preferimos el número de ticket
+    // (leído del título de la página, estable) sobre el ID interno de la URL. El ID de
+    // la URL es frágil en vistas "workspace" con varios tickets abiertos a la vez: cada
+    // técnico tiene su propia lista de tickets abiertos en su propio orden, así que
+    // "ids[0]" puede no coincidir entre dos técnicos aunque estén viendo el mismo ticket
+    // — eso hacía que nunca se detectara la colisión entre ellos. El ID crudo de la URL
+    // se sigue mandando aparte (autotaskTicketId) porque el servidor sí lo necesita tal
+    // cual para consultar el asignado en la API de Autotask.
+    function presenceId(): string | null {
+      if (currentTicketId === null) return null;
+      return extractTicketNumber() ?? currentTicketId;
     }
 
     function formatNames(users: OtherUser[]): string {
@@ -222,7 +240,7 @@ export default defineContentScript({
       autoPingTimer = window.setTimeout(() => {
         if (!currentTicketId || !currentUser || !others.length) return;
         autoPingFired = true;
-        apiCall('POST', `/api/presence/${currentTicketId}`, {
+        apiCall('POST', `/api/presence/${presenceId()}`, {
           user: currentUser,
           ping: others.map(o => o.name),
         }, () => {});
@@ -292,7 +310,7 @@ export default defineContentScript({
 
     function pausePresence(minutes: number) {
       if (!currentTicketId || !currentUser) return;
-      leavePresence(currentTicketId, currentUser);
+      if (lastPresenceId) leavePresence(lastPresenceId, currentUser);
       clearInterval(pollInterval);
       wasLocked = false;
       unlockUI();
@@ -309,12 +327,13 @@ export default defineContentScript({
 
     function triggerFinish() {
       if (currentTicketId && currentUser) {
-        leavePresence(currentTicketId, currentUser);
+        if (lastPresenceId) leavePresence(lastPresenceId, currentUser);
         clearInterval(pollInterval);
         clearTimeout(autoPingTimer);
         wasLocked = false;
         unlockUI();
         currentTicketId = null;
+        lastPresenceId = null;
         setState({ kind: 'idle' });
       }
     }
@@ -322,7 +341,7 @@ export default defineContentScript({
     function triggerPing() {
       if (pingCooldown || !currentTicketId || !currentUser) return;
       pingCooldown = true;
-      apiCall('POST', `/api/presence/${currentTicketId}`, {
+      apiCall('POST', `/api/presence/${presenceId()}`, {
         user: currentUser,
         ping: lastOthers.map(u => u.name),
       }, () => {});
@@ -356,10 +375,12 @@ export default defineContentScript({
     }
 
     function registerPresence(ticketId: string, user: string, pingTargets?: string[]) {
+      lastPresenceId = ticketId;
       const body: Record<string, unknown> = {
         user,
         ticketNumber: extractTicketNumber(),
         ticketUrl: window.location.href,
+        autotaskTicketId: currentTicketId,
       };
       if (pingTargets?.length) body.ping = pingTargets;
 
@@ -414,7 +435,7 @@ export default defineContentScript({
       if (ticketId === currentTicketId) return;
 
       if (currentTicketId) {
-        leavePresence(currentTicketId, currentUser);
+        if (lastPresenceId) leavePresence(lastPresenceId, currentUser);
         clearInterval(pollInterval);
         clearTimeout(autoPingTimer);
         autoPingFired = false;
@@ -423,6 +444,7 @@ export default defineContentScript({
       }
 
       currentTicketId = ticketId;
+      lastPresenceId = null;
       setHistoryWarning(null);
       setAssignment(null);
 
@@ -432,9 +454,12 @@ export default defineContentScript({
       }
 
       setState({ kind: 'solo', ticketLabel: ticketLabel() });
-      registerPresence(ticketId, currentUser);
+      const pid = presenceId();
+      if (pid) registerPresence(pid, currentUser);
       pollInterval = window.setInterval(() => {
-        registerPresence(ticketId, currentUser as string);
+        if (!currentUser) return;
+        const p = presenceId();
+        if (p) registerPresence(p, currentUser);
       }, 5000);
     }
 
@@ -456,7 +481,7 @@ export default defineContentScript({
     });
 
     window.addEventListener('beforeunload', () => {
-      if (currentTicketId && currentUser) leavePresence(currentTicketId, currentUser);
+      if (lastPresenceId && currentUser) leavePresence(lastPresenceId, currentUser);
     });
 
     let lastUrl = location.href;
