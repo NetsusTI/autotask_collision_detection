@@ -8,12 +8,14 @@
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;800&display=swap" rel="stylesheet">
   <style>
     :root {
+      --ink-rgb: 255,255,255;
       --bg: linear-gradient(180deg, #190637 0%, #0d0320 100%);
       --text: #fff; --dim: rgba(255,255,255,0.65); --faint: rgba(255,255,255,0.4);
       --border: rgba(255,255,255,0.1); --hover: rgba(255,255,255,0.06);
-      --card-bg: rgba(255,255,255,0.05); --accent: #3867E9;
+      --card-bg: rgba(255,255,255,0.05); --accent: #3867E9; --accent-rgb: 56,103,233;
     }
     html[data-theme="light"] {
+      --ink-rgb: 59,59,59;
       --bg: linear-gradient(180deg, #F3F3F3 0%, #e7e7ec 100%);
       --text: #3B3B3B; --dim: rgba(59,59,59,0.85); --faint: rgba(59,59,59,0.65);
       --border: rgba(59,59,59,0.12); --hover: rgba(59,59,59,0.06);
@@ -27,8 +29,53 @@
     }
     .hdr { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
     .logo { height: 20px; }
+    .hdr-text { flex: 1; min-width: 0; }
     .hdr-title { font-size: 13px; font-weight: 800; }
     .hdr-sub { font-size: 10px; color: var(--dim); margin-top: -1px; }
+    .ico-btn { width: 28px; height: 28px; border-radius: 7px; cursor: pointer; background: transparent; border: none; color: var(--faint); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .ico-btn:hover { background: var(--hover); color: var(--text); }
+    .ico-btn.active { background: var(--hover); color: var(--accent); }
+
+    /* --- Ajustes --- */
+    #settingsPanel { border-bottom: 1px solid var(--border); padding: 14px 16px; flex-shrink: 0; overflow-y: auto; max-height: 60vh; }
+    .settings-user { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; color: #fff; flex-shrink: 0; }
+    .current { font-size: 13px; font-weight: 600; }
+    .auto-label { font-size: 10px; color: var(--dim); }
+    .name-warning { margin-bottom: 10px; background: rgba(251,146,60,0.12); border: 1px solid rgba(251,146,60,0.3); border-radius: 6px; padding: 7px 10px; font-size: 11px; color: #fb923c; text-align: center; }
+    .settings-label { font-size: 11px; color: var(--dim); display: block; margin-bottom: 4px; }
+    .settings-panel-input {
+      width: 100%; padding: 7px 9px; font-family: inherit; margin-bottom: 6px;
+      border: 1px solid var(--border); border-radius: 6px;
+      background: var(--card-bg); color: var(--text); font-size: 12px;
+    }
+    .save-status { font-size: 11px; color: #22c55e; text-align: center; min-height: 14px; margin-bottom: 6px; }
+    .settings-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-top: 1px solid var(--border); font-size: 12px; }
+    .settings-row:first-of-type { border-top: none; }
+    .settings-row input[type="number"] { width: 48px; padding: 4px 6px; text-align: center; font-size: 12px; font-family: inherit; border: 1px solid var(--border); border-radius: 6px; background: var(--card-bg); color: var(--text); }
+    .toggle { position: relative; display: inline-block; width: 34px; height: 19px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .tgl-slider { position: absolute; cursor: pointer; inset: 0; background: rgba(var(--ink-rgb),0.18); transition: .2s; border-radius: 19px; }
+    .tgl-slider:before { position: absolute; content: ""; height: 13px; width: 13px; left: 3px; bottom: 3px; background: #fff; transition: .2s; border-radius: 50%; }
+    input:checked + .tgl-slider { background: var(--accent); }
+    input:checked + .tgl-slider:before { transform: translateX(15px); }
+    .theme-seg { display: inline-flex; background: rgba(var(--ink-rgb),0.08); border-radius: 8px; padding: 2px; gap: 2px; }
+    .theme-seg button { border: none; background: transparent; color: var(--dim); font-size: 11px; font-family: inherit; padding: 4px 9px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; }
+    .theme-seg button.active { background: var(--accent); color: #fff; font-weight: 600; }
+    .prefs-details { border-top: 1px solid var(--border); padding-top: 8px; margin-top: 4px; }
+    .prefs-details summary { font-size: 11px; color: var(--dim); cursor: pointer; list-style: none; padding: 4px 0; display: flex; align-items: center; gap: 5px; }
+    .prefs-details summary::-webkit-details-marker { display: none; }
+    .pref-row { display: flex; align-items: center; justify-content: space-between; padding: 5px 0; }
+    .pref-label { font-size: 12px; color: var(--dim); }
+    .btn {
+      border: none; border-radius: 16px; padding: 7px 14px; font-size: 12px; font-weight: 600;
+      font-family: inherit; cursor: pointer; background: var(--accent); color: #fff;
+      display: inline-flex; align-items: center; gap: 6px; justify-content: center;
+    }
+    .btn.ghost { background: var(--hover); color: var(--text); border: 1px solid var(--border); }
+    .btn.block { width: 100%; margin-top: 10px; }
+
+    /* --- Estado del ticket --- */
     #warnings { flex-shrink: 0; }
     .warn { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 600; padding: 8px 16px; border-bottom: 1px solid var(--border); }
     .warn-gray { background: rgba(107,114,128,0.15); color: var(--dim); }
@@ -48,15 +95,9 @@
     .who { font-size: 11px; color: var(--dim); margin-bottom: 12px; line-height: 1.5; }
     .actions { display: flex; gap: 8px; margin-bottom: 10px; }
     .pause-row { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--faint); }
-    .btn {
-      border: none; border-radius: 16px; padding: 7px 14px; font-size: 12px; font-weight: 600;
-      font-family: inherit; cursor: pointer; background: var(--accent); color: #fff;
-      display: inline-flex; align-items: center; gap: 6px;
-    }
-    .btn.ghost { background: var(--hover); color: var(--text); border: 1px solid var(--border); }
     .btn.sm { padding: 4px 10px; font-size: 11px; }
-    .ico-btn { width: 26px; height: 26px; border-radius: 7px; cursor: pointer; background: transparent; border: none; color: var(--faint); display: flex; align-items: center; justify-content: center; }
-    .ico-btn:hover { background: var(--hover); color: var(--text); }
+
+    /* --- Notificaciones --- */
     .notif-section { flex: 1; display: flex; flex-direction: column; min-height: 0; border-top: 1px solid var(--border); }
     .notif-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; flex-shrink: 0; }
     .notif-title { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; }
@@ -80,11 +121,54 @@
 <body>
   <div class="hdr">
     <img src="/netsus-logo.png" alt="netsus" class="logo" />
-    <div>
+    <div class="hdr-text">
       <div class="hdr-title">Autotask CoView</div>
       <div class="hdr-sub">Netsus · Panel de control</div>
     </div>
+    <button id="settingsBtn" class="ico-btn" title="Ajustes">
+      <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+    </button>
   </div>
+
+  <div id="settingsPanel" style="display:none">
+    <div class="settings-user">
+      <div id="avatar" class="avatar">?</div>
+      <div>
+        <div id="current" class="current">Detectando...</div>
+        <div id="autoLabel" class="auto-label"></div>
+      </div>
+    </div>
+    <div id="nameWarning" class="name-warning" style="display:none">Nombre no detectado — escríbelo manualmente</div>
+    <label class="settings-label">Cambiar nombre manualmente</label>
+    <input id="nameInput" class="settings-panel-input" type="text" placeholder="Ej: Ricardo Illanes" />
+    <button class="btn block" id="saveBtn">Guardar</button>
+    <div id="saveStatus" class="save-status"></div>
+
+    <div class="settings-row">
+      <span id="soundLabel">Sonido de alerta</span>
+      <label class="toggle"><input type="checkbox" id="soundToggle" checked><span class="tgl-slider"></span></label>
+    </div>
+    <div class="settings-row">
+      <span id="renagLabel">Re-avisar cada</span>
+      <div style="display:flex;align-items:center;gap:5px">
+        <input id="renagInput" type="number" min="1" max="60" value="3" /> <span style="color:var(--dim)">min</span>
+      </div>
+    </div>
+    <div class="settings-row">
+      <span id="themeLabel">Tema</span>
+      <div class="theme-seg" id="themeSeg">
+        <button type="button" data-theme-val="auto">Auto</button>
+        <button type="button" data-theme-val="light"></button>
+        <button type="button" data-theme-val="dark"></button>
+      </div>
+    </div>
+    <details class="prefs-details">
+      <summary id="prefsSummary">Tipos de notificación</summary>
+      <div id="typePrefsList"></div>
+    </details>
+    <button class="btn ghost block" id="adminBtn">Panel Admin</button>
+  </div>
+
   <div id="app">
     <div id="warnings"></div>
     <div id="status"></div>

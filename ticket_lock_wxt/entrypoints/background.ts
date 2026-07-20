@@ -151,6 +151,9 @@ async function updateBadge() {
 }
 
 export default defineBackground(() => {
+  // Sin popup: el ícono de la extensión abre el side panel directamente.
+  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
+
   setInterval(updateBadge, 20000);
   updateBadge();
 
@@ -162,11 +165,6 @@ export default defineBackground(() => {
   setInterval(backgroundRenag, 30000);
 
   browser.runtime.onMessage.addListener((message: any, _sender, sendResponse) => {
-    if (message?.type === 'NETSUS_STATUS') {
-      sendResponse({ online: apiOnline });
-      return false;
-    }
-
     if (message?.type !== 'NETSUS_API') return false;
 
     // Presence heartbeats don't need retry (next poll covers it); only non-GET mutations retry
