@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Proyecto WXT separado (su propio tsconfig/toolchain) — no debe lintiarse con
+    // las reglas de Next.js, y su carpeta .output/.wxt es código generado.
+    "ticket_lock_wxt/**",
   ]),
 ]);
 

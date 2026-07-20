@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   if (!checkApiKey(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   const body = await request.json().catch(() => ({}));
-  const ops: Promise<any>[] = [];
+  const ops: Promise<unknown>[] = [];
   if ('teamsWebhook' in body) {
     ops.push(body.teamsWebhook
       ? redis.set('config:teams_webhook', body.teamsWebhook)

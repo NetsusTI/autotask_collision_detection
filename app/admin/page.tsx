@@ -182,6 +182,7 @@ export default function AdminPage() {
   const [resolved, setResolved] = useState<ResolvedTheme>('dark');
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- lectura de sessionStorage una sola vez al montar, no hay forma de leerla fuera de un efecto (API solo-cliente)
     if (sessionStorage.getItem('netsus_admin') === '1') setAuth(true);
     const stored = localStorage.getItem(THEME_STORAGE_KEY) as ThemePref | null;
     const pref = stored === 'light' || stored === 'dark' ? stored : 'auto';
@@ -320,7 +321,7 @@ export default function AdminPage() {
 
   const busyTechs = new Set(tickets.flatMap(t => t.users)).size;
   const available = teamConfigured ? Math.max(0, online - busyTechs) : null;
-  const collisionsToday = history.filter(e => Date.now() - e.ts < 86400000).length;
+  const collisionsToday = history.filter(e => lastUpdate.getTime() - e.ts < 86400000).length;
 
   return (
     <div className={montserrat.className} style={{

@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
 
   const pairs: Record<string, number> = {};
   for (const e of events) {
-    const users = (e.users || []).map((u: any) => (typeof u === 'string' ? u : u.name));
+    const users = (e.users || []).map((u: string | { name: string }) => (typeof u === 'string' ? u : u.name));
     for (let i = 0; i < users.length; i++) {
       for (let j = i + 1; j < users.length; j++) {
         const key = [users[i], users[j]].sort().join(' ↔ ');
@@ -72,10 +72,10 @@ export async function GET(request: NextRequest) {
     .map(([pair, count]) => ({ pair, count }));
 
   const avgDuration = durations.length
-    ? Math.round(durations.reduce((sum: number, d: any) => sum + (d.duration || 0), 0) / durations.length / 1000)
+    ? Math.round(durations.reduce((sum: number, d: { duration?: number }) => sum + (d.duration || 0), 0) / durations.length / 1000)
     : null;
   const maxDuration = durations.length
-    ? Math.round(Math.max(...durations.map((d: any) => d.duration || 0)) / 1000)
+    ? Math.round(Math.max(...durations.map((d: { duration?: number }) => d.duration || 0)) / 1000)
     : null;
 
   // Ordered array of { date, count } for the last 30 days
