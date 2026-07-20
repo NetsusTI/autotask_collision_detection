@@ -74,8 +74,11 @@ export default defineContentScript({
     }
 
     function extractTicketId(): string | null {
+      // Ojo: chequear la RUTA, no la URL completa — páginas como "Búsqueda de
+      // tickets" pueden llevar un parámetro returnUrl=...TicketDetail... que
+      // haría match por substring en la URL completa aunque no sea un ticket.
+      if (!/\/Ticket(Edit|Detail)\.mvc$/i.test(window.location.pathname)) return null;
       const url = window.location.href;
-      if (!url.includes('TicketEdit') && !url.includes('TicketDetail')) return null;
       const direct = url.match(/[?&]ticketId=(\d+)/i);
       if (direct) return direct[1];
       // Vista "workspace" multi-ticket (paginador "N de M"): la URL usa ids[0]=/ids%5B0%5D=
