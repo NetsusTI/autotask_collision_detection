@@ -474,57 +474,7 @@
       .then(function (data) {
         document.getElementById('webhookInput').value = data.teamsWebhook || '';
         document.getElementById('ttlInput').value = data.presenceTtl || 40;
-        document.getElementById('notifEnabledInput').checked = data.notifEnabled !== false;
-        try { document.getElementById('watchQueuesInput').value = (JSON.parse(data.watchQueues || '[]')).join(', '); } catch (e) { document.getElementById('watchQueuesInput').value = ''; }
-        try { document.getElementById('criticalPrioritiesInput').value = (JSON.parse(data.criticalPriorities || '[1]')).join(', '); } catch (e) { document.getElementById('criticalPrioritiesInput').value = '1'; }
-        document.getElementById('slaWarnMinInput').value = data.slaWarnMin || 30;
-        document.getElementById('autotaskUiBaseInput').value = data.autotaskUiBase || '';
       }).catch(function () {});
-  }
-
-  function saveNotifConfig() {
-    var status = document.getElementById('notifStatus');
-    fetch(BASE_URL + '/api/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
-      body: JSON.stringify({
-        notifEnabled: document.getElementById('notifEnabledInput').checked,
-        watchQueues: document.getElementById('watchQueuesInput').value,
-        criticalPriorities: document.getElementById('criticalPrioritiesInput').value,
-        slaWarnMin: parseInt(document.getElementById('slaWarnMinInput').value) || 30,
-        autotaskUiBase: document.getElementById('autotaskUiBaseInput').value.trim(),
-      })
-    }).then(function () {
-      status.className = 'configStatus ok';
-      status.textContent = '✓ Configuración de notificaciones guardada';
-      setTimeout(function () { status.textContent = ''; }, 3000);
-    }).catch(function () {
-      status.className = 'configStatus err';
-      status.textContent = '✗ Error al guardar';
-    });
-  }
-
-  function pollNow() {
-    var status = document.getElementById('notifStatus');
-    status.className = 'configStatus';
-    status.style.color = 'var(--dim)';
-    status.textContent = 'Sondeando Autotask...';
-    fetch(BASE_URL + '/api/notifications/poll?force=1', { headers: { 'x-api-key': API_KEY } })
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        status.style.color = '';
-        if (!data.ran) {
-          status.className = 'configStatus err';
-          status.textContent = '⚠ No se ejecutó (poller desactivado o Autotask sin credenciales)';
-        } else {
-          var c = data.counts || {};
-          status.className = 'configStatus ok';
-          status.textContent = '✓ Sondeo OK · n1:' + (c.n1 || 0) + ' n2:' + (c.n2 || 0) + ' n3:' + (c.n3 || 0) + ' n4:' + (c.n4 || 0) + ' n5:' + (c.n5 || 0);
-        }
-      }).catch(function () {
-        status.className = 'configStatus err';
-        status.textContent = '✗ Error de conexión';
-      });
   }
 
   function syncResources() {
@@ -634,8 +584,6 @@
   document.getElementById('tabConfig').addEventListener('click', function () { setTab('config'); });
   document.getElementById('exportCsvBtn').addEventListener('click', exportCsv);
   document.getElementById('saveTtlBtn').addEventListener('click', saveTtl);
-  document.getElementById('saveNotifBtn').addEventListener('click', saveNotifConfig);
-  document.getElementById('pollNowBtn').addEventListener('click', pollNow);
   document.getElementById('syncResourcesBtn').addEventListener('click', syncResources);
   document.getElementById('saveWebhookBtn').addEventListener('click', saveWebhook);
   document.getElementById('testWebhookBtn').addEventListener('click', testWebhook);

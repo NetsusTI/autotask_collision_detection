@@ -259,31 +259,6 @@
         <div class="configStatus" id="ttlStatus"></div>
       </div>
       <div class="configSection">
-        <div class="configTitle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m13 7 9 9-3 3-9-9z"/><path d="m2 22 4-4"/><path d="m17 2 5 5"/><path d="M14.5 4.5 18 8"/><path d="m6 16 4.5 4.5"/><path d="M3 14a6.5 6.5 0 0 1 7-7"/></svg> Notificaciones Autotask (n1–n5)</div>
-        <div class="configSub">Centro de notificaciones "COLview". El servidor sondea Autotask y avisa a cada técnico en su extensión: ticket entrante en la cola (n1), asignación (n2), respuesta de cliente (n3), SLA por vencer (n4) y ticket crítico en la cola (n5).</div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin:10px 0">
-          <span style="font-size:13px;color:var(--dim)">Activar poller n1–n5</span>
-          <label class="toggle"><input type="checkbox" id="notifEnabledInput"><span class="slider"></span></label>
-        </div>
-        <div class="configSub" style="margin-top:6px">Colas a vigilar (queueID, separados por coma) — para n1 y n5</div>
-        <input id="watchQueuesInput" class="configInput" type="text" placeholder="Ej: 8, 29, 14">
-        <div class="configSub" style="margin-top:10px">IDs de prioridad considerada "crítica" — para n5</div>
-        <input id="criticalPrioritiesInput" class="configInput" type="text" placeholder="Ej: 1">
-        <div style="display:flex;align-items:center;gap:10px;margin-top:10px">
-          <div style="flex:1">
-            <div class="configSub">Aviso de SLA (min antes de vencer) — n4</div>
-            <input id="slaWarnMinInput" class="configInput" type="number" min="5" max="1440" step="5" placeholder="30" style="max-width:120px">
-          </div>
-        </div>
-        <div class="configSub" style="margin-top:10px">Base de la UI de Autotask (para enlazar tickets) — opcional</div>
-        <input id="autotaskUiBaseInput" class="configInput" type="url" placeholder="https://ww5.autotask.net">
-        <div class="configBtns">
-          <button class="configBtn primary" id="saveNotifBtn">Guardar</button>
-          <button class="configBtn secondary" id="pollNowBtn">Sondear ahora</button>
-        </div>
-        <div class="configStatus" id="notifStatus"></div>
-      </div>
-      <div class="configSection">
         <div class="configTitle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Roster de técnicos</div>
         <div class="configSub">Trae los técnicos activos desde Autotask y los guarda en Supabase. Solo los técnicos en este roster pueden quedar registrados en colisiones, notificaciones y feedback — así ningún nombre inventado o externo se cuela en el historial.</div>
         <div class="configBtns">
