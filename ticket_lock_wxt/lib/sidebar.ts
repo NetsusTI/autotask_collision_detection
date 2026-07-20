@@ -90,7 +90,9 @@ export function mountSidebar(): SidebarHandle {
 
   injectFont();
   injectStyles();
-  document.documentElement.style.setProperty(WIDTH_VAR, EXPANDED_WIDTH);
+  // Arranca colapsado (solo ícono) para no forzar la vista antes de saber la
+  // preferencia guardada — evita el parpadeo de aparecer expandido y encogerse.
+  document.documentElement.style.setProperty(WIDTH_VAR, COLLAPSED_WIDTH);
 
   // Empuja el contenido de la página (normal-flow) para reservar el ancho del panel.
   const push = document.createElement('style');
@@ -103,6 +105,7 @@ export function mountSidebar(): SidebarHandle {
 
   const root = document.createElement('div');
   root.id = `${PREFIX}-root`;
+  root.dataset.collapsed = 'true'; // por defecto colapsado (ver comentario arriba)
   root.innerHTML = `
     <div class="${PREFIX}-hdr">
       <img src="${(typeof chrome !== 'undefined' ? chrome.runtime.getURL('netsus-logo.png') : '')}" alt="netsus" class="${PREFIX}-logo" />
@@ -126,7 +129,9 @@ export function mountSidebar(): SidebarHandle {
   document.body.appendChild(root);
 
   // --- Colapsar / expandir (persistido) ---
-  let collapsed = false;
+  // Por defecto colapsado (solo ícono) — se expande únicamente si el técnico ya
+  // eligió explícitamente dejarlo expandido en una sesión anterior.
+  let collapsed = true;
   function applyCollapsed(next: boolean) {
     collapsed = next;
     root.dataset.collapsed = String(next);
@@ -135,7 +140,7 @@ export function mountSidebar(): SidebarHandle {
     if (toggleBtn) toggleBtn.innerHTML = icon(next ? 'chevron-left' : 'chevron-right', { size: 16 });
   }
   if (typeof chrome !== 'undefined') {
-    chrome.storage.local.get([COLLAPSE_KEY], (r) => applyCollapsed(r[COLLAPSE_KEY] === true));
+    chrome.storage.local.get([COLLAPSE_KEY], (r) => applyCollapsed(r[COLLAPSE_KEY] !== false));
   }
   function toggleCollapsed() {
     applyCollapsed(!collapsed);
