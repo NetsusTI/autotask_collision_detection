@@ -167,7 +167,7 @@ export default function AdminPage() {
   const [history, setHistory] = useState<CollisionEvent[]>([]);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'live' | 'history' | 'notifications' | 'feedback'>('live');
+  const [tab, setTab] = useState<'live' | 'history' | 'notifications' | 'feedback' | 'config'>('live');
   const [online, setOnline] = useState(0);
   const [teamConfigured, setTeamConfigured] = useState(false);
   const [notifLog, setNotifLog] = useState<NotifLogEntry[]>([]);
@@ -176,6 +176,15 @@ export default function AdminPage() {
   const [feedbackItems, setFeedbackItems] = useState<FeedbackItem[]>([]);
   const [feedbackTotal, setFeedbackTotal] = useState(0);
   const [feedbackLoadingMore, setFeedbackLoadingMore] = useState(false);
+
+  const [notifEnabled, setNotifEnabled] = useState(true);
+  const [watchQueues, setWatchQueues] = useState('');
+  const [criticalPriorities, setCriticalPriorities] = useState('1');
+  const [slaWarnMin, setSlaWarnMin] = useState(30);
+  const [autotaskUiBase, setAutotaskUiBase] = useState('');
+  const [configStatus, setConfigStatus] = useState('');
+  const [pollStatus, setPollStatus] = useState('');
+  const [pollLoading, setPollLoading] = useState(false);
 
   const [themePref, setThemePref] = useState<ThemePref>('auto');
   const [resolved, setResolved] = useState<ResolvedTheme>('dark');
@@ -280,6 +289,53 @@ export default function AdminPage() {
     const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
   }, [auth]);
+
+  useEffect(() => {
+    if (!auth) return;
+    fetch('/api/config', { headers: { 'x-api-key': API_KEY } })
+      .then(res => res.json())
+      .then(data => {
+        setNotifEnabled(data.notifEnabled !== false);
+        try { setWatchQueues((JSON.parse(data.watchQueues || '[]') as number[]).join(', ')); } catch { setWatchQueues(''); }
+        try { setCriticalPriorities((JSON.parse(data.criticalPriorities || '[1]') as number[]).join(', ')); } catch { setCriticalPriorities('1'); }
+        setSlaWarnMin(data.slaWarnMin || 30);
+        setAutotaskUiBase(data.autotaskUiBase || '');
+      })
+      .catch(() => {});
+  }, [auth]);
+
+  async function saveNotifConfig() {
+    setConfigStatus('saving');
+    try {
+      await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
+        body: JSON.stringify({ notifEnabled, watchQueues, criticalPriorities, slaWarnMin, autotaskUiBase: autotaskUiBase.trim() }),
+      });
+      setConfigStatus('✓ Configuración guardada');
+    } catch {
+      setConfigStatus('✗ Error al guardar');
+    }
+    setTimeout(() => setConfigStatus(''), 3000);
+  }
+
+  async function pollNow() {
+    setPollLoading(true);
+    setPollStatus('Sondeando Autotask...');
+    try {
+      const res = await fetch('/api/notifications/poll?force=1', { headers: { 'x-api-key': API_KEY } });
+      const data = await res.json();
+      if (!data.ran) {
+        setPollStatus('⚠ No se ejecutó (poller desactivado o Autotask sin credenciales)');
+      } else {
+        const c = data.counts || {};
+        setPollStatus(`✓ Sondeo OK · n1:${c.n1 || 0} n2:${c.n2 || 0} n3:${c.n3 || 0} n4:${c.n4 || 0} n5:${c.n5 || 0}`);
+      }
+    } catch {
+      setPollStatus('✗ Error de conexión');
+    }
+    setPollLoading(false);
+  }
 
   const p = PALETTE[resolved];
 
@@ -388,15 +444,15 @@ export default function AdminPage() {
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-          {(['live', 'history', 'notifications', 'feedback'] as const).map(t => (
+          {(['live', 'history', 'notifications', 'feedback', 'config'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)} style={{
               padding: '6px 18px', borderRadius: 20, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', border: 'none',
               display: 'flex', alignItems: 'center', gap: 6,
               background: tab === t ? ACCENT : p.chipBg2,
               color: tab === t ? '#fff' : p.text,
             }}>
-              <Icon name={t === 'live' ? 'circle' : t === 'history' ? 'clipboard-list' : t === 'notifications' ? 'bell' : 'message-square'} size={13} />
-              {t === 'live' ? 'En vivo' : t === 'history' ? 'Historial' : t === 'notifications' ? 'Centro de Notificaciones' : 'Feedback'}
+              <Icon name={t === 'live' ? 'circle' : t === 'history' ? 'clipboard-list' : t === 'notifications' ? 'bell' : t === 'feedback' ? 'message-square' : 'settings'} size={13} />
+              {t === 'live' ? 'En vivo' : t === 'history' ? 'Historial' : t === 'notifications' ? 'Centro de Notificaciones' : t === 'feedback' ? 'Feedback' : 'Config'}
             </button>
           ))}
         </div>
@@ -527,7 +583,7 @@ export default function AdminPage() {
               </>
             )}
           </div>
-        ) : (
+        ) : tab === 'feedback' ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {feedbackItems.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '80px 0', background: p.emptyBg, border: `1px dashed ${p.dashedBorder}`, borderRadius: 20 }}>
@@ -570,6 +626,84 @@ export default function AdminPage() {
                   </button>
                 )}
               </>
+            )}
+          </div>
+        ) : (
+          <div style={{ background: p.cardBg, border: `1px solid ${p.cardBorder}`, borderRadius: 16, padding: '24px 28px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <Icon name="satellite" size={16} color={ACCENT} />
+              <div style={{ fontSize: 14, fontWeight: 700 }}>Notificaciones Autotask (n1–n5)</div>
+            </div>
+            <div style={{ fontSize: 12, color: p.dim, marginBottom: 18, lineHeight: 1.5 }}>
+              Centro de notificaciones &quot;COLview&quot;. El servidor sondea Autotask y avisa a cada técnico en su extensión: ticket entrante en la cola (n1), asignación (n2), respuesta de cliente (n3), SLA por vencer (n4) y ticket crítico en la cola (n5).
+            </div>
+
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, cursor: 'pointer' }}>
+              <span style={{ fontSize: 13, color: p.text }}>Activar poller n1–n5</span>
+              <input type="checkbox" checked={notifEnabled} onChange={e => setNotifEnabled(e.target.checked)} style={{ width: 18, height: 18, accentColor: ACCENT, cursor: 'pointer' }} />
+            </label>
+
+            <label style={{ display: 'block', fontSize: 11, color: p.dim, marginBottom: 4 }}>Colas a vigilar (queueID, separados por coma) — para n1 y n5</label>
+            <input
+              value={watchQueues} onChange={e => setWatchQueues(e.target.value)} placeholder="Ej: 8, 29, 14"
+              style={{
+                width: '100%', padding: '9px 12px', borderRadius: 8, fontSize: 13, fontFamily: 'inherit',
+                background: p.inputBg, border: `1px solid ${p.inputBorder}`, color: p.text,
+                boxSizing: 'border-box', outline: 'none', marginBottom: 14,
+              }}
+            />
+
+            <label style={{ display: 'block', fontSize: 11, color: p.dim, marginBottom: 4 }}>IDs de prioridad considerada &quot;crítica&quot; — para n5</label>
+            <input
+              value={criticalPriorities} onChange={e => setCriticalPriorities(e.target.value)} placeholder="Ej: 1"
+              style={{
+                width: '100%', padding: '9px 12px', borderRadius: 8, fontSize: 13, fontFamily: 'inherit',
+                background: p.inputBg, border: `1px solid ${p.inputBorder}`, color: p.text,
+                boxSizing: 'border-box', outline: 'none', marginBottom: 14,
+              }}
+            />
+
+            <label style={{ display: 'block', fontSize: 11, color: p.dim, marginBottom: 4 }}>Aviso de SLA (min antes de vencer) — n4</label>
+            <input
+              type="number" min={5} max={1440} step={5} value={slaWarnMin}
+              onChange={e => setSlaWarnMin(parseInt(e.target.value) || 30)}
+              style={{
+                width: 140, padding: '9px 12px', borderRadius: 8, fontSize: 13, fontFamily: 'inherit',
+                background: p.inputBg, border: `1px solid ${p.inputBorder}`, color: p.text,
+                boxSizing: 'border-box', outline: 'none', marginBottom: 14,
+              }}
+            />
+
+            <label style={{ display: 'block', fontSize: 11, color: p.dim, marginBottom: 4 }}>Base de la UI de Autotask (para enlazar tickets) — opcional</label>
+            <input
+              type="url" value={autotaskUiBase} onChange={e => setAutotaskUiBase(e.target.value)} placeholder="https://ww5.autotask.net"
+              style={{
+                width: '100%', padding: '9px 12px', borderRadius: 8, fontSize: 13, fontFamily: 'inherit',
+                background: p.inputBg, border: `1px solid ${p.inputBorder}`, color: p.text,
+                boxSizing: 'border-box', outline: 'none', marginBottom: 18,
+              }}
+            />
+
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <button onClick={saveNotifConfig} style={{
+                padding: '9px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+                background: ACCENT, color: '#fff', border: 'none', cursor: 'pointer',
+              }}>Guardar</button>
+              <button onClick={pollNow} disabled={pollLoading} style={{
+                padding: '9px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+                background: p.chipBg2, color: p.text, border: `1px solid ${p.inputBorder}`,
+                cursor: pollLoading ? 'default' : 'pointer',
+              }}>{pollLoading ? 'Sondeando...' : 'Sondear ahora'}</button>
+            </div>
+            {(configStatus || pollStatus) && (
+              <div style={{
+                fontSize: 12, marginTop: 12,
+                color: (configStatus.includes('✗') || pollStatus.includes('✗') || pollStatus.includes('⚠')) ? '#ef4444' : '#22c55e',
+              }}>
+                {configStatus === 'saving' ? 'Guardando...' : configStatus}
+                {configStatus && configStatus !== 'saving' && pollStatus ? ' · ' : ''}
+                {pollStatus}
+              </div>
             )}
           </div>
         )}
