@@ -1,5 +1,5 @@
 -- resources: roster de técnicos. Se sincroniza desde Autotask (ver
--- src/lib/resources.ts → syncResourcesFromAutotask, expuesto en
+-- src/lib/supabase/resources.ts → syncResourcesFromAutotask, expuesto en
 -- POST /api/resources/sync). Es la tabla contra la que se valida que un nombre
 -- que llega desde la extensión corresponda a un técnico real y activo.
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkApiKey } from '@/lib/ticket-lock';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase/client';
 
 // Feed centralizado de notificaciones (n1–n5 + colisión/aviso/liberación) para el
 // tab "Centro de Notificaciones" del panel web — agrega la actividad de todo el equipo.

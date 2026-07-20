@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkApiKey } from '@/lib/ticket-lock';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase/client';
 
 // Historial de colisiones — leído desde Supabase (una fila por colisión, sin el cap de
 // 200 que tenía la lista en Redis). El filtro por técnico escanea una ventana acotada

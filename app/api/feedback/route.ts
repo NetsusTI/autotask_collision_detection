@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkApiKey } from '@/lib/ticket-lock';
-import { supabase, type FeedbackType } from '@/lib/supabase';
-import { lookupResourceId } from '@/lib/resources';
+import { supabase, type FeedbackType } from '@/lib/supabase/client';
+import { lookupResourceId } from '@/lib/supabase/resources';
 
 const VALID_TYPES: FeedbackType[] = ['mejorar', 'agregar', 'quitar', 'otro'];
 

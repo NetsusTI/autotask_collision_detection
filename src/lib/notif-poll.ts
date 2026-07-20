@@ -4,8 +4,8 @@
 // que la extensión drena y vuelca en el buzón (lib/notifications de la extensión).
 
 import { redis } from '@/lib/ticket-lock';
-import { supabase } from '@/lib/supabase';
-import { lookupResourceId } from '@/lib/resources';
+import { supabase } from '@/lib/supabase/client';
+import { lookupResourceId } from '@/lib/supabase/resources';
 import {
   autotaskConfigured,
   ticketsInQueues,

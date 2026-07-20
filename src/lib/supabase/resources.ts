@@ -3,7 +3,7 @@
 // notificación, feedback) corresponde a un técnico real antes de guardarlo — así alguien
 // externo o con un nombre inventado no puede quedar registrado como si fuera del equipo.
 
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase/client';
 import { activeResources } from '@/lib/autotask';
 
 export async function syncResourcesFromAutotask(): Promise<{ synced: number; deactivated: number }> {
