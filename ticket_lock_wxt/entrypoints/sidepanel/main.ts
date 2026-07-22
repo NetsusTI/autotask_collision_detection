@@ -10,6 +10,7 @@ import {
   type AppNotification,
 } from '@/lib/notifications';
 import { icon } from '@/lib/icons';
+import { avatarHtml } from '@/lib/avatar';
 import {
   getThemePref,
   setThemePref,
@@ -58,17 +59,6 @@ function formatTime(minutes: number): string {
   if (minutes < 1) return 'acaba de entrar';
   if (minutes === 1) return '1 min';
   return `${minutes} min`;
-}
-
-function avatarHtml(name: string, idx: number): string {
-  const colors = ['#f97316', '#01BFFA', '#8C52FF', '#22c55e', '#ec4899'];
-  const inits = name.split(' ').slice(0, 2).map(w => w[0] || '').join('').toUpperCase();
-  return `<div style="
-    width:32px;height:32px;border-radius:50%;flex-shrink:0;
-    background:${colors[idx % colors.length]};border:2px solid rgba(0,0,0,0.2);
-    display:flex;align-items:center;justify-content:center;
-    font-size:11px;font-weight:800;color:#fff;
-  ">${inits}</div>`;
 }
 
 // --- Estado del ticket (llega por mensajes desde el content script de la pestaña activa) ---
@@ -302,7 +292,7 @@ function showUser(name: string, isAuto: boolean) {
   autoLabelEl.textContent = isAuto ? 'Detectado automáticamente desde Autotask' : 'Configurado manualmente';
   nameInputEl.value = name;
 }
-chrome.storage.local.get(['netsus_user', 'netsus_user_auto', 'netsus_sound'], ({ netsus_user, netsus_user_auto, netsus_sound }) => {
+chrome.storage.local.get(['netsus_user', 'netsus_user_auto', 'netsus_sound'], ({ netsus_user, netsus_user_auto, netsus_sound }: { netsus_user?: string; netsus_user_auto?: boolean; netsus_sound?: string }) => {
   if (netsus_user) {
     showUser(netsus_user, !!netsus_user_auto);
   } else {

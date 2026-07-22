@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase/client';
 import { lookupResourceId } from '@/lib/supabase/resources';
 import { dedupeOthers, minutesSince, formatDuration } from '@/lib/collision';
 import { clampInt } from '@/lib/num';
+import { createTicketNote, getTicketAssignedResourceId, getResourceName } from '@/lib/autotask';
 
 const PRESENCE_TTL = 40;
 
@@ -21,31 +22,22 @@ async function getAutotaskAssignee(ticketId: string): Promise<string | null> {
   const cached = await redis.get<string>(cacheKey);
   if (cached !== null) return cached === '' ? null : cached;
 
-  const atUser = process.env.AUTOTASK_USER;
-  const atSecret = process.env.AUTOTASK_SECRET;
-  if (!atUser || !atSecret) return null;
+  const resourceId = await getTicketAssignedResourceId(ticketId);
+  if (!resourceId) { await redis.set(cacheKey, '', { ex: 300 }); return null; }
 
-  try {
-    const base = 'https://webservices12.autotask.net/ATServicesRest/v1.0';
-    const headers = { 'ApiIntegrationCode': 'CCD-NETSUS', 'UserName': atUser, 'Secret': atSecret, 'Content-Type': 'application/json' };
+  const name = await getResourceName(resourceId);
+  await redis.set(cacheKey, name ?? '', { ex: 300 });
+  return name;
+}
 
-    const ticketRes = await fetch(`${base}/Tickets/${ticketId}?fields=assignedResourceID`, { headers });
-    if (!ticketRes.ok) { await redis.set(cacheKey, '', { ex: 300 }); return null; }
-    const ticketData = await ticketRes.json();
-    const resourceId = ticketData?.item?.assignedResourceID;
-    if (!resourceId) { await redis.set(cacheKey, '', { ex: 300 }); return null; }
-
-    const resRes = await fetch(`${base}/Resources/${resourceId}?fields=firstName,lastName`, { headers });
-    if (!resRes.ok) { await redis.set(cacheKey, '', { ex: 300 }); return null; }
-    const resData = await resRes.json();
-    const item = resData?.item;
-    const name = item ? `${item.firstName} ${item.lastName}`.trim() : null;
-    await redis.set(cacheKey, name ?? '', { ex: 300 });
-    return name;
-  } catch {
-    await redis.set(cacheKey, '', { ex: 60 });
-    return null;
-  }
+// Nota automática en Autotask — apagada por defecto (config:autotask_notes_enabled),
+// ver comentario en src/lib/autotask.ts sobre por qué. Fire-and-forget: createTicketNote
+// nunca lanza, así que un fallo de Autotask no puede romper la respuesta de colisión.
+async function maybeCreateAutotaskNote(numericTicketId: string | null, title: string, description: string) {
+  if (!numericTicketId) return;
+  const enabled = await redis.get<string>('config:autotask_notes_enabled');
+  if (enabled !== '1') return;
+  createTicketNote(Number(numericTicketId), { title, description });
 }
 
 async function getWebhookUrl(): Promise<string | null> {
@@ -167,6 +159,9 @@ export async function POST(
   await redis.expire(`ticketentry:${id}:${user}`, 300);
   if (ticketNumber) await redis.set(`ticketnumber:${id}`, ticketNumber, { ex: 300 });
   if (ticketUrl) await redis.set(`ticketurl:${id}`, ticketUrl, { ex: 300, nx: true });
+  // Cacheado para que el DELETE (que no recibe autotaskTicketId) pueda crear la
+  // nota de resolución en el ticket numérico correcto.
+  if (autotaskTicketId) await redis.set(`autotaskid:${id}`, String(autotaskTicketId), { ex: 300 });
 
   if (Array.isArray(ping) && ping.length) {
     // Server-side rate limit: one ping per user per ticket every 30 seconds
@@ -258,6 +253,11 @@ export async function POST(
         targets: allInCollision,
         ts: Date.now(),
       });
+      maybeCreateAutotaskNote(
+        autotaskTicketId ? String(autotaskTicketId) : id,
+        `Colisión detectada — ${ticketNumber ?? `#${id}`}`,
+        `Netsus CoView detectó que ${allInCollision.join(', ')} coincidieron trabajando este ticket al mismo tiempo. Registrado automáticamente.`,
+      );
     } else {
       // Colisión ya en curso: renovamos los TTL de colactive/colstart en cada poll
       // (en vez de dejarlos vencer a los ~2 min) — si no, el servidor la trataba como
@@ -341,6 +341,12 @@ export async function DELETE(
             targets: colUsers,
             ts: Date.now(),
           });
+          const cachedAutotaskId = await redis.get<string>(`autotaskid:${id}`);
+          maybeCreateAutotaskNote(
+            cachedAutotaskId ?? id,
+            `Colisión resuelta — ${ticketNumber ?? `#${id}`}`,
+            `${colUsers.join(', ')} coincidieron en este ticket durante ${durLabel}. Colisión resuelta automáticamente por Netsus CoView.`,
+          );
         }
       }
     }
