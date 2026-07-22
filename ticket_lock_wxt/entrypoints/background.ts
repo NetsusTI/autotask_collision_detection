@@ -107,6 +107,72 @@ async function getConfig(): Promise<{ baseUrl: string; apiKey: string }> {
   });
 }
 
+// --- Notificaciones de asignación de tickets ---
+// Primera ejecución: carga todos los tickets activos asignados al técnico y los
+// marca como "vistos" sin notificar (evita spam al instalar/reiniciar la extensión).
+// Ejecuciones siguientes: solo consulta tickets con actividad reciente; si hay
+// alguno no visto → popup del sistema "Se te asignó el ticket T20250001.0001".
+let assignmentCheckReady = false;
+let lastAssignmentCheck = 0;
+const seenTicketIds = new Set<number>();
+const ticketUrls = new Map<number, string>();
+
+async function checkNewAssignments() {
+  const name = await getStoredUser();
+  if (!name) return;
+  const { baseUrl: BASE_URL, apiKey: API_KEY } = await getConfig();
+
+  const sinceParam = assignmentCheckReady
+    ? `&since=${new Date(lastAssignmentCheck - 10000).toISOString()}` // 10s overlap
+    : '';
+
+  lastAssignmentCheck = Date.now();
+
+  try {
+    const res = await fetch(
+      `${BASE_URL}/api/presence/my-tickets?user=${encodeURIComponent(name)}${sinceParam}`,
+      { headers: { 'x-api-key': API_KEY } },
+    );
+    if (!res.ok) return;
+    const { tickets } = await res.json().catch(() => ({ tickets: [] }));
+    if (!Array.isArray(tickets)) return;
+
+    for (const t of tickets) {
+      if (t.url) ticketUrls.set(t.id, t.url);
+
+      if (!assignmentCheckReady) {
+        seenTicketIds.add(t.id); // primera carga: solo registrar, sin notificar
+      } else if (!seenTicketIds.has(t.id)) {
+        seenTicketIds.add(t.id);
+        const label = t.ticketNumber ?? `#${t.id}`;
+        const msg = t.title ? `${label} — ${t.title}` : label;
+        chrome.notifications.create(`netsus-assign-${t.id}`, {
+          type: 'basic',
+          iconUrl: chrome.runtime.getURL('icon/128.png'),
+          title: 'Ticket asignado',
+          message: `Se te asignó el ticket ${msg}`,
+          priority: 2,
+        });
+      }
+    }
+    assignmentCheckReady = true;
+  } catch {
+    // silencioso
+  }
+}
+
+// Al hacer clic en la notificación de asignación, abrir el ticket en Autotask.
+// El listener se registra una sola vez en defineBackground().
+function registerAssignmentClickHandler() {
+  chrome.notifications.onClicked.addListener((id) => {
+    if (!id.startsWith('netsus-assign-')) return;
+    const ticketId = parseInt(id.replace('netsus-assign-', ''), 10);
+    const url = ticketUrls.get(ticketId);
+    if (url) chrome.tabs.create({ url });
+    chrome.notifications.clear(id);
+  });
+}
+
 async function fetchWithRetry(url: string, options: RequestInit, maxAttempts = 3): Promise<Response> {
   let lastError: unknown;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -163,6 +229,11 @@ export default defineBackground(() => {
 
   // Re-nag de respaldo por si el técnico no tiene ninguna pestaña de Autotask abierta.
   setInterval(backgroundRenag, 30000);
+
+  // Notificaciones de asignación de tickets: poll cada 60 segundos.
+  registerAssignmentClickHandler();
+  checkNewAssignments(); // primera ejecución: inicializa el set de vistos
+  setInterval(checkNewAssignments, 60000);
 
   browser.runtime.onMessage.addListener((message: any, _sender, sendResponse) => {
     if (message?.type !== 'NETSUS_API') return false;
