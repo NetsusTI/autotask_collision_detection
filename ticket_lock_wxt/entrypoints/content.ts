@@ -126,6 +126,12 @@ export default defineContentScript({
       return match ? match[0] : null;
     }
 
+    function extractTicketTitle(): string | null {
+      // document.title típico: "T20250001.0001 - Nombre del ticket | Autotask PSA"
+      const match = document.title.match(/T\d{8}\.\d{4}\s*[-–]\s*(.+?)(?:\s*\||\s*$)/);
+      return match ? match[1].trim() : null;
+    }
+
     function ticketLabel(): string {
       return extractTicketNumber() ?? (currentTicketId ? `#${currentTicketId}` : '');
     }
@@ -274,7 +280,7 @@ export default defineContentScript({
       const hasNewEntry = others.some(o => !prevNames.has(o.name));
       lastOthers = others;
 
-      setState({ kind: 'collision', others, ticketLabel: ticketLabel() });
+      setState({ kind: 'collision', others, ticketLabel: ticketLabel(), ticketTitle: extractTicketTitle() ?? undefined });
 
       if (!wasLocked) {
         const colMuted = isMuted(typePrefs, 'collision');
@@ -304,7 +310,8 @@ export default defineContentScript({
       autoPingFired = false;
       unlockUI();
       const label = ticketLabel();
-      setState({ kind: 'liberated', ticketLabel: label });
+      const title = extractTicketTitle() ?? undefined;
+      setState({ kind: 'liberated', ticketLabel: label, ticketTitle: title });
       const libMuted = isMuted(typePrefs, 'liberation');
       if (soundEnabled && !libMuted) playSound('free');
       if (!libMuted) sendChromeNotification('Ticket liberado', 'Ya puedes trabajar en este ticket');
@@ -319,7 +326,7 @@ export default defineContentScript({
         silent: true,
       });
       setTimeout(() => {
-        if (currentTicketId) setState({ kind: 'solo', ticketLabel: label });
+        if (currentTicketId) setState({ kind: 'solo', ticketLabel: label, ticketTitle: title });
       }, 4000);
     }
 
@@ -400,6 +407,7 @@ export default defineContentScript({
       const body: Record<string, unknown> = {
         user,
         ticketNumber: extractTicketNumber(),
+        ticketTitle: extractTicketTitle() ?? undefined,
         ticketUrl: window.location.href,
         autotaskTicketId: currentTicketId,
       };
@@ -416,7 +424,7 @@ export default defineContentScript({
           showCollision(others);
         } else {
           if (wasLocked) showLiberation();
-          else setState({ kind: 'solo', ticketLabel: ticketLabel() });
+          else setState({ kind: 'solo', ticketLabel: ticketLabel(), ticketTitle: extractTicketTitle() ?? undefined });
           wasLocked = false;
           if (data?.pastCollisions >= 2) setHistoryWarning(data.pastCollisions);
         }
@@ -477,7 +485,7 @@ export default defineContentScript({
         return;
       }
 
-      setState({ kind: 'solo', ticketLabel: ticketLabel() });
+      setState({ kind: 'solo', ticketLabel: ticketLabel(), ticketTitle: extractTicketTitle() ?? undefined });
       const pid = presenceId();
       if (pid) registerPresence(pid, currentUser);
       pollInterval = window.setInterval(() => {

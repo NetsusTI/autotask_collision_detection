@@ -120,7 +120,7 @@ export function renderBanner(state: TicketState, warnings: TicketWarnings, opts:
             <button id="netsus-banner-close" title="Quitar" style="${ICON_BTN}">${icon('x', { size: 14 })}</button>
           </div>
         </div>
-        <div style="font-size:12px;opacity:0.85;margin-bottom:8px">${escapeHtml(state.ticketLabel)}</div>
+        <div style="font-size:12px;opacity:0.85;margin-bottom:8px">${escapeHtml(state.ticketLabel)}${state.ticketTitle ? ` — ${escapeHtml(state.ticketTitle)}` : ''}</div>
         <div style="display:flex;margin-bottom:8px">${sorted.map((u, i) => avatarHtml(u.name, i, 28)).join('')}</div>
         <div style="font-size:12px;margin-bottom:10px;line-height:1.5">
           ${sorted.length === 1

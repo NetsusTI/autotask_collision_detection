@@ -147,7 +147,7 @@ export async function POST(
 ) {
   if (!checkApiKey(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   const { id } = await params;
-  const { user, ticketNumber, ticketUrl, ping, autotaskTicketId } = await request.json().catch(() => ({ user: 'Desconocido', ticketNumber: null, ticketUrl: null, ping: null, autotaskTicketId: null }));
+  const { user, ticketNumber, ticketTitle, ticketUrl, ping, autotaskTicketId } = await request.json().catch(() => ({ user: 'Desconocido', ticketNumber: null, ticketTitle: null, ticketUrl: null, ping: null, autotaskTicketId: null }));
 
   const configTtl = await redis.get<string>('config:presence_ttl');
   const ttl = clampInt(configTtl, 15, 300, PRESENCE_TTL);
@@ -158,6 +158,7 @@ export async function POST(
   await redis.set(`ticketentry:${id}:${user}`, Date.now().toString(), { ex: 300, nx: true });
   await redis.expire(`ticketentry:${id}:${user}`, 300);
   if (ticketNumber) await redis.set(`ticketnumber:${id}`, ticketNumber, { ex: 300 });
+  if (ticketTitle) await redis.set(`tickettitle:${id}`, ticketTitle, { ex: 300 });
   if (ticketUrl) await redis.set(`ticketurl:${id}`, ticketUrl, { ex: 300, nx: true });
   // Cacheado para que el DELETE (que no recibe autotaskTicketId) pueda crear la
   // nota de resolución en el ticket numérico correcto.
@@ -217,6 +218,10 @@ export async function POST(
         redis.set(`colusers:${id}`, JSON.stringify(allInCollision), { ex: 600 }),
       ]);
       const storedUrl = ticketUrl ?? await redis.get<string>(`ticketurl:${id}`);
+      const storedTitle = ticketTitle ?? await redis.get<string>(`tickettitle:${id}`);
+      const ticketDisplay = storedTitle
+        ? `${ticketNumber ?? `#${id}`} — ${storedTitle}`
+        : (ticketNumber ?? `#${id}`);
       // Registro durable en Supabase (history/analytics/daily-summary leen de ahí) —
       // guardamos el id para completar duration_ms cuando se resuelva.
       try {
@@ -242,11 +247,11 @@ export async function POST(
       } catch {
         // silencioso: Redis ya tiene el registro
       }
-      sendTeamsWebhook(ticketNumber ?? `#${id}`, allInCollision, storedUrl);
+      sendTeamsWebhook(ticketDisplay, allInCollision, storedUrl);
       logCentralNotification({
         type: 'collision',
         title: 'Colisión detectada',
-        body: `${allInCollision.join(', ')} coinciden en ${ticketNumber ?? `#${id}`}`,
+        body: `${allInCollision.join(', ')} coinciden en ${ticketDisplay}`,
         ticketId: id,
         ticketNumber: ticketNumber ?? undefined,
         ticketUrl: storedUrl ?? undefined,
@@ -294,10 +299,11 @@ export async function DELETE(
 
     const remaining = await redis.keys(`ticketpresence:${id}:*`);
     if (remaining.length < 2) {
-      const [startTs, colUsersRaw, ticketNumber, ticketUrl] = await Promise.all([
+      const [startTs, colUsersRaw, ticketNumber, ticketTitle, ticketUrl] = await Promise.all([
         redis.get<string>(`colstart:${id}`),
         redis.get<string>(`colusers:${id}`),
         redis.get<string>(`ticketnumber:${id}`),
+        redis.get<string>(`tickettitle:${id}`),
         redis.get<string>(`ticketurl:${id}`),
       ]);
       if (startTs) {
@@ -329,12 +335,15 @@ export async function DELETE(
           }
           // Notify Teams that the collision was resolved
           const colUsers: string[] = colUsersRaw ? JSON.parse(colUsersRaw) : [user];
-          sendResolutionWebhook(ticketNumber ?? `#${id}`, colUsers, duration, ticketUrl);
+          const resolutionDisplay = ticketTitle
+            ? `${ticketNumber ?? `#${id}`} — ${ticketTitle}`
+            : (ticketNumber ?? `#${id}`);
+          sendResolutionWebhook(resolutionDisplay, colUsers, duration, ticketUrl);
           const durLabel = formatDuration(duration);
           logCentralNotification({
             type: 'liberation',
             title: 'Colisión resuelta',
-            body: `${ticketNumber ?? `#${id}`} liberado tras ${durLabel}`,
+            body: `${resolutionDisplay} liberado tras ${durLabel}`,
             ticketId: id,
             ticketNumber: ticketNumber ?? undefined,
             ticketUrl: ticketUrl ?? undefined,

@@ -7,9 +7,9 @@ export interface OtherUser { name: string; minutes: number; }
 
 export type TicketState =
   | { kind: 'idle' }
-  | { kind: 'solo'; ticketLabel: string }
-  | { kind: 'collision'; others: OtherUser[]; ticketLabel: string }
-  | { kind: 'liberated'; ticketLabel: string }
+  | { kind: 'solo'; ticketLabel: string; ticketTitle?: string }
+  | { kind: 'collision'; others: OtherUser[]; ticketLabel: string; ticketTitle?: string }
+  | { kind: 'liberated'; ticketLabel: string; ticketTitle?: string }
   | { kind: 'paused'; secsLeft: number };
 
 export interface TicketWarnings {
