@@ -10,7 +10,7 @@ export function autotaskConfigured(): boolean {
   return Boolean(process.env.AUTOTASK_USER && process.env.AUTOTASK_SECRET);
 }
 
-function headers(): Record<string, string> {
+export function headers(): Record<string, string> {
   return {
     ApiIntegrationCode: 'CCD-NETSUS',
     UserName: process.env.AUTOTASK_USER ?? '',
@@ -222,4 +222,68 @@ export function buildTicketUrl(uiBase: string | null, ticketId: number): string 
   if (!uiBase) return undefined;
   const base = uiBase.replace(/\/+$/, '');
   return `${base}/Mvc/ServiceDesk/TicketDetail.mvc?ticketId=${ticketId}`;
+}
+
+// Recurso asignado a un ticket — reemplaza el fetch inline que vivía duplicado
+// en app/api/presence/[id]/route.ts (mismo BASE/headers, ya centralizados acá).
+export async function getTicketAssignedResourceId(ticketId: string): Promise<number | null> {
+  if (!autotaskConfigured()) return null;
+  try {
+    const res = await fetch(`${BASE}/Tickets/${ticketId}?fields=assignedResourceID`, { headers: headers() });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.item?.assignedResourceID ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// Nombre completo de un recurso por su ID — usado junto con getTicketAssignedResourceId.
+export async function getResourceName(resourceId: number): Promise<string | null> {
+  if (!autotaskConfigured()) return null;
+  try {
+    const res = await fetch(`${BASE}/Resources/${resourceId}?fields=firstName,lastName`, { headers: headers() });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const item = data?.item;
+    const name = item ? `${item.firstName ?? ''} ${item.lastName ?? ''}`.trim() : '';
+    return name || null;
+  } catch {
+    return null;
+  }
+}
+
+// Crea una nota en el ticket (registro de colisión detectada/resuelta). Nunca lanza
+// — devuelve false ante cualquier error o si Autotask no está configurado, mismo
+// contrato que el resto de este archivo (para poder llamarse fire-and-forget sin
+// try/catch extra en el caller).
+//
+// noteType/publish son valores de picklist propios de cada instancia de Autotask —
+// no hay forma de confirmarlos sin acceso a la instancia real. Se usan defaults
+// conservadores (publish=1: nota interna, no visible al cliente en el portal) y
+// esta función queda detrás de config:autotask_notes_enabled (apagado por defecto)
+// hasta validarlos contra el entorno productivo real.
+export async function createTicketNote(
+  ticketId: number,
+  note: { title: string; description: string },
+): Promise<boolean> {
+  if (!autotaskConfigured()) return false;
+  try {
+    const res = await fetch(`${BASE}/TicketNotes`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify({
+        item: {
+          ticketID: ticketId,
+          title: note.title,
+          description: note.description,
+          noteType: 1,
+          publish: 1,
+        },
+      }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }

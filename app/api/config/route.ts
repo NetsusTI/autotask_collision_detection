@@ -4,7 +4,7 @@ import { checkAdminSession } from '@/lib/admin-auth';
 
 export async function GET(request: NextRequest) {
   if (!checkApiKey(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  const [teamsWebhook, presenceTtl, watchQueues, criticalPriorities, slaWarnMin, autotaskUiBase, notifEnabled] = await Promise.all([
+  const [teamsWebhook, presenceTtl, watchQueues, criticalPriorities, slaWarnMin, autotaskUiBase, notifEnabled, autotaskNotesEnabled] = await Promise.all([
     redis.get<string>('config:teams_webhook'),
     redis.get<string>('config:presence_ttl'),
     redis.get<string>('config:watch_queues'),
@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
     redis.get<string>('config:sla_warn_min'),
     redis.get<string>('config:autotask_ui_base'),
     redis.get<string>('config:notif_enabled'),
+    redis.get<string>('config:autotask_notes_enabled'),
   ]);
   return NextResponse.json({
     teamsWebhook: teamsWebhook ?? '',
@@ -21,6 +22,9 @@ export async function GET(request: NextRequest) {
     slaWarnMin: slaWarnMin ? parseInt(slaWarnMin) : 30,
     autotaskUiBase: autotaskUiBase ?? '',
     notifEnabled: notifEnabled !== '0',
+    // Apagado por defecto — requiere validar noteType/publish contra la instancia
+    // real de Autotask antes de encenderlo (ver comentario en src/lib/autotask.ts).
+    autotaskNotesEnabled: autotaskNotesEnabled === '1',
   });
 }
 
@@ -64,6 +68,9 @@ export async function POST(request: NextRequest) {
   }
   if ('notifEnabled' in body) {
     ops.push(redis.set('config:notif_enabled', body.notifEnabled ? '1' : '0'));
+  }
+  if ('autotaskNotesEnabled' in body) {
+    ops.push(redis.set('config:autotask_notes_enabled', body.autotaskNotesEnabled ? '1' : '0'));
   }
 
   await Promise.all(ops);

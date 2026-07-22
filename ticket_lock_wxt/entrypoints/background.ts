@@ -25,7 +25,7 @@ interface FeedItem {
 
 function getStoredUser(): Promise<string | null> {
   return new Promise((resolve) => {
-    chrome.storage.local.get(['netsus_user'], ({ netsus_user }) => resolve(netsus_user || null));
+    chrome.storage.local.get(['netsus_user'], ({ netsus_user }: { netsus_user?: string }) => resolve(netsus_user || null));
   });
 }
 
@@ -73,7 +73,7 @@ async function pollNotificationFeed() {
 
 function getHeartbeat(): Promise<number | undefined> {
   return new Promise((resolve) => {
-    chrome.storage.local.get(['netsus_cs_heartbeat'], ({ netsus_cs_heartbeat }) => resolve(netsus_cs_heartbeat));
+    chrome.storage.local.get(['netsus_cs_heartbeat'], ({ netsus_cs_heartbeat }: { netsus_cs_heartbeat?: number }) => resolve(netsus_cs_heartbeat));
   });
 }
 
@@ -98,7 +98,7 @@ async function backgroundRenag() {
 
 async function getConfig(): Promise<{ baseUrl: string; apiKey: string }> {
   return new Promise((resolve) => {
-    chrome.storage.local.get(['netsus_base_url', 'netsus_api_key'], ({ netsus_base_url, netsus_api_key }) => {
+    chrome.storage.local.get(['netsus_base_url', 'netsus_api_key'], ({ netsus_base_url, netsus_api_key }: { netsus_base_url?: string; netsus_api_key?: string }) => {
       resolve({
         baseUrl: netsus_base_url || DEFAULT_BASE_URL,
         apiKey: netsus_api_key || DEFAULT_API_KEY,

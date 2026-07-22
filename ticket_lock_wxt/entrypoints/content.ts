@@ -8,6 +8,7 @@ import {
 } from '@/lib/notifications';
 import { getTypePrefs, isMuted, subscribePrefs, type TypePrefs } from '@/lib/prefs';
 import type { OtherUser, TicketState, TicketWarnings, PanelToContentMessage } from '@/lib/messaging';
+import { renderBanner, removeBanner } from '@/lib/banner';
 
 export default defineContentScript({
   matches: ['https://*.autotask.net/*'],
@@ -40,8 +41,26 @@ export default defineContentScript({
     let currentState: TicketState = { kind: 'idle' };
     let currentWarnings: TicketWarnings = { offline: false, historyCount: null, assignedTo: null };
 
+    // Estado del banner inyectado en la página (además del side panel) — se resetea
+    // por ticket en init(), igual que wasLocked/autoPingFired.
+    let bannerMinimized = false;
+    let bannerDismissed = false;
+
     function pushState() {
       chrome.runtime.sendMessage({ type: 'NSB_STATE', payload: { state: currentState, warnings: currentWarnings } }).catch(() => {});
+      renderBanner(
+        currentState,
+        currentWarnings,
+        { minimized: bannerMinimized, dismissed: bannerDismissed },
+        {
+          onPing: triggerPing,
+          onFinish: triggerFinish,
+          onPause: pausePresence,
+          onCancelPause: () => { clearTimeout(pauseTimeout); resumeAfterPause(); },
+          onToggleMinimize: () => { bannerMinimized = !bannerMinimized; pushState(); },
+          onDismiss: () => { bannerDismissed = true; pushState(); },
+        },
+      );
     }
     function setState(s: TicketState) { currentState = s; pushState(); }
     function setOffline(v: boolean) { currentWarnings = { ...currentWarnings, offline: v }; pushState(); }
@@ -66,7 +85,7 @@ export default defineContentScript({
     let userRetryCount = 0;
 
     function loadUserAndInit() {
-      chrome.storage.local.get(['netsus_user', 'netsus_sound'], ({ netsus_user, netsus_sound }) => {
+      chrome.storage.local.get(['netsus_user', 'netsus_sound'], ({ netsus_user, netsus_sound }: { netsus_user?: string; netsus_sound?: string }) => {
         soundEnabled = netsus_sound !== 'off';
         if (netsus_user) {
           currentUser = netsus_user;
@@ -211,17 +230,19 @@ export default defineContentScript({
       }, 30000);
     }
 
-    // Bloquea la interacción con el ticket durante una colisión. El panel ya no
-    // vive en el DOM de la página (ahora es el side panel de Chrome), así que no
-    // hace falta excluir nada del bloqueo.
+    // Bloquea la interacción con el ticket durante una colisión. El side panel
+    // vive fuera del DOM de la página (no hace falta excluirlo), pero el banner
+    // in-page (lib/banner.ts) sí es parte del body y necesita quedar afuera del
+    // bloqueo para que sus propios botones (Avisar/Pausar/Terminé) sigan
+    // funcionando durante la colisión que ellos mismos ayudan a resolver.
     function lockUI() {
       if (document.getElementById('netsus-lock-style')) return;
       const style = document.createElement('style');
       style.id = 'netsus-lock-style';
       style.textContent = `
-        body.netsus-locked button,
-        body.netsus-locked textarea,
-        body.netsus-locked input:not([type="search"]):not([type="text"][readonly]) {
+        body.netsus-locked button:not(#netsus-banner *):not(#netsus-assign-pill *),
+        body.netsus-locked textarea:not(#netsus-banner *):not(#netsus-assign-pill *),
+        body.netsus-locked input:not([type="search"]):not([type="text"][readonly]):not(#netsus-banner *):not(#netsus-assign-pill *) {
           pointer-events: none !important; opacity: 0.45 !important; cursor: not-allowed !important;
         }
       `;
@@ -445,6 +466,9 @@ export default defineContentScript({
 
       currentTicketId = ticketId;
       lastPresenceId = null;
+      bannerMinimized = false;
+      bannerDismissed = false;
+      removeBanner();
       setHistoryWarning(null);
       setAssignment(null);
 
