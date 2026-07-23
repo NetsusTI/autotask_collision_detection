@@ -139,6 +139,11 @@ function renderStatus(state: TicketState | null) {
         <button class="btn" id="ping-btn">${icon('megaphone', { size: 13 })} Avisar</button>
         <button class="btn ghost" id="finish-btn">${icon('check', { size: 13 })} Terminé</button>
       </div>
+      <div class="quick-msgs">
+        <button class="btn ghost sm" data-qmsg="Dame 5 minutos">⏱ 5 min</button>
+        <button class="btn ghost sm" data-qmsg="Casi termino">🔜 Termino</button>
+        <button class="btn ghost sm" data-qmsg="Me encargo yo">✋ Me encargo</button>
+      </div>
       <div class="pause-row">
         <span>${icon('pause', { size: 12 })} Pausar:</span>
         <button class="btn ghost sm" data-pause="5">5'</button>
@@ -152,17 +157,24 @@ function renderStatus(state: TicketState | null) {
     btn.addEventListener('click', () => sendAction({ type: 'NSB_ACTION', action: 'pause', minutes: parseInt(btn.dataset.pause!) }));
   });
   const pingBtn = document.getElementById('ping-btn') as HTMLButtonElement | null;
-  pingBtn?.addEventListener('click', () => {
-    if (pingBtn.disabled) return;
+
+  function doPing(quickMsg?: string) {
+    if (!pingBtn || pingBtn.disabled) return;
     pingBtn.disabled = true;
     pingBtn.innerHTML = `${icon('check', { size: 13 })} Enviado`;
     pingBtn.style.opacity = '0.6';
-    sendAction({ type: 'NSB_ACTION', action: 'ping' });
+    sendAction({ type: 'NSB_ACTION', action: 'ping', quickMsg });
     setTimeout(() => {
+      if (!pingBtn) return;
       pingBtn.disabled = false;
       pingBtn.innerHTML = `${icon('megaphone', { size: 13 })} Avisar`;
       pingBtn.style.opacity = '1';
     }, 15000);
+  }
+
+  pingBtn?.addEventListener('click', () => doPing());
+  statusEl.querySelectorAll<HTMLButtonElement>('[data-qmsg]').forEach((btn) => {
+    btn.addEventListener('click', () => doPing(btn.dataset.qmsg));
   });
 }
 
@@ -295,6 +307,7 @@ function showUser(name: string, isAuto: boolean) {
 chrome.storage.local.get(['netsus_user', 'netsus_user_auto', 'netsus_sound'], ({ netsus_user, netsus_user_auto, netsus_sound }: { netsus_user?: string; netsus_user_auto?: boolean; netsus_sound?: string }) => {
   if (netsus_user) {
     showUser(netsus_user, !!netsus_user_auto);
+    loadMyStats(netsus_user);
   } else {
     currentEl.textContent = 'Sin nombre detectado';
     autoLabelEl.textContent = 'Abre un ticket para detectar automáticamente';
@@ -319,6 +332,116 @@ saveBtnEl.addEventListener('click', () => {
 document.getElementById('adminBtn')?.addEventListener('click', () => {
   chrome.tabs.create({ url: chrome.runtime.getURL('admin.html') });
 });
+
+// --- No molestar ---
+const dndBtn = document.getElementById('dndBtn') as HTMLButtonElement;
+const dndMenu = document.getElementById('dndMenu') as HTMLElement;
+const dndBanner = document.getElementById('dndBanner') as HTMLElement;
+const dndUntilEl = document.getElementById('dnd-until') as HTMLElement;
+
+function refreshDnd() {
+  chrome.storage.local.get(['netsus_dnd_until'], (data: any) => {
+    const until = data.netsus_dnd_until;
+    const active = typeof until === 'number' && until > Date.now();
+    dndBtn.classList.toggle('active', active);
+    dndBtn.style.color = active ? '#f97316' : '';
+    if (active) {
+      dndBanner.style.display = '';
+      dndUntilEl.textContent = new Date(until).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' });
+    } else {
+      dndBanner.style.display = 'none';
+    }
+  });
+}
+
+dndBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  dndMenu.style.display = dndMenu.style.display === 'none' ? '' : 'none';
+});
+
+dndMenu.querySelectorAll<HTMLElement>('.dnd-opt').forEach((opt) => {
+  opt.addEventListener('click', () => {
+    const mins = parseInt(opt.dataset.mins ?? '0');
+    if (mins < 0) {
+      chrome.storage.local.remove('netsus_dnd_until');
+    } else {
+      chrome.storage.local.set({ netsus_dnd_until: Date.now() + mins * 60000 });
+    }
+    dndMenu.style.display = 'none';
+    setTimeout(refreshDnd, 100);
+  });
+});
+
+document.addEventListener('click', () => { dndMenu.style.display = 'none'; });
+refreshDnd();
+setInterval(refreshDnd, 30000); // actualizar estado cuando expire el DND
+
+// --- Auto-aviso configurable ---
+const autoPingInputEl = document.getElementById('autoPingInput') as HTMLInputElement;
+chrome.storage.local.get(['netsus_auto_ping_min'], (data: any) => {
+  autoPingInputEl.value = String(data.netsus_auto_ping_min || 5);
+});
+autoPingInputEl.addEventListener('change', () => {
+  const v = Math.max(1, Math.min(60, parseInt(autoPingInputEl.value) || 5));
+  autoPingInputEl.value = String(v);
+  chrome.storage.local.set({ netsus_auto_ping_min: v });
+});
+
+// --- Activos ahora ---
+async function refreshActiveTechs() {
+  const res = await chrome.runtime.sendMessage({ type: 'NETSUS_API', method: 'GET', path: '/api/presence/status' }).catch(() => null);
+  const listEl = document.getElementById('active-list') as HTMLElement;
+  const countEl = document.getElementById('active-count') as HTMLElement;
+  if (!res?.sent || !Array.isArray(res.data)) {
+    listEl.innerHTML = '<div style="font-size:11px;color:var(--faint);padding:4px 4px 6px">Sin conexión</div>';
+    countEl.style.display = 'none';
+    return;
+  }
+  const tickets: { id: string; users: string[]; ticketNumber?: string }[] = res.data;
+  const allUsers: { name: string; ticket: string; collision: boolean }[] = [];
+  for (const t of tickets) {
+    const label = t.ticketNumber ?? `#${t.id}`;
+    const col = t.users.length > 1;
+    for (const u of t.users) {
+      allUsers.push({ name: u, ticket: label, collision: col });
+    }
+  }
+  if (!allUsers.length) {
+    listEl.innerHTML = '<div style="font-size:11px;color:var(--faint);padding:4px 4px 6px">Sin técnicos activos</div>';
+    countEl.style.display = 'none';
+    return;
+  }
+  countEl.textContent = String(allUsers.length);
+  countEl.style.display = '';
+  listEl.innerHTML = allUsers.map(u => `
+    <div class="aitem">
+      <div class="adot ${u.collision ? 'col' : ''}"></div>
+      <div class="aname">${esc(u.name)}</div>
+      <div class="atkt">${esc(u.ticket)}</div>
+    </div>`).join('');
+}
+refreshActiveTechs();
+setInterval(refreshActiveTechs, 20000);
+
+// --- Estadísticas personales ---
+async function loadMyStats(user: string) {
+  if (!user) return;
+  const res = await chrome.runtime.sendMessage({
+    type: 'NETSUS_API', method: 'GET',
+    path: `/api/presence/my-stats?user=${encodeURIComponent(user)}`,
+  }).catch(() => null);
+  if (!res?.sent || !res.data) return;
+  const statsEl = document.getElementById('my-stats') as HTMLElement;
+  const weekEl = document.getElementById('stat-week') as HTMLElement;
+  const monthEl = document.getElementById('stat-month') as HTMLElement;
+  weekEl.textContent = res.data.weekCount ?? '—';
+  const m = res.data.monthCount ?? 0;
+  monthEl.textContent = String(m);
+  statsEl.style.display = '';
+  // Color: 0 = verde, 1-2 = amarillo, 3+ = rojo
+  const col = m === 0 ? '#22c55e' : m <= 2 ? '#f97316' : '#ef4444';
+  (document.querySelectorAll('.stat-num') as NodeListOf<HTMLElement>).forEach(el => el.style.color = col);
+}
 
 // --- Feedback (mejorar / agregar / quitar) — va directo a Supabase vía el backend ---
 const feedbackBtn = document.getElementById('feedbackBtn') as HTMLButtonElement;

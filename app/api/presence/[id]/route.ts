@@ -44,6 +44,19 @@ async function getWebhookUrl(): Promise<string | null> {
   return redis.get<string>('config:teams_webhook');
 }
 
+async function isWithinWorkHours(): Promise<boolean> {
+  const raw = await redis.get<string>('config:work_hours');
+  if (!raw) return true;
+  try {
+    const { start = 8, end = 18, tz = 'America/Santiago' } = JSON.parse(raw);
+    const now = new Date();
+    const hour = parseInt(new Intl.DateTimeFormat('en', { hour: 'numeric', hour12: false, timeZone: tz }).format(now));
+    const dayName = new Intl.DateTimeFormat('en', { weekday: 'short', timeZone: tz }).format(now);
+    const isWeekend = dayName === 'Sat' || dayName === 'Sun';
+    return !isWeekend && hour >= start && hour < end;
+  } catch { return true; }
+}
+
 function postWebhook(webhookUrl: string, body: object) {
   fetch(webhookUrl, {
     method: 'POST',
@@ -147,7 +160,7 @@ export async function POST(
 ) {
   if (!checkApiKey(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   const { id } = await params;
-  const { user, ticketNumber, ticketTitle, ticketUrl, ping, autotaskTicketId } = await request.json().catch(() => ({ user: 'Desconocido', ticketNumber: null, ticketTitle: null, ticketUrl: null, ping: null, autotaskTicketId: null }));
+  const { user, ticketNumber, ticketTitle, ticketUrl, ping, quickMsg, autotaskTicketId } = await request.json().catch(() => ({ user: 'Desconocido', ticketNumber: null, ticketTitle: null, ticketUrl: null, ping: null, quickMsg: null, autotaskTicketId: null }));
 
   const configTtl = await redis.get<string>('config:presence_ttl');
   const ttl = clampInt(configTtl, 15, 300, PRESENCE_TTL);
@@ -170,9 +183,11 @@ export async function POST(
     const rateLimited = await redis.get(pingRateKey);
     if (!rateLimited) {
       await redis.set(pingRateKey, '1', { ex: 30 });
-      await Promise.all(ping.map((target: string) =>
-        redis.set(`ping:${id}:${target}`, user, { ex: 60 })
-      ));
+      const pingOps = ping.map((target: string) => redis.set(`ping:${id}:${target}`, user, { ex: 60 }));
+      const qmsgOps = quickMsg
+        ? ping.map((target: string) => redis.set(`quickmsg:${id}:${target}`, String(quickMsg).slice(0, 100), { ex: 120 }))
+        : [];
+      await Promise.all([...pingOps, ...qmsgOps]);
       const storedTicketNumber = ticketNumber ?? await redis.get<string>(`ticketnumber:${id}`);
       const storedUrl = ticketUrl ?? await redis.get<string>(`ticketurl:${id}`);
       sendPingWebhook(storedTicketNumber ?? `#${id}`, user, ping, storedUrl);
@@ -190,8 +205,14 @@ export async function POST(
   }
 
   const pingKey = `ping:${id}:${user}`;
-  const pingedBy = await redis.get<string>(pingKey);
-  if (pingedBy) await redis.del(pingKey);
+  const [pingedBy, quickMsgReceived] = await Promise.all([
+    redis.get<string>(pingKey),
+    redis.get<string>(`quickmsg:${id}:${user}`),
+  ]);
+  if (pingedBy) {
+    await redis.del(pingKey);
+    if (quickMsgReceived) await redis.del(`quickmsg:${id}:${user}`);
+  }
 
   const allKeys = await redis.keys(`ticketpresence:${id}:*`);
   const otherNames = dedupeOthers(allKeys.map(k => extractUser(k, id)), user);
@@ -247,7 +268,7 @@ export async function POST(
       } catch {
         // silencioso: Redis ya tiene el registro
       }
-      sendTeamsWebhook(ticketDisplay, allInCollision, storedUrl);
+      if (await isWithinWorkHours()) sendTeamsWebhook(ticketDisplay, allInCollision, storedUrl);
       logCentralNotification({
         type: 'collision',
         title: 'Colisión detectada',
@@ -283,7 +304,7 @@ export async function POST(
   ]);
   const pastCollisions = pastCollisionsRaw ?? 0;
 
-  return NextResponse.json({ ok: true, others, assignedTo: assignedTo ?? null, pingedBy: pingedBy ?? null, pastCollisions });
+  return NextResponse.json({ ok: true, others, assignedTo: assignedTo ?? null, pingedBy: pingedBy ?? null, quickMsg: quickMsgReceived ?? null, pastCollisions });
 }
 
 export async function DELETE(
@@ -338,7 +359,7 @@ export async function DELETE(
           const resolutionDisplay = ticketTitle
             ? `${ticketNumber ?? `#${id}`} — ${ticketTitle}`
             : (ticketNumber ?? `#${id}`);
-          sendResolutionWebhook(resolutionDisplay, colUsers, duration, ticketUrl);
+          if (await isWithinWorkHours()) sendResolutionWebhook(resolutionDisplay, colUsers, duration, ticketUrl);
           const durLabel = formatDuration(duration);
           logCentralNotification({
             type: 'liberation',
