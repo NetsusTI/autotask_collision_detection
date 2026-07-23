@@ -30,7 +30,17 @@ export default defineContentScript({
     let pingCooldown = false;
     let autoPingTimer: number | undefined;
     let autoPingFired = false;
-    const AUTO_PING_MINUTES = 5;
+    let AUTO_PING_MINUTES = 5;
+
+    // Configurable desde ajustes del panel lateral
+    chrome.storage.local.get(['netsus_auto_ping_min'], (data: any) => {
+      if (data.netsus_auto_ping_min) AUTO_PING_MINUTES = Math.max(1, parseInt(data.netsus_auto_ping_min) || 5);
+    });
+    chrome.storage.onChanged.addListener((changes) => {
+      if ('netsus_auto_ping_min' in changes) {
+        AUTO_PING_MINUTES = Math.max(1, parseInt(changes.netsus_auto_ping_min.newValue) || 5);
+      }
+    });
 
     let renagTimer: number | undefined;
     let typePrefs: TypePrefs = {};
@@ -63,7 +73,16 @@ export default defineContentScript({
       );
     }
     function setState(s: TicketState) { currentState = s; pushState(); }
-    function setOffline(v: boolean) { currentWarnings = { ...currentWarnings, offline: v }; pushState(); }
+    function setOffline(v: boolean) {
+      const prevOffline = currentWarnings.offline;
+      currentWarnings = { ...currentWarnings, offline: v };
+      pushState();
+      // Reconexión automática: si volvemos a conectar, registrar presencia inmediatamente
+      if (prevOffline && !v && currentTicketId && currentUser) {
+        const p = presenceId();
+        if (p) registerPresence(p, currentUser);
+      }
+    }
     function setHistoryWarning(v: number | null) { currentWarnings = { ...currentWarnings, historyCount: v }; pushState(); }
     function setAssignment(v: string | null) { currentWarnings = { ...currentWarnings, assignedTo: v }; pushState(); }
 
@@ -199,7 +218,13 @@ export default defineContentScript({
       }
     }
 
-    function sendChromeNotification(title: string, message: string) {
+    async function sendChromeNotification(title: string, message: string) {
+      const dnd = await new Promise<boolean>((resolve) => {
+        chrome.storage.local.get(['netsus_dnd_until'], (data: any) => {
+          resolve(typeof data.netsus_dnd_until === 'number' && data.netsus_dnd_until > Date.now());
+        });
+      });
+      if (dnd) return;
       chrome.notifications.create({
         type: 'basic',
         iconUrl: chrome.runtime.getURL('icon/128.png'),
@@ -366,13 +391,15 @@ export default defineContentScript({
       }
     }
 
-    function triggerPing() {
+    function triggerPing(quickMsg?: string) {
       if (pingCooldown || !currentTicketId || !currentUser) return;
       pingCooldown = true;
-      apiCall('POST', `/api/presence/${presenceId()}`, {
+      const body: Record<string, unknown> = {
         user: currentUser,
         ping: lastOthers.map(u => u.name),
-      }, () => {});
+      };
+      if (quickMsg) body.quickMsg = quickMsg;
+      apiCall('POST', `/api/presence/${presenceId()}`, body, () => {});
       setTimeout(() => { pingCooldown = false; }, 15000);
     }
 
@@ -436,10 +463,10 @@ export default defineContentScript({
           const pingMuted = isMuted(typePrefs, 'ping');
           if (soundEnabled && !pingMuted) playSound('ping');
           const pingLabel = extractTicketNumber();
-          if (!pingMuted) sendChromeNotification(
-            '📣 ' + data.pingedBy + ' te está esperando',
-            `Quiere saber si terminaste en ${pingLabel ?? 'este ticket'}`
-          );
+          const pingMsg = data.quickMsg
+            ? `"${data.quickMsg}"`
+            : `Quiere saber si terminaste en ${pingLabel ?? 'este ticket'}`;
+          if (!pingMuted) sendChromeNotification('📣 ' + data.pingedBy + ' te avisa', pingMsg);
           addNotif({
             type: 'ping',
             title: `${data.pingedBy} te está esperando`,
@@ -504,7 +531,7 @@ export default defineContentScript({
         return false;
       }
       if (msg?.type === 'NSB_ACTION') {
-        if (msg.action === 'ping') triggerPing();
+        if (msg.action === 'ping') triggerPing((msg as any).quickMsg);
         else if (msg.action === 'finish') triggerFinish();
         else if (msg.action === 'pause') pausePresence(msg.minutes);
         else if (msg.action === 'cancelPause') { clearTimeout(pauseTimeout); resumeAfterPause(); }

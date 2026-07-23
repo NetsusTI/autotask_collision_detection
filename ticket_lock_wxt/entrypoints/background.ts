@@ -29,8 +29,14 @@ function getStoredUser(): Promise<string | null> {
   });
 }
 
-// Trae el feed n1–n5 del servidor para el técnico actual, lo vuelca en el buzón
-// (silent: ya disparamos la notificación del sistema aquí) y avisa por pop-up del SO.
+async function isDnd(): Promise<boolean> {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(['netsus_dnd_until'], (data: any) => {
+      resolve(typeof data.netsus_dnd_until === 'number' && data.netsus_dnd_until > Date.now());
+    });
+  });
+}
+
 async function pollNotificationFeed() {
   const name = await getStoredUser();
   if (!name) return;
@@ -45,7 +51,7 @@ async function pollNotificationFeed() {
     const data = await res.json().catch(() => null);
     const items: FeedItem[] = Array.isArray(data?.items) ? data.items : [];
     if (!items.length) return;
-    const prefs = await getTypePrefs();
+    const [prefs, dnd] = await Promise.all([getTypePrefs(), isDnd()]);
     for (const it of items) {
       await addNotif({
         type: it.type,
@@ -57,7 +63,8 @@ async function pollNotificationFeed() {
         dedupeKey: it.dedupeKey,
         silent: true,
       });
-      if (isMuted(prefs, it.type)) continue; // tipo silenciado: solo badge/bandeja
+      if (dnd) continue;
+      if (isMuted(prefs, it.type)) continue;
       chrome.notifications.create({
         type: 'basic',
         iconUrl: chrome.runtime.getURL('icon/128.png'),
@@ -77,12 +84,11 @@ function getHeartbeat(): Promise<number | undefined> {
   });
 }
 
-// Re-nag de respaldo: si NO hay pestaña de Autotask viva (el content script re-insiste
-// con sonido cuando la hay), reabrimos por pop-up del SO las notificaciones sin leer.
 async function backgroundRenag() {
   const beat = await getHeartbeat();
-  if (beat && Date.now() - beat < 45000) return; // hay pestaña activa: que la maneje ella
-  const [list, renagMin, prefs] = await Promise.all([getNotifs(), getRenagMinutes(), getTypePrefs()]);
+  if (beat && Date.now() - beat < 45000) return;
+  const [list, renagMin, prefs, dnd] = await Promise.all([getNotifs(), getRenagMinutes(), getTypePrefs(), isDnd()]);
+  if (dnd) return;
   for (const n of dueForRenag(list, renagMin)) {
     if (isMuted(prefs, n.type)) continue;
     chrome.notifications.create({
@@ -107,72 +113,6 @@ async function getConfig(): Promise<{ baseUrl: string; apiKey: string }> {
   });
 }
 
-// --- Notificaciones de asignación de tickets ---
-// Primera ejecución: carga todos los tickets activos asignados al técnico y los
-// marca como "vistos" sin notificar (evita spam al instalar/reiniciar la extensión).
-// Ejecuciones siguientes: solo consulta tickets con actividad reciente; si hay
-// alguno no visto → popup del sistema "Se te asignó el ticket T20250001.0001".
-let assignmentCheckReady = false;
-let lastAssignmentCheck = 0;
-const seenTicketIds = new Set<number>();
-const ticketUrls = new Map<number, string>();
-
-async function checkNewAssignments() {
-  const name = await getStoredUser();
-  if (!name) return;
-  const { baseUrl: BASE_URL, apiKey: API_KEY } = await getConfig();
-
-  const sinceParam = assignmentCheckReady
-    ? `&since=${new Date(lastAssignmentCheck - 10000).toISOString()}` // 10s overlap
-    : '';
-
-  lastAssignmentCheck = Date.now();
-
-  try {
-    const res = await fetch(
-      `${BASE_URL}/api/presence/my-tickets?user=${encodeURIComponent(name)}${sinceParam}`,
-      { headers: { 'x-api-key': API_KEY } },
-    );
-    if (!res.ok) return;
-    const { tickets } = await res.json().catch(() => ({ tickets: [] }));
-    if (!Array.isArray(tickets)) return;
-
-    for (const t of tickets) {
-      if (t.url) ticketUrls.set(t.id, t.url);
-
-      if (!assignmentCheckReady) {
-        seenTicketIds.add(t.id); // primera carga: solo registrar, sin notificar
-      } else if (!seenTicketIds.has(t.id)) {
-        seenTicketIds.add(t.id);
-        const label = t.ticketNumber ?? `#${t.id}`;
-        const msg = t.title ? `${label} — ${t.title}` : label;
-        chrome.notifications.create(`netsus-assign-${t.id}`, {
-          type: 'basic',
-          iconUrl: chrome.runtime.getURL('icon/128.png'),
-          title: 'Ticket asignado',
-          message: `Se te asignó el ticket ${msg}`,
-          priority: 2,
-        });
-      }
-    }
-    assignmentCheckReady = true;
-  } catch {
-    // silencioso
-  }
-}
-
-// Al hacer clic en la notificación de asignación, abrir el ticket en Autotask.
-// El listener se registra una sola vez en defineBackground().
-function registerAssignmentClickHandler() {
-  chrome.notifications.onClicked.addListener((id) => {
-    if (!id.startsWith('netsus-assign-')) return;
-    const ticketId = parseInt(id.replace('netsus-assign-', ''), 10);
-    const url = ticketUrls.get(ticketId);
-    if (url) chrome.tabs.create({ url });
-    chrome.notifications.clear(id);
-  });
-}
-
 async function fetchWithRetry(url: string, options: RequestInit, maxAttempts = 3): Promise<Response> {
   let lastError: unknown;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
@@ -182,7 +122,7 @@ async function fetchWithRetry(url: string, options: RequestInit, maxAttempts = 3
     } catch (err) {
       lastError = err;
       if (attempt < maxAttempts - 1) {
-        await new Promise(r => setTimeout(r, 500 * Math.pow(2, attempt))); // 500ms, 1s, 2s
+        await new Promise(r => setTimeout(r, 500 * Math.pow(2, attempt)));
       }
     }
   }
@@ -216,29 +156,116 @@ async function updateBadge() {
   }
 }
 
+// --- Notificaciones de asignación de tickets ---
+// Los IDs vistos se persisten en chrome.storage.local para sobrevivir reinicios del
+// service worker (MV3 mata el SW tras ~30s de inactividad; la alarma netsus-keepalive
+// lo reactiva, pero el estado en memoria se pierde).
+const ticketUrls = new Map<number, string>();
+
+async function checkNewAssignments() {
+  const name = await getStoredUser();
+  if (!name) return;
+  const { baseUrl: BASE_URL, apiKey: API_KEY } = await getConfig();
+
+  const stored = await new Promise<{ ids: number[]; ready: boolean; last: number }>((resolve) => {
+    chrome.storage.local.get(
+      ['netsus_seen_tickets', 'netsus_assign_ready', 'netsus_assign_last'],
+      (data: any) => resolve({
+        ids: Array.isArray(data.netsus_seen_tickets) ? data.netsus_seen_tickets : [],
+        ready: !!data.netsus_assign_ready,
+        last: data.netsus_assign_last || 0,
+      }),
+    );
+  });
+
+  const seenIds = new Set<number>(stored.ids);
+  const sinceParam = stored.ready
+    ? `&since=${new Date(stored.last - 10000).toISOString()}`
+    : '';
+  const now = Date.now();
+
+  try {
+    const res = await fetch(
+      `${BASE_URL}/api/presence/my-tickets?user=${encodeURIComponent(name)}${sinceParam}`,
+      { headers: { 'x-api-key': API_KEY } },
+    );
+    if (!res.ok) return;
+    const { tickets } = await res.json().catch(() => ({ tickets: [] }));
+    if (!Array.isArray(tickets)) return;
+
+    const dnd = await isDnd();
+
+    for (const t of tickets) {
+      if (t.url) ticketUrls.set(t.id, t.url);
+
+      if (!stored.ready) {
+        seenIds.add(t.id); // primera carga: registrar sin notificar
+      } else if (!seenIds.has(t.id)) {
+        seenIds.add(t.id);
+        if (!dnd) {
+          const label = t.ticketNumber ?? `#${t.id}`;
+          const msg = t.title ? `${label} — ${t.title}` : label;
+          chrome.notifications.create(`netsus-assign-${t.id}`, {
+            type: 'basic',
+            iconUrl: chrome.runtime.getURL('icon/128.png'),
+            title: 'Ticket asignado',
+            message: `Se te asignó el ticket ${msg}`,
+            priority: 2,
+          });
+        }
+      }
+    }
+
+    await chrome.storage.local.set({
+      netsus_seen_tickets: [...seenIds].slice(-300),
+      netsus_assign_ready: true,
+      netsus_assign_last: now,
+    });
+  } catch {
+    // silencioso
+  }
+}
+
+function registerAssignmentClickHandler() {
+  chrome.notifications.onClicked.addListener((id) => {
+    if (!id.startsWith('netsus-assign-')) return;
+    const ticketId = parseInt(id.replace('netsus-assign-', ''), 10);
+    const url = ticketUrls.get(ticketId);
+    if (url) chrome.tabs.create({ url });
+    chrome.notifications.clear(id);
+  });
+}
+
 export default defineBackground(() => {
-  // Sin popup: el ícono de la extensión abre el side panel directamente.
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
+
+  // Keep-alive: los service workers MV3 se duermen tras ~30s de inactividad,
+  // interrumpiendo el polling de asignaciones y de notificaciones.
+  chrome.alarms.create('netsus-keepalive', { periodInMinutes: 0.45 });
+  chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === 'netsus-keepalive') updateBadge();
+  });
 
   setInterval(updateBadge, 20000);
   updateBadge();
 
-  // Feed de notificaciones n1–n5 (poll server-side lock-guarded del otro lado).
   setInterval(pollNotificationFeed, 30000);
   pollNotificationFeed();
 
-  // Re-nag de respaldo por si el técnico no tiene ninguna pestaña de Autotask abierta.
   setInterval(backgroundRenag, 30000);
 
-  // Notificaciones de asignación de tickets: poll cada 60 segundos.
   registerAssignmentClickHandler();
-  checkNewAssignments(); // primera ejecución: inicializa el set de vistos
+  checkNewAssignments();
   setInterval(checkNewAssignments, 60000);
 
   browser.runtime.onMessage.addListener((message: any, _sender, sendResponse) => {
+    if (message?.type === 'NETSUS_STATUS') {
+      sendResponse({ online: apiOnline });
+      return false;
+    }
+
     if (message?.type !== 'NETSUS_API') return false;
 
-    // Presence heartbeats don't need retry (next poll covers it); only non-GET mutations retry
     const shouldRetry = message.method !== 'GET' && !message.path?.includes('/api/presence/') || message.method === 'DELETE';
     const maxAttempts = shouldRetry ? 3 : 1;
 

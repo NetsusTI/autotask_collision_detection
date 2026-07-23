@@ -8,7 +8,7 @@ import { avatarHtml } from './avatar';
 import type { TicketState, TicketWarnings } from './messaging';
 
 export interface BannerActions {
-  onPing: () => void;
+  onPing: (quickMsg?: string) => void;
   onFinish: () => void;
   onPause: (minutes: number) => void;
   onCancelPause: () => void;
@@ -127,9 +127,14 @@ export function renderBanner(state: TicketState, warnings: TicketWarnings, opts:
             ? `<strong>${escapeHtml(first.name)}</strong> llegó primero · ${formatTime(first.minutes)}`
             : sorted.map((u, i) => `<strong>${escapeHtml(u.name)}</strong>${i === 0 ? ' · primero' : ''} · ${formatTime(u.minutes)}`).join(' · ')}
         </div>
-        <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+        <div style="display:flex;gap:6px;margin-bottom:6px;flex-wrap:wrap">
           <button id="netsus-banner-ping" style="${BTN}">${icon('megaphone', { size: 13 })} Avisar</button>
           <button id="netsus-banner-finish" style="${BTN_GHOST}">${icon('check', { size: 13 })} Terminé</button>
+        </div>
+        <div style="display:flex;gap:4px;margin-bottom:10px;flex-wrap:wrap">
+          <button data-qmsg="Dame 5 minutos" style="${BTN_GHOST_SM}">⏱ 5 min</button>
+          <button data-qmsg="Casi termino" style="${BTN_GHOST_SM}">🔜 Termino</button>
+          <button data-qmsg="Me encargo yo" style="${BTN_GHOST_SM}">✋ Me encargo</button>
         </div>
         <div style="display:flex;align-items:center;gap:6px;font-size:11px">
           <span style="opacity:0.85;display:inline-flex;align-items:center;gap:4px">${icon('pause', { size: 12 })} Pausar:</span>
@@ -140,7 +145,10 @@ export function renderBanner(state: TicketState, warnings: TicketWarnings, opts:
       </div>`;
     document.getElementById('netsus-banner-min')?.addEventListener('click', actions.onToggleMinimize);
     document.getElementById('netsus-banner-close')?.addEventListener('click', actions.onDismiss);
-    document.getElementById('netsus-banner-ping')?.addEventListener('click', actions.onPing);
+    document.getElementById('netsus-banner-ping')?.addEventListener('click', () => actions.onPing());
+    root.querySelectorAll<HTMLButtonElement>('[data-qmsg]').forEach((btn) => {
+      btn.addEventListener('click', () => actions.onPing(btn.dataset.qmsg));
+    });
     document.getElementById('netsus-banner-finish')?.addEventListener('click', actions.onFinish);
     root.querySelectorAll<HTMLButtonElement>('[data-pause]').forEach((btn) => {
       btn.addEventListener('click', () => actions.onPause(parseInt(btn.dataset.pause!, 10)));

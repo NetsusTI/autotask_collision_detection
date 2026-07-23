@@ -4,7 +4,7 @@ import { checkAdminSession } from '@/lib/admin-auth';
 
 export async function GET(request: NextRequest) {
   if (!checkApiKey(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  const [teamsWebhook, presenceTtl, watchQueues, criticalPriorities, slaWarnMin, autotaskUiBase, notifEnabled, autotaskNotesEnabled] = await Promise.all([
+  const [teamsWebhook, presenceTtl, watchQueues, criticalPriorities, slaWarnMin, autotaskUiBase, notifEnabled, autotaskNotesEnabled, workHoursRaw] = await Promise.all([
     redis.get<string>('config:teams_webhook'),
     redis.get<string>('config:presence_ttl'),
     redis.get<string>('config:watch_queues'),
@@ -13,6 +13,7 @@ export async function GET(request: NextRequest) {
     redis.get<string>('config:autotask_ui_base'),
     redis.get<string>('config:notif_enabled'),
     redis.get<string>('config:autotask_notes_enabled'),
+    redis.get<string>('config:work_hours'),
   ]);
   return NextResponse.json({
     teamsWebhook: teamsWebhook ?? '',
@@ -22,9 +23,8 @@ export async function GET(request: NextRequest) {
     slaWarnMin: slaWarnMin ? parseInt(slaWarnMin) : 30,
     autotaskUiBase: autotaskUiBase ?? '',
     notifEnabled: notifEnabled !== '0',
-    // Apagado por defecto — requiere validar noteType/publish contra la instancia
-    // real de Autotask antes de encenderlo (ver comentario en src/lib/autotask.ts).
     autotaskNotesEnabled: autotaskNotesEnabled === '1',
+    workHours: workHoursRaw ? (() => { try { return JSON.parse(workHoursRaw); } catch { return null; } })() : null,
   });
 }
 
@@ -71,6 +71,19 @@ export async function POST(request: NextRequest) {
   }
   if ('autotaskNotesEnabled' in body) {
     ops.push(redis.set('config:autotask_notes_enabled', body.autotaskNotesEnabled ? '1' : '0'));
+  }
+  if ('workHours' in body) {
+    if (!body.workHours) {
+      ops.push(redis.del('config:work_hours'));
+    } else {
+      const wh = {
+        start: Math.max(0, Math.min(23, parseInt(body.workHours.start) || 8)),
+        end: Math.max(0, Math.min(23, parseInt(body.workHours.end) || 18)),
+        tz: String(body.workHours.tz || 'America/Santiago'),
+        enabled: !!body.workHours.enabled,
+      };
+      ops.push(redis.set('config:work_hours', JSON.stringify(wh)));
+    }
   }
 
   await Promise.all(ops);

@@ -29,7 +29,7 @@ export interface StateMessage {
 }
 
 export type ActionKind =
-  | { action: 'ping' }
+  | { action: 'ping'; quickMsg?: string }
   | { action: 'finish' }
   | { action: 'pause'; minutes: number }
   | { action: 'cancelPause' };

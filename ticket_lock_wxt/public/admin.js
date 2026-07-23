@@ -166,6 +166,7 @@
     document.getElementById('filterBar').style.display = tab === 'history' ? 'flex' : 'none';
     if (tab === 'config') loadConfig();
     if (tab === 'analytics') loadAnalytics();
+    if (tab === 'resources') renderActiveTechsAdmin();
   }
 
   function updateCountdown() {
@@ -246,6 +247,31 @@
     return name.split(' ').slice(0, 2).map(function (w) { return w[0] || ''; }).join('').toUpperCase();
   }
 
+  function renderActiveTechsAdmin() {
+    var el = document.getElementById('activeTechsAdmin');
+    if (!el) return;
+    if (!lastTickets.length) {
+      el.innerHTML = '<div style="font-size:12px;color:var(--faint);padding:8px 0">Sin técnicos activos en este momento</div>';
+      return;
+    }
+    var techMap = {};
+    lastTickets.forEach(function (t) {
+      t.users.forEach(function (u) {
+        var name = userName(u);
+        if (!techMap[name]) techMap[name] = [];
+        techMap[name].push(t.ticketNumber || ('#' + t.ticketId));
+      });
+    });
+    el.innerHTML = Object.keys(techMap).sort().map(function (name) {
+      var tickets = techMap[name];
+      return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(var(--ink-rgb),0.06)">' +
+        '<div style="width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 5px #22c55e;flex-shrink:0"></div>' +
+        '<div style="font-size:13px;font-weight:600;flex:1">' + name + '</div>' +
+        '<div style="font-size:11px;color:var(--faint)">' + tickets.join(', ') + '</div>' +
+        '</div>';
+    }).join('');
+  }
+
   function renderLive(tickets) {
     if (liveView === 'tech') { renderLiveByTech(tickets); return; }
     var allUsers = tickets.reduce(function (a, t) {
@@ -253,6 +279,7 @@
     }, []);
     document.getElementById('statTickets').textContent = tickets.length;
     document.getElementById('statUsers').textContent = new Set(allUsers).size;
+    if (currentTab === 'resources') renderActiveTechsAdmin();
     var el = document.getElementById('liveTab');
     if (!tickets.length) {
       el.innerHTML = '<div class="empty"><div class="emptyIcon">' + ic('check-circle', 30) + '</div><div class="emptyText">Sin colisiones activas</div><div class="emptySub">Todos los técnicos trabajan sin conflictos</div></div>';
@@ -489,7 +516,35 @@
         document.getElementById('webhookInput').value = data.teamsWebhook || '';
         document.getElementById('ttlInput').value = data.presenceTtl || 40;
         document.getElementById('autotaskNotesInput').checked = !!data.autotaskNotesEnabled;
+        var wh = data.workHours;
+        if (wh) {
+          document.getElementById('workHoursEnabled').checked = !!wh.enabled;
+          document.getElementById('workStart').value = wh.start ?? 8;
+          document.getElementById('workEnd').value = wh.end ?? 18;
+          document.getElementById('workTz').value = wh.tz || 'America/Santiago';
+        }
       }).catch(function () {});
+  }
+
+  function saveWorkHours() {
+    var status = document.getElementById('workHoursStatus');
+    var enabled = document.getElementById('workHoursEnabled').checked;
+    var start = parseInt(document.getElementById('workStart').value) || 8;
+    var end = parseInt(document.getElementById('workEnd').value) || 18;
+    var tz = document.getElementById('workTz').value;
+    fetch(BASE_URL + '/api/config', {
+      method: 'POST',
+      headers: adminHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ workHours: { enabled: enabled, start: start, end: end, tz: tz } })
+    }).then(function (r) {
+      if (!r.ok) throw new Error(r.status === 403 ? 'session' : 'http');
+      status.className = 'configStatus ok';
+      status.textContent = '✓ Horario guardado';
+      setTimeout(function () { status.textContent = ''; }, 3000);
+    }).catch(function (err) {
+      status.className = 'configStatus err';
+      status.textContent = err && err.message === 'session' ? '✗ Sesión expirada' : '✗ Error al guardar';
+    });
   }
 
   function saveAutotaskNotes() {
@@ -690,6 +745,7 @@
 
   document.getElementById('sendYesterdayBtn').addEventListener('click', function () { sendDailySummary('yesterday'); });
   document.getElementById('sendTodayBtn').addEventListener('click', function () { sendDailySummary('today'); });
+  document.getElementById('saveWorkHoursBtn').addEventListener('click', saveWorkHours);
 
   document.getElementById('historySearch').addEventListener('input', function () {
     historyFilter = this.value;
