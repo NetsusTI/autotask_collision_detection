@@ -179,12 +179,19 @@
     if (el) el.textContent = secondsLeft + 's';
   }
 
+  function tickLiveClock() {
+    var el = document.getElementById('lastUpdate');
+    if (el) el.textContent = new Date().toLocaleTimeString('es-CL');
+  }
+
   function showPanel() {
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('panel').style.display = 'block';
     fetchData();
     secondsLeft = REFRESH_SECS;
     countdownInterval = setInterval(updateCountdown, 1000);
+    tickLiveClock();
+    setInterval(tickLiveClock, 1000);
   }
 
   function showApiError(msg) {
@@ -237,7 +244,6 @@
       historyOffset = events.length;
       lastHistory = events;
       renderHistory(applyFilters(lastHistory));
-      document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('es-CL');
     }).catch(function () {
       showApiError('Último intento: ' + new Date().toLocaleTimeString('es-CL'));
     });
