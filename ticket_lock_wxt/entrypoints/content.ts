@@ -56,8 +56,16 @@ export default defineContentScript({
     let bannerMinimized = false;
     let bannerDismissed = false;
 
+    let lastStateSentAt = 0;
     function pushState() {
-      chrome.runtime.sendMessage({ type: 'NSB_STATE', payload: { state: currentState, warnings: currentWarnings } }).catch(() => {});
+      const now = Date.now();
+      // Durante la pausa, el sidepanel tiene su propio timer local — solo sincronizamos
+      // cada 5 s para no despertar el SW 60 veces por minuto (eso provoca throttling).
+      const isPaused = currentState.kind === 'paused';
+      if (!isPaused || now - lastStateSentAt >= 5000) {
+        chrome.runtime.sendMessage({ type: 'NSB_STATE', payload: { state: currentState, warnings: currentWarnings } }).catch(() => {});
+        lastStateSentAt = now;
+      }
       renderBanner(
         currentState,
         currentWarnings,

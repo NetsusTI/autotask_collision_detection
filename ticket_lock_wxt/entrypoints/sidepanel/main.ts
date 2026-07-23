@@ -39,6 +39,27 @@ const notifCountEl = document.getElementById('notif-count') as HTMLElement;
 const notifListEl = document.getElementById('notif-list') as HTMLElement;
 
 let currentTabId: number | null = null;
+let pauseLocalTimer: ReturnType<typeof setInterval> | null = null;
+let pauseLocalSecs = 0;
+
+function stopPauseTimer() {
+  if (pauseLocalTimer) { clearInterval(pauseLocalTimer); pauseLocalTimer = null; }
+}
+
+function startPauseTimer(secsLeft: number) {
+  stopPauseTimer();
+  pauseLocalSecs = secsLeft;
+  pauseLocalTimer = setInterval(() => {
+    pauseLocalSecs = Math.max(0, pauseLocalSecs - 1);
+    const tickEl = document.querySelector<HTMLElement>('.status-paused .status-ticket');
+    if (tickEl) {
+      const m = Math.floor(pauseLocalSecs / 60);
+      const s = pauseLocalSecs % 60;
+      tickEl.textContent = `Vuelves en ${m}:${s.toString().padStart(2, '0')}`;
+    }
+    if (pauseLocalSecs <= 0) stopPauseTimer();
+  }, 1000);
+}
 
 function esc(s: string): string {
   return s.replace(/[&<>"']/g, (c) =>
@@ -110,8 +131,9 @@ function renderStatus(state: TicketState | null) {
     return;
   }
   if (state.kind === 'paused') {
-    const m = Math.floor(state.secsLeft / 60);
-    const s = state.secsLeft % 60;
+    const secs = pauseLocalTimer ? pauseLocalSecs : state.secsLeft;
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
     statusEl.innerHTML = `
       <div class="status-card status-paused">
         <div class="status-row">${icon('pause', { size: 16 })}<strong>Presencia pausada</strong></div>
@@ -183,6 +205,15 @@ function renderNotAutotask() {
 }
 
 function applyPayload(payload: StatePayload) {
+  if (payload.state?.kind === 'paused') {
+    const incoming = payload.state.secsLeft;
+    // Sincronizar solo si difiere en más de 2 segundos del contador local (para no reiniciar en cada mensaje)
+    if (!pauseLocalTimer || Math.abs(incoming - pauseLocalSecs) > 2) {
+      startPauseTimer(incoming);
+    }
+  } else {
+    stopPauseTimer();
+  }
   renderStatus(payload.state);
   renderWarnings(payload.warnings);
 }
