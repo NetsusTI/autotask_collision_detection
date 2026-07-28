@@ -109,17 +109,17 @@ export default defineContentScript({
     let userRetryCount = 0;
 
     function loadUserAndInit() {
-      chrome.storage.local.get(['netsus_user', 'netsus_sound'], ({ netsus_user, netsus_sound }: { netsus_user?: string; netsus_sound?: string }) => {
+      chrome.storage.local.get(['netsus_user', 'netsus_user_auto', 'netsus_sound'], ({ netsus_user, netsus_user_auto, netsus_sound }: { netsus_user?: string; netsus_user_auto?: boolean; netsus_sound?: string }) => {
         soundEnabled = netsus_sound !== 'off';
-        if (netsus_user) {
-          currentUser = netsus_user;
-          init();
-          return;
-        }
+        // Intentar siempre auto-detectar desde walkMeData; si fue configurado
+        // manualmente se respeta, pero si fue auto-detectado se actualiza.
         const fromDOM = getUserFromDOM();
-        if (fromDOM) {
+        if (fromDOM && (!netsus_user || netsus_user_auto)) {
           currentUser = fromDOM;
           chrome.storage.local.set({ netsus_user: fromDOM, netsus_user_auto: true });
+          init();
+        } else if (netsus_user) {
+          currentUser = netsus_user;
           init();
         } else if (userRetryCount < 10) {
           userRetryCount++;
