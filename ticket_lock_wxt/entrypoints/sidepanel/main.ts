@@ -220,7 +220,7 @@ function applyPayload(payload: StatePayload) {
 
 // --- Seguir la pestaña activa ---
 async function requestStateFromActiveTab() {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   currentTabId = tab?.id ?? null;
   if (currentTabId === null) { renderNotAutotask(); return; }
   try {
