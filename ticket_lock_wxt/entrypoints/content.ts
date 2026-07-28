@@ -95,16 +95,13 @@ export default defineContentScript({
     function setAssignment(v: string | null) { currentWarnings = { ...currentWarnings, assignedTo: v }; pushState(); }
 
     function getUserFromDOM(): string | null {
-      const selectors = [
-        'span.select-none.truncate',
-        '[data-testid="user-display-name"]',
-        '.user-profile-name',
-        'nav span[title]',
-      ];
-      for (const sel of selectors) {
-        const el = document.querySelector<HTMLElement>(sel);
-        const text = el?.textContent?.trim() || el?.getAttribute('title')?.trim();
-        if (text && text.length > 2) return text;
+      // Autotask expone el nombre del usuario logueado en window.walkMeData
+      const wmd = (window as any).walkMeData;
+      if (wmd?.narrativeFullName && typeof wmd.narrativeFullName === 'string') {
+        return wmd.narrativeFullName.trim();
+      }
+      if (wmd?.firstName && wmd?.lastName) {
+        return `${wmd.firstName} ${wmd.lastName}`.trim();
       }
       return null;
     }
