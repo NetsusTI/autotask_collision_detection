@@ -6,6 +6,7 @@ export default defineConfig({
     name: 'Autotask CoView',
     description: 'Detecta colisiones entre técnicos trabajando en el mismo ticket de Autotask',
     permissions: ['storage', 'notifications', 'sidePanel', 'tabs'],
+    action: {},
     host_permissions: ['https://netsus-two.vercel.app/*'],
   },
 });
