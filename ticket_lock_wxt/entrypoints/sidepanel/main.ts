@@ -219,12 +219,10 @@ function applyPayload(payload: StatePayload) {
 }
 
 // --- Seguir la pestaña activa ---
-async function requestStateFromActiveTab() {
-  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-  currentTabId = tab?.id ?? null;
-  if (currentTabId === null) { renderNotAutotask(); return; }
+async function requestStateFromTab(tabId: number) {
+  currentTabId = tabId;
   try {
-    const res = await chrome.tabs.sendMessage(currentTabId, { type: 'NSB_REQUEST_STATE' });
+    const res = await chrome.tabs.sendMessage(tabId, { type: 'NSB_REQUEST_STATE' });
     if (res?.payload) applyPayload(res.payload);
     else renderNotAutotask();
   } catch {
@@ -233,10 +231,23 @@ async function requestStateFromActiveTab() {
   }
 }
 
-chrome.tabs.onActivated.addListener(() => { requestStateFromActiveTab(); });
+async function requestStateFromActiveTab() {
+  const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  if (!tab?.id) { renderNotAutotask(); return; }
+  await requestStateFromTab(tab.id);
+}
+
+// onActivated siempre entrega el tabId correcto — úsalo directamente.
+chrome.tabs.onActivated.addListener(({ tabId }) => { requestStateFromTab(tabId); });
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-  if (tabId === currentTabId && changeInfo.status === 'complete') requestStateFromActiveTab();
+  if (tabId === currentTabId && changeInfo.status === 'complete') requestStateFromTab(tabId);
 });
+
+// Polling de respaldo: si el estado se perdió (race condition al abrir el sidepanel),
+// re-consulta cada 8 s para que el panel converja solo.
+setInterval(() => {
+  if (currentTabId !== null) requestStateFromTab(currentTabId);
+}, 8000);
 
 chrome.runtime.onMessage.addListener((msg: StateMessage, sender) => {
   if (msg?.type !== 'NSB_STATE') return;
