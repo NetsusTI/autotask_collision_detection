@@ -134,7 +134,8 @@ export default defineContentScript({
       // Ojo: chequear la RUTA, no la URL completa — páginas como "Búsqueda de
       // tickets" pueden llevar un parámetro returnUrl=...TicketDetail... que
       // haría match por substring en la URL completa aunque no sea un ticket.
-      if (!/\/Ticket(Edit|Detail)\.mvc$/i.test(window.location.pathname)) return null;
+      // Sin ancla $ para tolerar trailing slash u otros sufijos menores.
+      if (!/\/Ticket(?:Edit|Detail)\.mvc/i.test(window.location.pathname)) return null;
       const url = window.location.href;
       const direct = url.match(/[?&]ticketId=(\d+)/i);
       if (direct) return direct[1];
@@ -142,7 +143,11 @@ export default defineContentScript({
       // en vez de ticketId=. El primer id de la lista es el ticket actualmente mostrado
       // (confirmado: la lista se reordena al pasar de ticket en ticket, no queda fija).
       const workspace = url.match(/[?&]ids(?:\[0\]|%5[bB]0%5[dD])=(\d+)/i);
-      return workspace ? workspace[1] : null;
+      if (workspace) return workspace[1];
+      // Fallback: si la URL no tiene parámetros numéricos (ej. id=, path-based),
+      // usar el número de ticket del título. presenceId() ya usa extractTicketNumber()
+      // para la detección de colisiones, así que el tracking funciona igual.
+      return extractTicketNumber();
     }
 
     function extractTicketNumber(): string | null {

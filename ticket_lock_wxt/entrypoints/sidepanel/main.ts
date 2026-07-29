@@ -243,15 +243,23 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (tabId === currentTabId && changeInfo.status === 'complete') requestStateFromTab(tabId);
 });
 
-// Polling de respaldo: si el estado se perdió (race condition al abrir el sidepanel),
-// re-consulta cada 8 s para que el panel converja solo.
+// Polling de respaldo: re-consulta cada 8 s para converger si se perdió algún mensaje.
+// Si currentTabId es null (startup falló), intenta encontrar el tab activo de nuevo.
 setInterval(() => {
-  if (currentTabId !== null) requestStateFromTab(currentTabId);
+  if (currentTabId !== null) {
+    requestStateFromTab(currentTabId);
+  } else {
+    requestStateFromActiveTab();
+  }
 }, 8000);
 
 chrome.runtime.onMessage.addListener((msg: StateMessage, sender) => {
   if (msg?.type !== 'NSB_STATE') return;
-  if (sender.tab?.id !== currentTabId) return;
+  const senderId = sender.tab?.id;
+  if (!senderId) return;
+  // Si aún no sabemos el tab activo, aprender del primer NSB_STATE que llegue.
+  if (currentTabId === null) currentTabId = senderId;
+  if (senderId !== currentTabId) return;
   applyPayload(msg.payload);
 });
 
