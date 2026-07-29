@@ -239,6 +239,20 @@ function registerAssignmentClickHandler() {
 export default defineBackground(() => {
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
 
+  // Al instalar o actualizar la extensión, re-inyectar el content script en todas las
+  // pestañas de Autotask que ya estaban abiertas. Sin esto, el usuario tendría que hacer
+  // F5 manualmente en cada pestaña después de recargar la extensión.
+  chrome.runtime.onInstalled.addListener(async () => {
+    const tabs = await chrome.tabs.query({ url: 'https://*.autotask.net/*' });
+    for (const tab of tabs) {
+      if (!tab.id) continue;
+      chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ['content-scripts/content.js'],
+      }).catch(() => {});
+    }
+  });
+
   // Keep-alive: los service workers MV3 se duermen tras ~30s de inactividad,
   // interrumpiendo el polling de asignaciones y de notificaciones.
   chrome.alarms.create('netsus-keepalive', { periodInMinutes: 0.45 });
