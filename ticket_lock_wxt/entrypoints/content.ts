@@ -529,6 +529,9 @@ export default defineContentScript({
         if (!currentUser) return;
         const p = presenceId();
         if (p) registerPresence(p, currentUser);
+        // Sincronización periódica con el sidepanel: si el panel perdió el NSB_STATE
+        // inicial (race condition de startup), este push lo recupera en ≤5 s.
+        pushState();
       }, 5000);
     }
 
