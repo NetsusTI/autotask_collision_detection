@@ -237,7 +237,12 @@ function registerAssignmentClickHandler() {
 }
 
 export default defineBackground(() => {
-  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
+  // Encapsulamos en try/catch porque si cualquier llamada síncrona a chrome.*
+  // falla al arrancar (ej. sidePanel no disponible), WXT re-lanza el error y
+  // Chrome lo reporta como "Service worker registration failed. Status code: 15".
+  try {
+    chrome.sidePanel?.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
+  } catch {}
 
   // Al instalar o actualizar la extensión, re-inyectar el content script en todas las
   // pestañas de Autotask que ya estaban abiertas. Sin esto, el usuario tendría que hacer
@@ -255,7 +260,8 @@ export default defineBackground(() => {
 
   // Keep-alive: los service workers MV3 se duermen tras ~30s de inactividad,
   // interrumpiendo el polling de asignaciones y de notificaciones.
-  chrome.alarms.create('netsus-keepalive', { periodInMinutes: 0.45 });
+  // Mínimo 0.5 min (30s) para respetar el límite de Chrome en modo desarrollador.
+  chrome.alarms.create('netsus-keepalive', { periodInMinutes: 0.5 });
   chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === 'netsus-keepalive') updateBadge();
   });
