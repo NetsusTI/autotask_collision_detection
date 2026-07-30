@@ -62,8 +62,11 @@ function startPauseTimer(secsLeft: number) {
   }, 1000);
 }
 
-function esc(s: string): string {
-  return s.replace(/[&<>"']/g, (c) =>
+// String(s) en vez de s.replace() directo: si alguna vez vuelve a llegar algo que no
+// es string (un cambio de forma en la API, por ejemplo), preferimos pintar un valor
+// raro antes que tirar y dejar media UI sin renderizar.
+function esc(s: unknown): string {
+  return String(s ?? '').replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 }
 
@@ -448,13 +451,22 @@ async function refreshActiveTechs() {
     countEl.style.display = 'none';
     return;
   }
-  const tickets: { id: string; users: string[]; ticketNumber?: string }[] = res.data;
+  // Ojo con la forma exacta que devuelve /api/presence/status: el ticket viene como
+  // `ticketId` (no `id`) y cada usuario es un objeto {name, minutes}, no un string.
+  // Tratarlos como strings hacía que esc() recibiera un objeto y tirara TypeError
+  // justo en la asignación de listEl.innerHTML: la lista se quedaba con el
+  // placeholder "Sin técnicos activos" del HTML mientras el badge ya mostraba el total.
+  const tickets: {
+    ticketId: string;
+    ticketNumber: string | null;
+    users: { name: string; minutes: number }[];
+  }[] = res.data;
   const allUsers: { name: string; ticket: string; collision: boolean }[] = [];
   for (const t of tickets) {
-    const label = t.ticketNumber ?? `#${t.id}`;
+    const label = t.ticketNumber ?? `#${t.ticketId}`;
     const col = t.users.length > 1;
     for (const u of t.users) {
-      allUsers.push({ name: u, ticket: label, collision: col });
+      allUsers.push({ name: u.name, ticket: label, collision: col });
     }
   }
   if (!allUsers.length) {
