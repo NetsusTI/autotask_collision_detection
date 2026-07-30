@@ -236,47 +236,70 @@ function registerAssignmentClickHandler() {
   });
 }
 
-export default defineBackground(() => {
-  // Encapsulamos en try/catch porque si cualquier llamada síncrona a chrome.*
-  // falla al arrancar (ej. sidePanel no disponible), WXT re-lanza el error y
-  // Chrome lo reporta como "Service worker registration failed. Status code: 15".
+// Cualquier excepción síncrona dentro de main() hace que WXT la re-lance, y Chrome
+// aborta el registro del service worker con "Service worker registration failed.
+// Status code: 15". Como sin service worker la extensión entera queda inutilizable
+// (los content scripts pierden su puente), aislamos cada paso del arranque: si uno
+// falla, se pierde solo esa funcionalidad y el resto sigue en pie.
+function step(name: string, fn: () => void) {
   try {
+    fn();
+  } catch (err) {
+    console.error(`[CoView] Falló el arranque de "${name}":`, err);
+  }
+}
+
+export default defineBackground(() => {
+  step('sidePanel', () => {
     chrome.sidePanel?.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
-  } catch {}
+  });
 
   // Al instalar o actualizar la extensión, re-inyectar el content script en todas las
   // pestañas de Autotask que ya estaban abiertas. Sin esto, el usuario tendría que hacer
   // F5 manualmente en cada pestaña después de recargar la extensión.
-  chrome.runtime.onInstalled.addListener(async () => {
-    const tabs = await chrome.tabs.query({ url: 'https://*.autotask.net/*' });
-    for (const tab of tabs) {
-      if (!tab.id) continue;
-      chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        files: ['content-scripts/content.js'],
-      }).catch(() => {});
-    }
+  step('reinyección de content scripts', () => {
+    chrome.runtime.onInstalled.addListener(async () => {
+      const tabs = await chrome.tabs.query({ url: 'https://*.autotask.net/*' });
+      for (const tab of tabs) {
+        if (!tab.id) continue;
+        chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: ['content-scripts/content.js'],
+        }).catch(() => {});
+      }
+    });
   });
 
   // Keep-alive: los service workers MV3 se duermen tras ~30s de inactividad,
   // interrumpiendo el polling de asignaciones y de notificaciones.
   // Mínimo 0.5 min (30s) para respetar el límite de Chrome en modo desarrollador.
-  chrome.alarms.create('netsus-keepalive', { periodInMinutes: 0.5 });
-  chrome.alarms.onAlarm.addListener((alarm) => {
-    if (alarm.name === 'netsus-keepalive') updateBadge();
+  // Requiere el permiso 'alarms' en wxt.config.ts.
+  step('keep-alive', () => {
+    chrome.alarms.create('netsus-keepalive', { periodInMinutes: 0.5 });
+    chrome.alarms.onAlarm.addListener((alarm) => {
+      if (alarm.name === 'netsus-keepalive') updateBadge();
+    });
   });
 
-  setInterval(updateBadge, 20000);
-  updateBadge();
+  step('badge', () => {
+    setInterval(updateBadge, 20000);
+    updateBadge();
+  });
 
-  setInterval(pollNotificationFeed, 30000);
-  pollNotificationFeed();
+  step('feed de notificaciones', () => {
+    setInterval(pollNotificationFeed, 30000);
+    pollNotificationFeed();
+  });
 
-  setInterval(backgroundRenag, 30000);
+  step('re-nag', () => {
+    setInterval(backgroundRenag, 30000);
+  });
 
-  registerAssignmentClickHandler();
-  checkNewAssignments();
-  setInterval(checkNewAssignments, 60000);
+  step('asignaciones', () => {
+    registerAssignmentClickHandler();
+    checkNewAssignments();
+    setInterval(checkNewAssignments, 60000);
+  });
 
   browser.runtime.onMessage.addListener((message: any, _sender, sendResponse) => {
     if (message?.type === 'NETSUS_STATUS') {
