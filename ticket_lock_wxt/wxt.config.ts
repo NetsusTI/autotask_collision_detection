@@ -6,7 +6,7 @@ export default defineConfig({
     name: 'Autotask CoView',
     // Subir esta versión en cada build permite confirmar de un vistazo, en
     // chrome://extensions, si Chrome está corriendo el build nuevo o uno viejo.
-    version: '1.1.0',
+    version: '1.2.0',
     description: 'Detecta colisiones entre técnicos trabajando en el mismo ticket de Autotask',
     // 'alarms' es imprescindible: sin él chrome.alarms queda undefined y la llamada
     // a chrome.alarms.create() del keep-alive tira un TypeError síncrono que mata al

@@ -62,20 +62,22 @@ export default defineContentScript({
 
     let lastStateSentAt = 0;
 
-    // --- Invalidación del contexto de la extensión ---
-    // Al recargar la extensión (o al desinstalarla), este content script sigue vivo en
-    // la página pero pierde su puente con la extensión. A partir de ahí CUALQUIER llamada
-    // a chrome.* revienta con "Extension context invalidated" — y las de chrome.storage
-    // lo hacen de forma SÍNCRONA, así que un .catch() encadenado no las atrapa. Sin este
-    // apagado ordenado, los timers seguían corriendo y floodeaban la consola cada 5 s.
-    let contextInvalidated = false;
+    // --- Ciclo de vida de esta instancia ---
+    // Un content script no muere cuando se recarga la extensión: sigue vivo en la página
+    // pero pierde su puente con ella, y desde ahí CUALQUIER llamada a chrome.* revienta
+    // con "Extension context invalidated" — las de chrome.storage además de forma
+    // SÍNCRONA, así que un .catch() encadenado no las atrapa. Tampoco muere cuando el
+    // background re-inyecta una instancia nueva. En ambos casos hay que apagarla a mano;
+    // si no, sus timers siguen corriendo y floodean la consola cada 5 s.
+    // `stopped` es la bandera que consultan todos los guards de abajo.
+    let stopped = false;
     let heartbeatInterval: number | undefined;
     let urlObserver: MutationObserver | undefined;
 
     // chrome.runtime.id queda en undefined en cuanto el contexto muere: es el chequeo
     // canónico y barato para saltarnos la llamada antes de que tire.
     function extensionAlive(): boolean {
-      if (contextInvalidated) return false;
+      if (stopped) return false;
       try {
         return !!chrome.runtime?.id;
       } catch {
@@ -88,9 +90,10 @@ export default defineContentScript({
       return msg.includes('Extension context invalidated');
     }
 
-    function handleContextInvalidated() {
-      if (contextInvalidated) return;
-      contextInvalidated = true;
+    // Apagado: detiene todo lo que esta instancia tenga andando y limpia lo que dejó
+    // en la página. Se usa tanto al morir el contexto como al ser reemplazada por una
+    // instancia más nueva.
+    function teardown() {
       clearInterval(pollInterval);
       clearInterval(pauseTickInterval);
       clearInterval(renagTimer);
@@ -100,6 +103,12 @@ export default defineContentScript({
       urlObserver?.disconnect();
       unlockUI();
       removeBanner();
+    }
+
+    function handleContextInvalidated() {
+      if (stopped) return;
+      stopped = true;
+      teardown();
     }
 
     // Único punto de entrada a chrome.* desde el content script: si el contexto ya murió
@@ -129,6 +138,24 @@ export default defineContentScript({
       if (!isContextError(e.error)) return;
       e.preventDefault();
       handleContextInvalidated();
+    });
+
+    // --- Relevo de instancias ---
+    // Al recargar la extensión, el background re-inyecta este script en las pestañas
+    // que ya estaban abiertas, pero la instancia anterior NO muere: sigue con sus
+    // timers andando. Quedaban dos corriendo a la vez — doble registro de presencia,
+    // doble sonido, doble banner — y la vieja, sin los guards de esta versión,
+    // floodeaba la consola hasta que se cerrara la pestaña.
+    // Todos los content scripts de una misma extensión comparten el mismo "isolated
+    // world", así que un CustomEvent en window llega a las otras instancias.
+    // Ojo con el orden: primero avisamos (apaga a la anterior) y recién después nos
+    // suscribimos, para no apagarnos con nuestro propio evento.
+    const SUPERSEDE_EVENT = 'netsus-coview-supersede';
+    window.dispatchEvent(new CustomEvent(SUPERSEDE_EVENT));
+    window.addEventListener(SUPERSEDE_EVENT, () => {
+      if (stopped) return;
+      stopped = true; // frena también los guards de los callbacks en vuelo
+      teardown();
     });
 
     function pushState() {
@@ -618,7 +645,7 @@ export default defineContentScript({
       const pid = presenceId();
       if (pid) registerPresence(pid, currentUser);
       pollInterval = window.setInterval(() => {
-        if (contextInvalidated || !currentUser) return;
+        if (stopped || !currentUser) return;
         const p = presenceId();
         if (p) registerPresence(p, currentUser);
         // Sincronización periódica con el sidepanel: si el panel perdió el NSB_STATE
@@ -631,7 +658,7 @@ export default defineContentScript({
     // envía acciones (avisar, terminé, pausar, cancelar pausa) que antes eran
     // botones dentro del panel inyectado en la página.
     safeChrome(() => chrome.runtime.onMessage.addListener((msg: PanelToContentMessage, _sender, sendResponse) => {
-      if (contextInvalidated) return false;
+      if (stopped) return false;
       if (msg?.type === 'NSB_REQUEST_STATE') {
         sendResponse({ payload: { state: currentState, warnings: currentWarnings } });
         return false;
@@ -646,13 +673,13 @@ export default defineContentScript({
     }));
 
     window.addEventListener('beforeunload', () => {
-      if (contextInvalidated) return;
+      if (stopped) return;
       if (lastPresenceId && currentUser) leavePresence(lastPresenceId, currentUser);
     });
 
     let lastUrl = location.href;
     urlObserver = new MutationObserver(() => {
-      if (contextInvalidated) return;
+      if (stopped) return;
       if (location.href !== lastUrl) {
         lastUrl = location.href;
         setTimeout(loadUserAndInit, 500);
