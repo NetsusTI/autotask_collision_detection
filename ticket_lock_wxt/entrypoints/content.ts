@@ -84,7 +84,8 @@ export default defineContentScript({
     }
 
     function isContextError(err: unknown): boolean {
-      return err instanceof Error && err.message.includes('Extension context invalidated');
+      const msg = err instanceof Error ? err.message : typeof err === 'string' ? err : '';
+      return msg.includes('Extension context invalidated');
     }
 
     function handleContextInvalidated() {
@@ -113,6 +114,22 @@ export default defineContentScript({
         return undefined;
       }
     }
+
+    // Red de seguridad a nivel de ventana. Los guards de arriba cubren las llamadas que
+    // hacemos nosotros, pero el error también puede nacer dentro de una promesa de
+    // lib/*, del wrapper `browser` de WXT, o de una petición que ya estaba en vuelo
+    // cuando la extensión se recargó — rutas donde no tenemos dónde poner un .catch().
+    // Estos dos listeners atrapan cualquiera de esas y evitan que Chrome las reporte.
+    window.addEventListener('unhandledrejection', (e) => {
+      if (!isContextError(e.reason)) return;
+      e.preventDefault();
+      handleContextInvalidated();
+    });
+    window.addEventListener('error', (e) => {
+      if (!isContextError(e.error)) return;
+      e.preventDefault();
+      handleContextInvalidated();
+    });
 
     function pushState() {
       const now = Date.now();
