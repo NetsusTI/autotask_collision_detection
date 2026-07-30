@@ -6,7 +6,7 @@ export default defineConfig({
     name: 'Autotask CoView',
     // Subir esta versión en cada build permite confirmar de un vistazo, en
     // chrome://extensions, si Chrome está corriendo el build nuevo o uno viejo.
-    version: '1.2.0',
+    version: '1.3.0',
     description: 'Detecta colisiones entre técnicos trabajando en el mismo ticket de Autotask',
     // 'alarms' es imprescindible: sin él chrome.alarms queda undefined y la llamada
     // a chrome.alarms.create() del keep-alive tira un TypeError síncrono que mata al
@@ -16,4 +16,10 @@ export default defineConfig({
     action: {},
     host_permissions: ['https://netsus-two.vercel.app/*'],
   },
+  // Sourcemaps en el build: sin esto, los stack traces de chrome://extensions apuntan
+  // a una línea de bundle minificado y hay que ingeniería-inversa para ubicarlos.
+  // Con esto, "Ver en DevTools" salta directo a la línea real de content.ts.
+  vite: () => ({
+    build: { sourcemap: true },
+  }),
 });

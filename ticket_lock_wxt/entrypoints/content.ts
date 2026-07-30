@@ -140,6 +140,25 @@ export default defineContentScript({
       handleContextInvalidated();
     });
 
+    // --- Detección inmediata de que la extensión se fue ---
+    // Hasta acá solo nos enterábamos en el próximo tick de un timer (hasta 5 s), y en
+    // esa ventana cualquier callback en vuelo podía llegar a chrome.* y tirar. Un puerto
+    // abierto contra el background se desconecta en el instante en que la extensión se
+    // recarga, actualiza o desinstala, así que nos deja apagarnos de inmediato.
+    function openLifeline() {
+      safeChrome(() => {
+        const port = chrome.runtime.connect({ name: 'netsus-lifeline' });
+        port.onDisconnect.addListener(() => {
+          if (stopped) return;
+          // El puerto también se cae si Chrome recicla el service worker por
+          // inactividad, y eso NO es motivo para apagarse: en ese caso chrome.runtime.id
+          // sigue definido. Queda undefined solo si la extensión se fue de verdad.
+          if (!extensionAlive()) { handleContextInvalidated(); return; }
+          setTimeout(openLifeline, 1000); // reconectar al SW que Chrome vuelva a levantar
+        });
+      });
+    }
+
     // --- Relevo de instancias ---
     // Al recargar la extensión, el background re-inyecta este script en las pestañas
     // que ya estaban abiertas, pero la instancia anterior NO muere: sigue con sus
@@ -687,6 +706,7 @@ export default defineContentScript({
     });
     urlObserver.observe(document.body, { childList: true, subtree: true });
 
+    openLifeline();
     watchAutoPingConfig();
 
     safeChrome(() => getTypePrefs().then((p) => { typePrefs = p; }).catch(() => {}));

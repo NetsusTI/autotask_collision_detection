@@ -281,6 +281,14 @@ export default defineBackground(() => {
     });
   });
 
+  // Los content scripts abren un puerto contra nosotros para detectar al instante
+  // cuándo desaparece la extensión (ver openLifeline en content.ts). No hay que
+  // hacer nada con él: alcanza con aceptarlo para que quede abierto, porque un
+  // puerto sin nadie del otro lado se desconecta enseguida.
+  step('lifeline', () => {
+    chrome.runtime.onConnect.addListener(() => {});
+  });
+
   step('badge', () => {
     setInterval(updateBadge, 20000);
     updateBadge();
