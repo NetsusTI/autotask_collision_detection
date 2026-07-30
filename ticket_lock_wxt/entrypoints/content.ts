@@ -57,13 +57,26 @@ export default defineContentScript({
     let bannerDismissed = false;
 
     let lastStateSentAt = 0;
+    let contextInvalidated = false;
+    function isContextError(err: unknown): boolean {
+      return err instanceof Error && err.message.includes('Extension context invalidated');
+    }
+    function handleContextInvalidated() {
+      if (contextInvalidated) return;
+      contextInvalidated = true;
+      clearInterval(pollInterval);
+      clearInterval(pauseTickInterval);
+      clearInterval(renagTimer);
+      clearTimeout(autoPingTimer);
+      clearTimeout(pauseTimeout);
+    }
     function pushState() {
       const now = Date.now();
       // Durante la pausa, el sidepanel tiene su propio timer local — solo sincronizamos
       // cada 5 s para no despertar el SW 60 veces por minuto (eso provoca throttling).
       const isPaused = currentState.kind === 'paused';
       if (!isPaused || now - lastStateSentAt >= 5000) {
-        chrome.runtime.sendMessage({ type: 'NSB_STATE', payload: { state: currentState, warnings: currentWarnings } }).catch(() => {});
+        chrome.runtime.sendMessage({ type: 'NSB_STATE', payload: { state: currentState, warnings: currentWarnings } }).catch((err) => { if (isContextError(err)) handleContextInvalidated(); });
         lastStateSentAt = now;
       }
       renderBanner(
@@ -109,6 +122,7 @@ export default defineContentScript({
     let userRetryCount = 0;
 
     function loadUserAndInit() {
+      if (contextInvalidated) return;
       chrome.storage.local.get(['netsus_user', 'netsus_user_auto', 'netsus_sound'], ({ netsus_user, netsus_user_auto, netsus_sound }: { netsus_user?: string; netsus_user_auto?: boolean; netsus_sound?: string }) => {
         soundEnabled = netsus_sound !== 'off';
         // Intentar siempre auto-detectar desde walkMeData; si fue configurado
@@ -260,6 +274,7 @@ export default defineContentScript({
     function startRenagLoop() {
       clearInterval(renagTimer);
       renagTimer = window.setInterval(async () => {
+        if (contextInvalidated) return;
         const [list, renagMin] = await Promise.all([getNotifs(), getRenagMinutes()]);
         const due = dueForRenag(list, renagMin);
         for (const n of due) {
@@ -433,7 +448,8 @@ export default defineContentScript({
           setOffline(false);
           callback?.(res.status, res.data);
         })
-        .catch(() => {
+        .catch((err) => {
+          if (isContextError(err)) { handleContextInvalidated(); return; }
           consecutiveFailures++;
           if (consecutiveFailures >= 3) setOffline(true);
         });
@@ -526,7 +542,7 @@ export default defineContentScript({
       const pid = presenceId();
       if (pid) registerPresence(pid, currentUser);
       pollInterval = window.setInterval(() => {
-        if (!currentUser) return;
+        if (contextInvalidated || !currentUser) return;
         const p = presenceId();
         if (p) registerPresence(p, currentUser);
         // Sincronización periódica con el sidepanel: si el panel perdió el NSB_STATE
@@ -558,6 +574,7 @@ export default defineContentScript({
 
     let lastUrl = location.href;
     new MutationObserver(() => {
+      if (contextInvalidated) return;
       if (location.href !== lastUrl) {
         lastUrl = location.href;
         setTimeout(loadUserAndInit, 500);
@@ -569,7 +586,7 @@ export default defineContentScript({
 
     // Heartbeat: marca esta pestaña como "viva" para que el background solo haga el
     // re-nag de respaldo (OS) cuando no hay ninguna pestaña de Autotask abierta.
-    const beat = () => chrome.storage.local.set({ netsus_cs_heartbeat: Date.now() });
+    const beat = () => { if (!contextInvalidated) chrome.storage.local.set({ netsus_cs_heartbeat: Date.now() }); };
     beat();
     window.setInterval(beat, 15000);
 
