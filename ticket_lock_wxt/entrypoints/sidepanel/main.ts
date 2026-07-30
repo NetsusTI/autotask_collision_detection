@@ -35,7 +35,6 @@ import type {
 
 const statusEl = document.getElementById('status') as HTMLElement;
 const warningsEl = document.getElementById('warnings') as HTMLElement;
-const appEl = document.getElementById('app') as HTMLElement;
 const notifCountEl = document.getElementById('notif-count') as HTMLElement;
 const notifListEl = document.getElementById('notif-list') as HTMLElement;
 
@@ -108,34 +107,36 @@ function sendAction(msg: PanelToContentMessage) {
 }
 
 function renderStatus(state: TicketState | null) {
-  if (!state) {
-    appEl.style.display = 'none';
-    return;
-  }
-  appEl.style.display = '';
+  // Antes esto ocultaba TODO #app (incluidas "Activos ahora", estadísticas y
+  // notificaciones) cuando el estado llegaba vacío — dejaba el panel entero en
+  // blanco, mostrando solo el header, hasta que se abrieran los Ajustes (única
+  // sección que no depende de este render). Esas secciones son útiles siempre,
+  // no solo cuando hay un ticket abierto: si no hay estado, tratamos como 'idle'
+  // en vez de vaciar el panel.
+  const st = state ?? { kind: 'idle' as const };
 
-  if (state.kind === 'idle') {
+  if (st.kind === 'idle') {
     statusEl.innerHTML = `<div class="status-idle">${icon('inbox', { size: 26 })}<div>Abre un ticket para ver su estado</div></div>`;
     return;
   }
-  if (state.kind === 'solo') {
+  if (st.kind === 'solo') {
     statusEl.innerHTML = `
       <div class="status-card status-solo">
         <div class="status-row">${icon('check-circle', { size: 16 })}<strong>Trabajando solo</strong></div>
-        <div class="status-ticket">${esc(state.ticketLabel)}</div>
+        <div class="status-ticket">${esc(st.ticketLabel)}</div>
       </div>`;
     return;
   }
-  if (state.kind === 'liberated') {
+  if (st.kind === 'liberated') {
     statusEl.innerHTML = `
       <div class="status-card status-liberated">
         <div class="status-row">${icon('check-circle', { size: 16 })}<strong>Ticket liberado</strong></div>
-        <div class="status-ticket">${esc(state.ticketLabel)} · ya puedes trabajar</div>
+        <div class="status-ticket">${esc(st.ticketLabel)} · ya puedes trabajar</div>
       </div>`;
     return;
   }
-  if (state.kind === 'paused') {
-    const secs = pauseLocalTimer ? pauseLocalSecs : state.secsLeft;
+  if (st.kind === 'paused') {
+    const secs = pauseLocalTimer ? pauseLocalSecs : st.secsLeft;
     const m = Math.floor(secs / 60);
     const s = secs % 60;
     statusEl.innerHTML = `
@@ -148,13 +149,13 @@ function renderStatus(state: TicketState | null) {
     return;
   }
   // collision
-  const others: OtherUser[] = state.others;
+  const others: OtherUser[] = st.others;
   const sorted = [...others].sort((a, b) => b.minutes - a.minutes);
   const first = sorted[0];
   statusEl.innerHTML = `
     <div class="status-card status-collision">
       <div class="status-row">${icon('alert-triangle', { size: 16 })}<strong>Ticket ocupado</strong></div>
-      <div class="status-ticket">${esc(state.ticketLabel)}</div>
+      <div class="status-ticket">${esc(st.ticketLabel)}</div>
       <div class="avatars">${sorted.map((u, i) => avatarHtml(u.name, i)).join('')}</div>
       <div class="who">
         ${sorted.length === 1
@@ -204,8 +205,13 @@ function renderStatus(state: TicketState | null) {
   });
 }
 
+// Antes reemplazaba el innerHTML completo de #app, destruyendo permanentemente los
+// nodos de "Activos ahora", estadísticas y notificaciones — esas secciones no dependen
+// de estar en un ticket y deben seguir visibles y funcionando aunque la pestaña activa
+// no sea Autotask. Ahora solo actualiza la tarjeta de estado, igual que renderStatus.
 function renderNotAutotask() {
-  appEl.innerHTML = `<div class="not-autotask">${icon('inbox', { size: 30 })}<div>Abre un ticket de Autotask<br/>para ver su estado</div></div>`;
+  statusEl.innerHTML = `<div class="status-idle">${icon('inbox', { size: 26 })}<div>Abre un ticket de Autotask para ver su estado</div></div>`;
+  warningsEl.innerHTML = '';
 }
 
 function applyPayload(payload: StatePayload) {
