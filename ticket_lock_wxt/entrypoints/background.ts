@@ -284,6 +284,22 @@ export default defineBackground(() => {
       return false;
     }
 
+    // Los content scripts no tienen acceso a chrome.notifications, así que nos
+    // piden a nosotros que creemos el pop-up del sistema.
+    if (message?.type === 'NETSUS_NOTIFY') {
+      isDnd().then((dnd) => {
+        if (dnd) return;
+        chrome.notifications.create({
+          type: 'basic',
+          iconUrl: chrome.runtime.getURL('icon/128.png'),
+          title: message.title,
+          message: message.message,
+          priority: 2,
+        });
+      });
+      return false;
+    }
+
     if (message?.type !== 'NETSUS_API') return false;
 
     const shouldRetry = message.method !== 'GET' && !message.path?.includes('/api/presence/') || message.method === 'DELETE';

@@ -32,15 +32,19 @@ export default defineContentScript({
     let autoPingFired = false;
     let AUTO_PING_MINUTES = 5;
 
-    // Configurable desde ajustes del panel lateral
-    chrome.storage.local.get(['netsus_auto_ping_min'], (data: any) => {
-      if (data.netsus_auto_ping_min) AUTO_PING_MINUTES = Math.max(1, parseInt(data.netsus_auto_ping_min) || 5);
-    });
-    chrome.storage.onChanged.addListener((changes) => {
-      if ('netsus_auto_ping_min' in changes) {
-        AUTO_PING_MINUTES = Math.max(1, parseInt(changes.netsus_auto_ping_min.newValue) || 5);
-      }
-    });
+    // Configurable desde ajustes del panel lateral. Se invoca al final de main(), no
+    // acá: safeChrome() lee variables declaradas más abajo y llamarlo antes daría
+    // ReferenceError por la temporal dead zone de `let`.
+    function watchAutoPingConfig() {
+      safeChrome(() => chrome.storage.local.get(['netsus_auto_ping_min'], (data: any) => {
+        if (data.netsus_auto_ping_min) AUTO_PING_MINUTES = Math.max(1, parseInt(data.netsus_auto_ping_min) || 5);
+      }));
+      safeChrome(() => chrome.storage.onChanged.addListener((changes) => {
+        if ('netsus_auto_ping_min' in changes) {
+          AUTO_PING_MINUTES = Math.max(1, parseInt(String(changes.netsus_auto_ping_min.newValue)) || 5);
+        }
+      }));
+    }
 
     let renagTimer: number | undefined;
     let typePrefs: TypePrefs = {};
@@ -57,26 +61,70 @@ export default defineContentScript({
     let bannerDismissed = false;
 
     let lastStateSentAt = 0;
+
+    // --- Invalidación del contexto de la extensión ---
+    // Al recargar la extensión (o al desinstalarla), este content script sigue vivo en
+    // la página pero pierde su puente con la extensión. A partir de ahí CUALQUIER llamada
+    // a chrome.* revienta con "Extension context invalidated" — y las de chrome.storage
+    // lo hacen de forma SÍNCRONA, así que un .catch() encadenado no las atrapa. Sin este
+    // apagado ordenado, los timers seguían corriendo y floodeaban la consola cada 5 s.
     let contextInvalidated = false;
+    let heartbeatInterval: number | undefined;
+    let urlObserver: MutationObserver | undefined;
+
+    // chrome.runtime.id queda en undefined en cuanto el contexto muere: es el chequeo
+    // canónico y barato para saltarnos la llamada antes de que tire.
+    function extensionAlive(): boolean {
+      if (contextInvalidated) return false;
+      try {
+        return !!chrome.runtime?.id;
+      } catch {
+        return false;
+      }
+    }
+
     function isContextError(err: unknown): boolean {
       return err instanceof Error && err.message.includes('Extension context invalidated');
     }
+
     function handleContextInvalidated() {
       if (contextInvalidated) return;
       contextInvalidated = true;
       clearInterval(pollInterval);
       clearInterval(pauseTickInterval);
       clearInterval(renagTimer);
+      clearInterval(heartbeatInterval);
       clearTimeout(autoPingTimer);
       clearTimeout(pauseTimeout);
+      urlObserver?.disconnect();
+      unlockUI();
+      removeBanner();
     }
+
+    // Único punto de entrada a chrome.* desde el content script: si el contexto ya murió
+    // no llama, y si muere durante la llamada apaga todo en vez de propagar el error.
+    function safeChrome<T>(fn: () => T): T | undefined {
+      if (!extensionAlive()) { handleContextInvalidated(); return undefined; }
+      try {
+        return fn();
+      } catch (err) {
+        if (isContextError(err)) handleContextInvalidated();
+        else throw err;
+        return undefined;
+      }
+    }
+
     function pushState() {
       const now = Date.now();
       // Durante la pausa, el sidepanel tiene su propio timer local — solo sincronizamos
       // cada 5 s para no despertar el SW 60 veces por minuto (eso provoca throttling).
       const isPaused = currentState.kind === 'paused';
       if (!isPaused || now - lastStateSentAt >= 5000) {
-        chrome.runtime.sendMessage({ type: 'NSB_STATE', payload: { state: currentState, warnings: currentWarnings } }).catch((err) => { if (isContextError(err)) handleContextInvalidated(); });
+        safeChrome(() =>
+          chrome.runtime
+            .sendMessage({ type: 'NSB_STATE', payload: { state: currentState, warnings: currentWarnings } })
+            .catch((err) => { if (isContextError(err)) handleContextInvalidated(); }),
+        );
         lastStateSentAt = now;
       }
       renderBanner(
@@ -122,15 +170,14 @@ export default defineContentScript({
     let userRetryCount = 0;
 
     function loadUserAndInit() {
-      if (contextInvalidated) return;
-      chrome.storage.local.get(['netsus_user', 'netsus_user_auto', 'netsus_sound'], ({ netsus_user, netsus_user_auto, netsus_sound }: { netsus_user?: string; netsus_user_auto?: boolean; netsus_sound?: string }) => {
+      safeChrome(() => chrome.storage.local.get(['netsus_user', 'netsus_user_auto', 'netsus_sound'], ({ netsus_user, netsus_user_auto, netsus_sound }: { netsus_user?: string; netsus_user_auto?: boolean; netsus_sound?: string }) => {
         soundEnabled = netsus_sound !== 'off';
         // Intentar siempre auto-detectar desde walkMeData; si fue configurado
         // manualmente se respeta, pero si fue auto-detectado se actualiza.
         const fromDOM = getUserFromDOM();
         if (fromDOM && (!netsus_user || netsus_user_auto)) {
           currentUser = fromDOM;
-          chrome.storage.local.set({ netsus_user: fromDOM, netsus_user_auto: true });
+          safeChrome(() => chrome.storage.local.set({ netsus_user: fromDOM, netsus_user_auto: true }));
           init();
         } else if (netsus_user) {
           currentUser = netsus_user;
@@ -141,7 +188,7 @@ export default defineContentScript({
         } else {
           init();
         }
-      });
+      }));
     }
 
     function extractTicketId(): string | null {
@@ -242,20 +289,24 @@ export default defineContentScript({
       }
     }
 
-    async function sendChromeNotification(title: string, message: string) {
-      const dnd = await new Promise<boolean>((resolve) => {
-        chrome.storage.local.get(['netsus_dnd_until'], (data: any) => {
-          resolve(typeof data.netsus_dnd_until === 'number' && data.netsus_dnd_until > Date.now());
-        });
-      });
-      if (dnd) return;
-      chrome.notifications.create({
-        type: 'basic',
-        iconUrl: chrome.runtime.getURL('icon/128.png'),
-        title,
-        message,
-        priority: 2,
-      });
+    // chrome.notifications NO existe en content scripts (solo en el background y en
+    // páginas de extensión). Llamarlo acá tiraba "Cannot read properties of undefined
+    // (reading 'create')". Delegamos al background, que sí tiene la API — y de paso
+    // el chequeo de "no molestar" queda en un solo lugar.
+    function sendChromeNotification(title: string, message: string) {
+      safeChrome(() =>
+        chrome.runtime
+          .sendMessage({ type: 'NETSUS_NOTIFY', title, message })
+          .catch((err) => { if (isContextError(err)) handleContextInvalidated(); }),
+      );
+    }
+
+    // addNotif escribe en chrome.storage y devuelve una promesa: sin .catch(), un
+    // contexto muerto la deja como "Uncaught (in promise)" en la consola.
+    function saveNotif(n: Parameters<typeof addNotif>[0]) {
+      safeChrome(() =>
+        addNotif(n).catch((err) => { if (isContextError(err)) handleContextInvalidated(); }),
+      );
     }
 
     const SEVERITY_SOUND: Record<Severity, 'alert' | 'free' | 'ping' | 'new_entry'> = {
@@ -274,14 +325,20 @@ export default defineContentScript({
     function startRenagLoop() {
       clearInterval(renagTimer);
       renagTimer = window.setInterval(async () => {
-        if (contextInvalidated) return;
-        const [list, renagMin] = await Promise.all([getNotifs(), getRenagMinutes()]);
-        const due = dueForRenag(list, renagMin);
-        for (const n of due) {
-          if (isMuted(typePrefs, n.type)) continue;
-          playSoundForSeverity(n.severity);
-          sendChromeNotification(`🔔 ${n.title}`, n.body); // pop-up del SO: sin soporte SVG, mantiene emoji
-          await bumpNag(n.id);
+        if (!extensionAlive()) { handleContextInvalidated(); return; }
+        try {
+          const [list, renagMin] = await Promise.all([getNotifs(), getRenagMinutes()]);
+          const due = dueForRenag(list, renagMin);
+          for (const n of due) {
+            if (isMuted(typePrefs, n.type)) continue;
+            playSoundForSeverity(n.severity);
+            sendChromeNotification(`🔔 ${n.title}`, n.body); // pop-up del SO: sin soporte SVG, mantiene emoji
+            await bumpNag(n.id);
+          }
+        } catch (err) {
+          // Sin este catch, el await de una promesa de chrome.storage que falla por
+          // contexto muerto se reporta como "Uncaught (in promise)".
+          if (isContextError(err)) handleContextInvalidated();
         }
       }, 30000);
     }
@@ -338,7 +395,7 @@ export default defineContentScript({
         const verb = others.length === 1 ? 'está' : 'están';
         if (!colMuted) sendChromeNotification('Ticket ocupado', `${formatNames(others)} ${verb} trabajando en este ticket`);
         const label = extractTicketNumber();
-        addNotif({
+        saveNotif({
           type: 'collision',
           title: 'Colisión detectada',
           body: `${formatNames(others)} ${verb} trabajando en ${label ?? 'este ticket'}`,
@@ -366,7 +423,7 @@ export default defineContentScript({
       if (soundEnabled && !libMuted) playSound('free');
       if (!libMuted) sendChromeNotification('Ticket liberado', 'Ya puedes trabajar en este ticket');
       const num = extractTicketNumber();
-      addNotif({
+      saveNotif({
         type: 'liberation',
         title: 'Ticket liberado',
         body: `Ya puedes trabajar en ${num ?? 'este ticket'}`,
@@ -436,23 +493,25 @@ export default defineContentScript({
       body: Record<string, unknown> | null,
       callback?: (status: number, data: any) => void
     ) {
-      browser.runtime
-        .sendMessage({ type: 'NETSUS_API', method, path, body })
-        .then((res: any) => {
-          if (!res?.sent) {
+      safeChrome(() =>
+        browser.runtime
+          .sendMessage({ type: 'NETSUS_API', method, path, body })
+          .then((res: any) => {
+            if (!res?.sent) {
+              consecutiveFailures++;
+              if (consecutiveFailures >= 3) setOffline(true);
+              return;
+            }
+            consecutiveFailures = 0;
+            setOffline(false);
+            callback?.(res.status, res.data);
+          })
+          .catch((err) => {
+            if (isContextError(err)) { handleContextInvalidated(); return; }
             consecutiveFailures++;
             if (consecutiveFailures >= 3) setOffline(true);
-            return;
-          }
-          consecutiveFailures = 0;
-          setOffline(false);
-          callback?.(res.status, res.data);
-        })
-        .catch((err) => {
-          if (isContextError(err)) { handleContextInvalidated(); return; }
-          consecutiveFailures++;
-          if (consecutiveFailures >= 3) setOffline(true);
-        });
+          }),
+      );
     }
 
     function registerPresence(ticketId: string, user: string, pingTargets?: string[]) {
@@ -493,7 +552,7 @@ export default defineContentScript({
             ? `"${data.quickMsg}"`
             : `Quiere saber si terminaste en ${pingLabel ?? 'este ticket'}`;
           if (!pingMuted) sendChromeNotification('📣 ' + data.pingedBy + ' te avisa', pingMsg);
-          addNotif({
+          saveNotif({
             type: 'ping',
             title: `${data.pingedBy} te está esperando`,
             body: `Quiere saber si terminaste en ${pingLabel ?? 'este ticket'}`,
@@ -554,7 +613,8 @@ export default defineContentScript({
     // El side panel pide el estado actual al abrirse o cambiar de pestaña, y
     // envía acciones (avisar, terminé, pausar, cancelar pausa) que antes eran
     // botones dentro del panel inyectado en la página.
-    chrome.runtime.onMessage.addListener((msg: PanelToContentMessage, _sender, sendResponse) => {
+    safeChrome(() => chrome.runtime.onMessage.addListener((msg: PanelToContentMessage, _sender, sendResponse) => {
+      if (contextInvalidated) return false;
       if (msg?.type === 'NSB_REQUEST_STATE') {
         sendResponse({ payload: { state: currentState, warnings: currentWarnings } });
         return false;
@@ -566,29 +626,35 @@ export default defineContentScript({
         else if (msg.action === 'cancelPause') { clearTimeout(pauseTimeout); resumeAfterPause(); }
       }
       return false;
-    });
+    }));
 
     window.addEventListener('beforeunload', () => {
+      if (contextInvalidated) return;
       if (lastPresenceId && currentUser) leavePresence(lastPresenceId, currentUser);
     });
 
     let lastUrl = location.href;
-    new MutationObserver(() => {
+    urlObserver = new MutationObserver(() => {
       if (contextInvalidated) return;
       if (location.href !== lastUrl) {
         lastUrl = location.href;
         setTimeout(loadUserAndInit, 500);
       }
-    }).observe(document.body, { childList: true, subtree: true });
+    });
+    urlObserver.observe(document.body, { childList: true, subtree: true });
 
-    getTypePrefs().then((p) => { typePrefs = p; });
-    subscribePrefs(({ typePrefs: tp }) => { if (tp) typePrefs = tp; });
+    watchAutoPingConfig();
+
+    safeChrome(() => getTypePrefs().then((p) => { typePrefs = p; }).catch(() => {}));
+    safeChrome(() => subscribePrefs(({ typePrefs: tp }) => { if (tp) typePrefs = tp; }));
 
     // Heartbeat: marca esta pestaña como "viva" para que el background solo haga el
     // re-nag de respaldo (OS) cuando no hay ninguna pestaña de Autotask abierta.
-    const beat = () => { if (!contextInvalidated) chrome.storage.local.set({ netsus_cs_heartbeat: Date.now() }); };
+    // Además sirve de detector: es lo primero que falla al recargarse la extensión,
+    // así que apaga el resto de los timers antes de que floodeen la consola.
+    const beat = () => safeChrome(() => chrome.storage.local.set({ netsus_cs_heartbeat: Date.now() }));
     beat();
-    window.setInterval(beat, 15000);
+    heartbeatInterval = window.setInterval(beat, 15000);
 
     startRenagLoop();
 
