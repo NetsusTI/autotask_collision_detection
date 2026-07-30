@@ -450,8 +450,13 @@ autoPingInputEl.addEventListener('change', () => {
 // --- Activos ahora ---
 async function refreshActiveTechs() {
   const res = await chrome.runtime.sendMessage({ type: 'NETSUS_API', method: 'GET', path: '/api/presence/status' }).catch(() => null);
-  const listEl = document.getElementById('active-list') as HTMLElement;
-  const countEl = document.getElementById('active-count') as HTMLElement;
+  const listEl = document.getElementById('active-list');
+  const countEl = document.getElementById('active-count');
+  // Esta función corre cada 20 s por setInterval. Si el documento del side panel quedó
+  // desincronizado de una versión anterior con una prueba de humo mala en el DOM (o si
+  // el panel se está cerrando justo ahora), estos ids pueden no existir en ese momento
+  // — sin este guard, `.innerHTML =` sobre null tira "Cannot set properties of null".
+  if (!listEl || !countEl) return;
   if (!res?.sent || !Array.isArray(res.data)) {
     listEl.innerHTML = '<div style="font-size:11px;color:var(--faint);padding:4px 4px 6px">Sin conexión</div>';
     countEl.style.display = 'none';
@@ -500,9 +505,10 @@ async function loadMyStats(user: string) {
     path: `/api/presence/my-stats?user=${encodeURIComponent(user)}`,
   }).catch(() => null);
   if (!res?.sent || !res.data) return;
-  const statsEl = document.getElementById('my-stats') as HTMLElement;
-  const weekEl = document.getElementById('stat-week') as HTMLElement;
-  const monthEl = document.getElementById('stat-month') as HTMLElement;
+  const statsEl = document.getElementById('my-stats');
+  const weekEl = document.getElementById('stat-week');
+  const monthEl = document.getElementById('stat-month');
+  if (!statsEl || !weekEl || !monthEl) return;
   weekEl.textContent = res.data.weekCount ?? '—';
   const m = res.data.monthCount ?? 0;
   monthEl.textContent = String(m);
