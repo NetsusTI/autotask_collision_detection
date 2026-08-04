@@ -16,6 +16,7 @@ export interface TicketWarnings {
   offline: boolean;
   historyCount: number | null;
   assignedTo: string | null;
+  assignedResource: string | null;
 }
 
 export interface StatePayload {

@@ -87,6 +87,17 @@ function formatTime(minutes: number): string {
 
 // --- Estado del ticket (llega por mensajes desde el content script de la pestaña activa) ---
 function renderWarnings(w: TicketWarnings | null) {
+  const assigneeEl = document.getElementById('ticket-assignee');
+  const assigneeNameEl = document.getElementById('assignee-name');
+  if (assigneeEl && assigneeNameEl) {
+    if (w?.assignedResource) {
+      assigneeNameEl.textContent = w.assignedResource;
+      assigneeEl.style.display = 'flex';
+    } else {
+      assigneeEl.style.display = 'none';
+    }
+  }
+
   if (!w) { warningsEl.innerHTML = ''; return; }
   const rows: string[] = [];
   if (w.offline) {
@@ -117,6 +128,8 @@ function renderStatus(state: TicketState | null) {
 
   if (st.kind === 'idle') {
     statusEl.innerHTML = `<div class="status-idle">${icon('inbox', { size: 26 })}<div>Abre un ticket para ver su estado</div></div>`;
+    const assigneeEl = document.getElementById('ticket-assignee');
+    if (assigneeEl) assigneeEl.style.display = 'none';
     return;
   }
   if (st.kind === 'solo') {
@@ -212,6 +225,8 @@ function renderStatus(state: TicketState | null) {
 function renderNotAutotask() {
   statusEl.innerHTML = `<div class="status-idle">${icon('inbox', { size: 26 })}<div>Abre un ticket de Autotask para ver su estado</div></div>`;
   warningsEl.innerHTML = '';
+  const assigneeEl = document.getElementById('ticket-assignee');
+  if (assigneeEl) assigneeEl.style.display = 'none';
 }
 
 function applyPayload(payload: StatePayload) {

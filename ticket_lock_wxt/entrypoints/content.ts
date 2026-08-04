@@ -53,7 +53,7 @@ export default defineContentScript({
     // de esta página (el margin-push con CSS no dividía el espacio de verdad en
     // apps con contenedor raíz fixed/vw; el Side Panel nativo de Chrome sí lo hace).
     let currentState: TicketState = { kind: 'idle' };
-    let currentWarnings: TicketWarnings = { offline: false, historyCount: null, assignedTo: null };
+    let currentWarnings: TicketWarnings = { offline: false, historyCount: null, assignedTo: null, assignedResource: null };
 
     // Estado del banner inyectado en la página (además del side panel) — se resetea
     // por ticket en init(), igual que wasLocked/autoPingFired.
@@ -216,7 +216,10 @@ export default defineContentScript({
       }
     }
     function setHistoryWarning(v: number | null) { currentWarnings = { ...currentWarnings, historyCount: v }; pushState(); }
-    function setAssignment(v: string | null) { currentWarnings = { ...currentWarnings, assignedTo: v }; pushState(); }
+    function setAssignment(mismatch: string | null, resource: string | null) {
+      currentWarnings = { ...currentWarnings, assignedTo: mismatch, assignedResource: resource };
+      pushState();
+    }
 
     function getUserFromDOM(): string | null {
       // Autotask expone el nombre del usuario logueado en window.walkMeData
@@ -605,7 +608,7 @@ export default defineContentScript({
         }
 
         const mismatchedAssignee = data?.assignedTo && data.assignedTo.trim().toLowerCase() !== user.trim().toLowerCase();
-        setAssignment(mismatchedAssignee ? data.assignedTo : null);
+        setAssignment(mismatchedAssignee ? data.assignedTo : null, data?.assignedTo ?? null);
 
         if (data?.pingedBy) {
           const pingMuted = isMuted(typePrefs, 'ping');
@@ -653,7 +656,7 @@ export default defineContentScript({
       bannerDismissed = false;
       removeBanner();
       setHistoryWarning(null);
-      setAssignment(null);
+      setAssignment(null, null);
 
       if (!ticketId) {
         setState({ kind: 'idle' });
