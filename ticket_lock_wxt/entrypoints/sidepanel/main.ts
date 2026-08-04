@@ -497,12 +497,12 @@ async function refreshActiveTechs() {
     ticketUrl: string | null;
     users: { name: string; minutes: number }[];
   }[] = res.data;
-  const allUsers: { name: string; ticket: string; ticketUrl: string | null; collision: boolean }[] = [];
+  const allUsers: { name: string; ticket: string; ticketUrl: string | null; collision: boolean; minutes: number }[] = [];
   for (const t of tickets) {
     const label = t.ticketNumber ?? `#${t.ticketId}`;
     const col = t.users.length > 1;
     for (const u of t.users) {
-      allUsers.push({ name: u.name, ticket: label, ticketUrl: t.ticketUrl ?? null, collision: col });
+      allUsers.push({ name: u.name, ticket: label, ticketUrl: t.ticketUrl ?? null, collision: col, minutes: u.minutes });
     }
   }
   if (!allUsers.length) {
@@ -520,6 +520,7 @@ async function refreshActiveTechs() {
     <div class="aitem">
       <div class="adot ${u.collision ? 'col' : ''}"></div>
       <div class="aname">${esc(u.name)}</div>
+      <div class="amin">${formatTime(u.minutes)}</div>
       ${ticketEl}
     </div>`;
   }).join('');
