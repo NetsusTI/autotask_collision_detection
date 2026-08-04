@@ -485,14 +485,15 @@ async function refreshActiveTechs() {
   const tickets: {
     ticketId: string;
     ticketNumber: string | null;
+    ticketUrl: string | null;
     users: { name: string; minutes: number }[];
   }[] = res.data;
-  const allUsers: { name: string; ticket: string; ticketId: string; collision: boolean }[] = [];
+  const allUsers: { name: string; ticket: string; ticketUrl: string | null; collision: boolean }[] = [];
   for (const t of tickets) {
     const label = t.ticketNumber ?? `#${t.ticketId}`;
     const col = t.users.length > 1;
     for (const u of t.users) {
-      allUsers.push({ name: u.name, ticket: label, ticketId: t.ticketId, collision: col });
+      allUsers.push({ name: u.name, ticket: label, ticketUrl: t.ticketUrl ?? null, collision: col });
     }
   }
   if (!allUsers.length) {
@@ -503,12 +504,14 @@ async function refreshActiveTechs() {
   countEl.textContent = String(allUsers.length);
   countEl.style.display = '';
   listEl.innerHTML = allUsers.map(u => {
-    const url = `https://ww12.autotask.net/Mvc/ServiceDesk/TicketDetail.mvc?ticketId=${esc(u.ticketId)}`;
+    const ticketEl = u.ticketUrl
+      ? `<a class="atkt" href="${esc(u.ticketUrl)}" target="_blank" rel="noopener">${esc(u.ticket)}</a>`
+      : `<div class="atkt">${esc(u.ticket)}</div>`;
     return `
     <div class="aitem">
       <div class="adot ${u.collision ? 'col' : ''}"></div>
       <div class="aname">${esc(u.name)}</div>
-      <a class="atkt" href="${url}" target="_blank" rel="noopener">${esc(u.ticket)}</a>
+      ${ticketEl}
     </div>`;
   }).join('');
 }
