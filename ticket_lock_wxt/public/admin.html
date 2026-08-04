@@ -243,8 +243,10 @@
         <div class="configSub">Trae los técnicos activos desde Autotask y los guarda en Supabase. Solo los técnicos en este roster pueden quedar registrados en colisiones, notificaciones y feedback — así ningún nombre inventado o externo se cuela en el historial.</div>
         <div class="configBtns">
           <button class="configBtn primary" id="syncResourcesBtn">Sincronizar desde Autotask</button>
+          <button class="configBtn" id="diagResourcesBtn">Diagnóstico API</button>
         </div>
         <div class="configStatus" id="syncResourcesStatus"></div>
+        <pre id="diagResourcesOutput" style="display:none;margin-top:8px;font-size:10px;background:rgba(0,0,0,0.3);border-radius:6px;padding:10px;overflow-x:auto;white-space:pre-wrap;color:var(--dim)"></pre>
       </div>
       <div class="configSection">
         <div class="configTitle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="3"/><path d="M14 8h2"/><path d="M14 12h4"/><path d="M14 16h4"/><path d="M2 14s0-6 6-6"/><rect width="14" height="14" x="8" y="8" rx="2"/></svg> Técnicos activos ahora</div>

@@ -672,6 +672,26 @@
       });
   }
 
+  function diagResources() {
+    var out = document.getElementById('diagResourcesOutput');
+    var status = document.getElementById('syncResourcesStatus');
+    out.style.display = '';
+    out.textContent = 'Consultando API de Autotask...';
+    status.className = 'configStatus';
+    status.style.color = 'var(--dim)';
+    status.textContent = '';
+    fetch(BASE_URL + '/api/resources/diagnostic', { headers: adminHeaders() })
+      .then(function (r) {
+        if (r.status === 403) throw new Error('session');
+        return r.json();
+      })
+      .then(function (data) {
+        out.textContent = JSON.stringify(data, null, 2);
+      }).catch(function (err) {
+        out.textContent = err && err.message === 'session' ? 'Sesión expirada, vuelve a ingresar' : 'Error al consultar diagnóstico';
+      });
+  }
+
   function saveTtl() {
     var val = parseInt(document.getElementById('ttlInput').value) || 40;
     val = Math.max(15, Math.min(300, val));
@@ -759,6 +779,7 @@
   document.getElementById('exportCsvBtn').addEventListener('click', exportCsv);
   document.getElementById('saveTtlBtn').addEventListener('click', saveTtl);
   document.getElementById('syncResourcesBtn').addEventListener('click', syncResources);
+  document.getElementById('diagResourcesBtn').addEventListener('click', diagResources);
   document.getElementById('saveWebhookBtn').addEventListener('click', saveWebhook);
   document.getElementById('testWebhookBtn').addEventListener('click', testWebhook);
   document.getElementById('clearWebhookBtn').addEventListener('click', clearWebhook);
