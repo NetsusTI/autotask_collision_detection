@@ -10,7 +10,8 @@ export type TicketState =
   | { kind: 'solo'; ticketLabel: string; ticketTitle?: string }
   | { kind: 'collision'; others: OtherUser[]; ticketLabel: string; ticketTitle?: string }
   | { kind: 'liberated'; ticketLabel: string; ticketTitle?: string }
-  | { kind: 'paused'; secsLeft: number };
+  | { kind: 'paused'; secsLeft: number }
+  | { kind: 'completed'; ticketLabel: string };
 
 export interface TicketWarnings {
   offline: boolean;

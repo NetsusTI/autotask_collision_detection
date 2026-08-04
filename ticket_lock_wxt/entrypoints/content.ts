@@ -592,6 +592,13 @@ export default defineContentScript({
       if (pingTargets?.length) body.ping = pingTargets;
 
       apiCall('POST', `/api/presence/${ticketId}`, body, (_status, data) => {
+        if (data?.completed === true) {
+          setState({ kind: 'completed', ticketLabel: ticketLabel() });
+          clearInterval(pollInterval);
+          pollInterval = undefined;
+          return;
+        }
+
         const others: OtherUser[] = Array.isArray(data?.others)
           ? data.others
               .map((o: any) => typeof o === 'string' ? { name: o, minutes: 0 } : o)

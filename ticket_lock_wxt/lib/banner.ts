@@ -170,7 +170,8 @@ export function renderBanner(state: TicketState, warnings: TicketWarnings, opts:
     return;
   }
 
-  // paused
+  // paused (completed no tiene banner — se ignora aquí)
+  if (state.kind !== 'paused') return;
   const m = Math.floor(state.secsLeft / 60);
   const s = state.secsLeft % 60;
   root.innerHTML = `

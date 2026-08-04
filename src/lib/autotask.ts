@@ -238,6 +238,27 @@ export async function getTicketAssignedResourceId(ticketId: string): Promise<num
   }
 }
 
+// Status numérico del ticket — cacheado 90 s para detectar cambios sin martillar la API.
+// Status 5 = Complete en Autotask por defecto.
+export const AUTOTASK_STATUS_COMPLETE = 5;
+
+export async function getTicketStatus(autotaskId: string): Promise<number | null> {
+  if (!autotaskConfigured()) return null;
+  const cacheKey = `ticketstatus:${autotaskId}`;
+  const cached = await redis.get<string>(cacheKey);
+  if (cached !== null) return cached === '' ? null : Number(cached);
+  try {
+    const res = await fetch(`${BASE}/Tickets/${autotaskId}?fields=status`, { headers: headers() });
+    if (!res.ok) { await redis.set(cacheKey, '', { ex: 90 }); return null; }
+    const data = await res.json();
+    const status: number | null = data?.item?.status ?? null;
+    await redis.set(cacheKey, status === null ? '' : String(status), { ex: 90 });
+    return status;
+  } catch {
+    return null;
+  }
+}
+
 // Nombre completo de un recurso por su ID — usado junto con getTicketAssignedResourceId.
 export async function getResourceName(resourceId: number): Promise<string | null> {
   if (!autotaskConfigured()) return null;

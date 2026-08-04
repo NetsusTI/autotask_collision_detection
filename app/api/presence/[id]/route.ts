@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase/client';
 import { lookupResourceId } from '@/lib/supabase/resources';
 import { dedupeOthers, minutesSince, formatDuration } from '@/lib/collision';
 import { clampInt } from '@/lib/num';
-import { createTicketNote, getTicketAssignedResourceId, getResourceName } from '@/lib/autotask';
+import { createTicketNote, getTicketAssignedResourceId, getResourceName, getTicketStatus, AUTOTASK_STATUS_COMPLETE } from '@/lib/autotask';
 
 const PRESENCE_TTL = 40;
 
@@ -161,6 +161,13 @@ export async function POST(
   if (!checkApiKey(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   const { id } = await params;
   const { user, ticketNumber, ticketTitle, ticketUrl, ping, quickMsg, autotaskTicketId } = await request.json().catch(() => ({ user: 'Desconocido', ticketNumber: null, ticketTitle: null, ticketUrl: null, ping: null, quickMsg: null, autotaskTicketId: null }));
+
+  if (autotaskTicketId) {
+    const status = await getTicketStatus(String(autotaskTicketId));
+    if (status === AUTOTASK_STATUS_COMPLETE) {
+      return NextResponse.json({ ok: false, completed: true, others: [], assignedTo: null, pingedBy: null, quickMsg: null, pastCollisions: 0 });
+    }
+  }
 
   const configTtl = await redis.get<string>('config:presence_ttl');
   const ttl = clampInt(configTtl, 15, 300, PRESENCE_TTL);

@@ -148,6 +148,14 @@ function renderStatus(state: TicketState | null) {
       </div>`;
     return;
   }
+  if (st.kind === 'completed') {
+    statusEl.innerHTML = `
+      <div class="status-card status-completed">
+        <div class="status-row">${icon('check-circle', { size: 16 })}<strong>Ticket completado</strong></div>
+        <div class="status-ticket">${esc(st.ticketLabel)} · solo lectura</div>
+      </div>`;
+    return;
+  }
   if (st.kind === 'paused') {
     const secs = pauseLocalTimer ? pauseLocalSecs : st.secsLeft;
     const m = Math.floor(secs / 60);
@@ -162,6 +170,7 @@ function renderStatus(state: TicketState | null) {
     return;
   }
   // collision
+  if (st.kind !== 'collision') return;
   const others: OtherUser[] = st.others;
   const sorted = [...others].sort((a, b) => b.minutes - a.minutes);
   const first = sorted[0];
