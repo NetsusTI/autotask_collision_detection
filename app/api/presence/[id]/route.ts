@@ -164,8 +164,14 @@ export async function POST(
 
   if (autotaskTicketId) {
     const status = await getTicketStatus(String(autotaskTicketId));
-    if (status === AUTOTASK_STATUS_COMPLETE) {
-      return NextResponse.json({ ok: false, completed: true, others: [], assignedTo: null, pingedBy: null, quickMsg: null, pastCollisions: 0 });
+    if (status !== null) {
+      // Statuses cerrados: por defecto solo 5 (Complete). Configurable en Redis como
+      // JSON array: SET config:closed_statuses "[5,8,29]"
+      const closedRaw = await redis.get<string>('config:closed_statuses');
+      const closedStatuses: number[] = closedRaw ? JSON.parse(closedRaw) : [AUTOTASK_STATUS_COMPLETE];
+      if (closedStatuses.includes(status)) {
+        return NextResponse.json({ ok: false, completed: true, others: [], assignedTo: null, pingedBy: null, quickMsg: null, pastCollisions: 0 });
+      }
     }
   }
 
