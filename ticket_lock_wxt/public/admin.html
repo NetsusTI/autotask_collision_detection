@@ -115,6 +115,13 @@
     .configBtn.primary:hover { background: #2f56c9; }
     .configBtn.secondary { background: rgba(var(--ink-rgb),0.08); color: var(--dim); border: 1px solid rgba(var(--ink-rgb),0.12); }
     .configStatus { font-size: 12px; margin-top: 8px; min-height: 18px; }
+    .roster-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 4px; }
+    .roster-table th { text-align: left; font-size: 10px; font-weight: 700; color: var(--dim); padding: 4px 8px; border-bottom: 1px solid var(--border); }
+    .roster-table td { padding: 6px 8px; border-bottom: 1px solid rgba(var(--ink-rgb),0.05); }
+    .roster-table tr:last-child td { border-bottom: none; }
+    .roster-badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 10px; }
+    .roster-badge.active { background: rgba(34,197,94,0.15); color: #22c55e; }
+    .roster-badge.inactive { background: rgba(107,114,128,0.15); color: var(--faint); }
     .configStatus.ok { color: #22c55e; }
     .configStatus.err { color: #ef4444; }
     .toggle { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
@@ -252,6 +259,11 @@
         <div class="configTitle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="3"/><path d="M14 8h2"/><path d="M14 12h4"/><path d="M14 16h4"/><path d="M2 14s0-6 6-6"/><rect width="14" height="14" x="8" y="8" rx="2"/></svg> Técnicos activos ahora</div>
         <div class="configSub">Técnicos con presencia activa en Autotask en este momento. Se actualiza cada 10 s.</div>
         <div id="activeTechsAdmin" style="min-height:32px"></div>
+      </div>
+      <div class="configSection">
+        <div class="configTitle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Roster sincronizado</div>
+        <div class="configSub">Técnicos registrados en Supabase tras la última sincronización desde Autotask.</div>
+        <div id="rosterList" style="margin-top:8px"></div>
       </div>
     </div>
     <div id="configTab" style="display:none">

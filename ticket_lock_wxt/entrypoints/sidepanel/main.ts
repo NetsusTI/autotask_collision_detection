@@ -392,6 +392,7 @@ chrome.storage.local.get(['netsus_user', 'netsus_user_auto', 'netsus_sound'], ({
   if (netsus_user) {
     showUser(netsus_user, !!netsus_user_auto);
     loadMyStats(netsus_user);
+    loadRecentHistory(netsus_user);
   } else {
     currentEl.textContent = 'Sin nombre detectado';
     autoLabelEl.textContent = 'Abre un ticket para detectar automáticamente';
@@ -527,6 +528,32 @@ async function refreshActiveTechs() {
 }
 refreshActiveTechs();
 setInterval(refreshActiveTechs, 20000);
+
+// --- Historial reciente de colisiones ---
+async function loadRecentHistory(user: string) {
+  if (!user) return;
+  const histSection = document.getElementById('hist-section');
+  const histList = document.getElementById('hist-list');
+  if (!histSection || !histList) return;
+  const res = await chrome.runtime.sendMessage({
+    type: 'NETSUS_API', method: 'GET',
+    path: `/api/presence/history?tech=${encodeURIComponent(user)}&limit=5`,
+  }).catch(() => null);
+  if (!res?.sent || !Array.isArray(res.data?.events) || !res.data.events.length) return;
+  histSection.style.display = '';
+  histList.innerHTML = res.data.events.map((e: { ts: number; ticketNumber: string | null; ticketId: string; users: string[] }) => {
+    const others = e.users.filter((u: string) => u.toLowerCase() !== user.toLowerCase());
+    const label = e.ticketNumber ?? `#${e.ticketId}`;
+    return `
+      <div class="hitem">
+        <div class="hitem-top">
+          <span class="hitem-tkt">${esc(label)}</span>
+          <span class="hitem-time">${relTime(e.ts)}</span>
+        </div>
+        <div class="hitem-users">con ${esc(others.join(', ') || 'desconocido')}</div>
+      </div>`;
+  }).join('');
+}
 
 // --- Estadísticas personales ---
 async function loadMyStats(user: string) {

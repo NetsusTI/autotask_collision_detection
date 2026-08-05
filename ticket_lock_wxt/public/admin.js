@@ -3,6 +3,12 @@
   var API_KEY = '-_-ErJy9v64XRiDbpuPFZ3uLs4nVFmXm';
   var REFRESH_SECS = 10;
 
+  function escHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, function (c) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+    });
+  }
+
   var countdownInterval = null;
   var secondsLeft = REFRESH_SECS;
   var currentTab = 'live';
@@ -672,6 +678,27 @@
       });
   }
 
+  function loadRoster() {
+    var el = document.getElementById('rosterList');
+    if (!el) return;
+    el.innerHTML = '<div style="font-size:11px;color:var(--faint)">Cargando...</div>';
+    fetch(BASE_URL + '/api/resources', { headers: adminHeaders() })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var list = data.resources || [];
+        if (!list.length) { el.innerHTML = '<div style="font-size:11px;color:var(--faint)">Sin técnicos sincronizados. Usa "Sincronizar desde Autotask" primero.</div>'; return; }
+        var rows = list.map(function (r) {
+          var badge = r.active
+            ? '<span class="roster-badge active">Activo</span>'
+            : '<span class="roster-badge inactive">Inactivo</span>';
+          return '<tr><td>' + escHtml(r.name) + '</td><td>' + escHtml(r.email || '—') + '</td><td>' + escHtml(r.role || '—') + '</td><td>' + badge + '</td></tr>';
+        }).join('');
+        el.innerHTML = '<table class="roster-table"><thead><tr><th>Nombre</th><th>Email</th><th>Cargo</th><th>Estado</th></tr></thead><tbody>' + rows + '</tbody></table>';
+      }).catch(function () {
+        el.innerHTML = '<div style="font-size:11px;color:#ef4444">Error al cargar el roster.</div>';
+      });
+  }
+
   function diagResources() {
     var out = document.getElementById('diagResourcesOutput');
     var status = document.getElementById('syncResourcesStatus');
@@ -775,7 +802,7 @@
   document.getElementById('tabHistory').addEventListener('click', function () { setTab('history'); });
   document.getElementById('tabAnalytics').addEventListener('click', function () { setTab('analytics'); });
   document.getElementById('tabResources').addEventListener('click', function () { setTab('resources'); });
-  document.getElementById('tabConfig').addEventListener('click', function () { setTab('config'); });
+  document.getElementById('tabConfig').addEventListener('click', function () { setTab('config'); loadRoster(); });
   document.getElementById('exportCsvBtn').addEventListener('click', exportCsv);
   document.getElementById('saveTtlBtn').addEventListener('click', saveTtl);
   document.getElementById('syncResourcesBtn').addEventListener('click', syncResources);
