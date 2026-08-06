@@ -773,6 +773,45 @@
     });
   }
 
+  var lastRosterList = [];
+
+  function renderRoster() {
+    var el = document.getElementById('rosterList');
+    if (!el) return;
+    var list = lastRosterList;
+    if (!list.length) { el.innerHTML = '<div style="font-size:11px;color:var(--faint)">Sin técnicos sincronizados. Usa "Sincronizar desde Autotask" primero.</div>'; return; }
+    var activeCount = list.filter(function (r) { return r.active; }).length;
+    var countEl = document.getElementById('rosterCount');
+    if (countEl) countEl.textContent = activeCount + ' activos · ' + (list.length - activeCount) + ' inactivos · ' + list.length + ' total';
+    var showInactive = document.getElementById('rosterShowInactive');
+    var visible = (showInactive && showInactive.checked) ? list : list.filter(function (r) { return r.active; });
+    if (!visible.length) {
+      el.innerHTML = '<div style="font-size:11px;color:var(--faint)">Todos los inactivos están ocultos. Activa "Mostrar inactivos" para verlos.</div>';
+      return;
+    }
+    var rows = visible.map(function (r) {
+      var badge = r.active
+        ? '<span class="roster-badge active">Activo</span>'
+        : '<span class="roster-badge inactive">Inactivo</span>';
+      var btnLabel = r.active ? 'Quitar del roster' : 'Reactivar';
+      var btn = '<button class="rosterToggleBtn" data-id="' + r.autotask_resource_id + '" data-next="' + (!r.active) + '" style="font-size:10px;padding:2px 8px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--dim);cursor:pointer">' + btnLabel + '</button>';
+      return '<tr><td>' + escHtml(r.name) + '</td><td>' + escHtml(r.email || '—') + '</td><td>' + escHtml(r.role || '—') + '</td><td>' + badge + '</td><td>' + btn + '</td></tr>';
+    }).join('');
+    el.innerHTML = '<table class="roster-table"><thead><tr><th>Nombre</th><th>Email</th><th>Cargo</th><th>Estado</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
+    Array.prototype.forEach.call(el.querySelectorAll('.rosterToggleBtn'), function (btn) {
+      btn.addEventListener('click', function () {
+        var id = Number(btn.getAttribute('data-id'));
+        var next = btn.getAttribute('data-next') === 'true';
+        btn.disabled = true;
+        btn.textContent = '...';
+        toggleResourceActive(id, next).then(function () { loadRoster(); }).catch(function () {
+          btn.disabled = false;
+          btn.textContent = next ? 'Reactivar' : 'Quitar del roster';
+        });
+      });
+    });
+  }
+
   function loadRoster() {
     var el = document.getElementById('rosterList');
     if (!el) return;
@@ -780,32 +819,8 @@
     fetch(BASE_URL + '/api/resources', { headers: adminHeaders() })
       .then(function (r) { return r.json(); })
       .then(function (data) {
-        var list = data.resources || [];
-        if (!list.length) { el.innerHTML = '<div style="font-size:11px;color:var(--faint)">Sin técnicos sincronizados. Usa "Sincronizar desde Autotask" primero.</div>'; return; }
-        var activeCount = list.filter(function (r) { return r.active; }).length;
-        var countEl = document.getElementById('rosterCount');
-        if (countEl) countEl.textContent = activeCount + ' activos · ' + (list.length - activeCount) + ' inactivos · ' + list.length + ' total';
-        var rows = list.map(function (r) {
-          var badge = r.active
-            ? '<span class="roster-badge active">Activo</span>'
-            : '<span class="roster-badge inactive">Inactivo</span>';
-          var btnLabel = r.active ? 'Quitar del roster' : 'Reactivar';
-          var btn = '<button class="rosterToggleBtn" data-id="' + r.autotask_resource_id + '" data-next="' + (!r.active) + '" style="font-size:10px;padding:2px 8px;border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--dim);cursor:pointer">' + btnLabel + '</button>';
-          return '<tr><td>' + escHtml(r.name) + '</td><td>' + escHtml(r.email || '—') + '</td><td>' + escHtml(r.role || '—') + '</td><td>' + badge + '</td><td>' + btn + '</td></tr>';
-        }).join('');
-        el.innerHTML = '<table class="roster-table"><thead><tr><th>Nombre</th><th>Email</th><th>Cargo</th><th>Estado</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
-        Array.prototype.forEach.call(el.querySelectorAll('.rosterToggleBtn'), function (btn) {
-          btn.addEventListener('click', function () {
-            var id = Number(btn.getAttribute('data-id'));
-            var next = btn.getAttribute('data-next') === 'true';
-            btn.disabled = true;
-            btn.textContent = '...';
-            toggleResourceActive(id, next).then(function () { loadRoster(); }).catch(function () {
-              btn.disabled = false;
-              btn.textContent = next ? 'Reactivar' : 'Quitar del roster';
-            });
-          });
-        });
+        lastRosterList = data.resources || [];
+        renderRoster();
       }).catch(function () {
         el.innerHTML = '<div style="font-size:11px;color:#ef4444">Error al cargar el roster.</div>';
       });
@@ -920,6 +935,7 @@
   document.getElementById('saveTtlBtn').addEventListener('click', saveTtl);
   document.getElementById('syncResourcesBtn').addEventListener('click', syncResources);
   document.getElementById('diagResourcesBtn').addEventListener('click', diagResources);
+  document.getElementById('rosterShowInactive').addEventListener('change', renderRoster);
   document.getElementById('saveWebhookBtn').addEventListener('click', saveWebhook);
   document.getElementById('testWebhookBtn').addEventListener('click', testWebhook);
   document.getElementById('clearWebhookBtn').addEventListener('click', clearWebhook);
