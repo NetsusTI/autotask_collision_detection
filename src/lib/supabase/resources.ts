@@ -26,15 +26,18 @@ export async function syncResourcesFromAutotask(): Promise<{ synced: number; dea
   // Cualquier técnico que ya no viene en la lista de activos de Autotask se marca
   // inactivo (no se borra — conserva el historial que ya tenga asociado).
   const activeIds = active.map((r) => r.id);
-  const { data: toDeactivate, error: deactivateError } = await supabase
-    .from('resources')
-    .update({ active: false })
-    .eq('active', true)
-    .not('autotask_resource_id', 'in', `(${activeIds.join(',')})`)
-    .select('id');
-  if (deactivateError) throw deactivateError;
+  let deactivated = 0;
+  if (activeIds.length > 0) {
+    const { data: toDeactivate } = await supabase
+      .from('resources')
+      .update({ active: false })
+      .eq('active', true)
+      .not('autotask_resource_id', 'in', `(${activeIds.join(',')})`)
+      .select('id');
+    deactivated = toDeactivate?.length ?? 0;
+  }
 
-  return { synced: rows.length, deactivated: toDeactivate?.length ?? 0 };
+  return { synced: rows.length, deactivated };
 }
 
 // Resuelve un nombre libre (detectado en Autotask o escrito a mano) al id (uuid) de su
