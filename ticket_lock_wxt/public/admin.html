@@ -2,195 +2,178 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Admin — CoView</title>
+  <title>Panel Admin — Autotask CoView</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;800&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg: #fff; --surface: #f5f5f5; --border: #e8e8e8;
-      --text: #111; --dim: #666; --faint: #aaa;
-      --accent: #2563eb; --red: #dc2626; --green: #16a34a;
+      --ink-rgb: 255,255,255;
+      --bg-grad: linear-gradient(135deg, #190637 0%, #0d0320 100%);
+      --text: #fff;
+      --date-scheme: dark;
+      --accent: #3867E9;
+      --accent-rgb: 56,103,233;
+      --cyan: #01BFFA;
+      --cyan-rgb: 1,191,250;
+      --purple: #8C52FF;
+      --grad-chart: linear-gradient(90deg, #3867E9, #01BFFA);
+      --dim: rgba(255,255,255,0.55);
+      --faint: rgba(255,255,255,0.32);
+    }
+    html[data-theme="light"] {
+      --ink-rgb: 59,59,59;
+      --bg-grad: linear-gradient(135deg, #F3F3F3 0%, #e7e7ec 100%);
+      --text: #3B3B3B;
       --date-scheme: light;
+      /* Misma alfa que en oscuro se ve ilegible sobre fondo claro (contraste invertido);
+         estos dos tokens quedan con alfa muy alta en modo claro para un contraste marcado */
+      --dim: rgba(59,59,59,0.97);
+      --faint: rgba(59,59,59,0.85);
     }
-    @media (prefers-color-scheme: dark) {
-      :root { --bg:#111;--surface:#1c1c1c;--border:#2c2c2c;--text:#f0f0f0;--dim:#888;--faint:#555;--date-scheme:dark; }
-    }
-    html[data-theme="light"] { --bg:#fff;--surface:#f5f5f5;--border:#e8e8e8;--text:#111;--dim:#666;--faint:#aaa;--date-scheme:light; }
-    html[data-theme="dark"]  { --bg:#111;--surface:#1c1c1c;--border:#2c2c2c;--text:#f0f0f0;--dim:#888;--faint:#555;--date-scheme:dark; }
-
-    body { font-family: system-ui,-apple-system,sans-serif; font-size:13px; background:var(--bg); color:var(--text); min-height:100vh; display:flex; flex-direction:column; }
-
-    /* LOGIN */
-    #loginScreen { min-height:100vh; display:flex; align-items:center; justify-content:center; position:relative; }
-    .loginBox { width:280px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:28px 24px; }
-    .loginLogo { display:flex; align-items:center; gap:10px; margin-bottom:20px; }
-    .loginLogo img { height:22px; opacity:.85; }
-    .loginTitle { font-size:14px; font-weight:600; margin-bottom:2px; }
-    .loginSub { font-size:11px; color:var(--dim); margin-bottom:16px; }
-    .loginInput { width:100%; padding:7px 9px; border:1px solid var(--border); border-radius:5px; font-size:13px; font-family:inherit; background:var(--bg); color:var(--text); outline:none; margin-bottom:7px; }
-    .loginInput:focus { border-color:var(--accent); }
-    .loginBtn { width:100%; padding:7px; border-radius:5px; font-size:13px; font-weight:600; font-family:inherit; background:var(--accent); color:#fff; border:none; cursor:pointer; }
-    .loginBtn:hover { opacity:.9; }
-    .loginError { font-size:11px; color:var(--red); margin-bottom:7px; display:none; }
-
-    /* THEME TOGGLE */
-    .themeSeg { display:inline-flex; gap:2px; }
-    .themeSeg button { border:1px solid var(--border); background:transparent; color:var(--dim); font-size:11px; font-family:inherit; padding:3px 7px; border-radius:4px; cursor:pointer; display:flex; align-items:center; }
-    .themeSeg button.active { background:var(--accent); color:#fff; border-color:var(--accent); }
-    #themeSegLogin { position:absolute; top:14px; right:14px; }
-
-    /* PANEL */
-    #panel { display:none; flex:1; flex-direction:column; }
-    .header { border-bottom:1px solid var(--border); padding:0 20px; background:var(--bg); position:sticky; top:0; z-index:10; }
-    .headerInner { max-width:820px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; height:44px; }
-    .logoName { font-size:13px; font-weight:600; }
-    .headerRight { display:flex; align-items:center; gap:10px; }
-    .liveIndicator { display:flex; align-items:center; gap:5px; font-size:11px; color:var(--dim); }
-    .dot { width:6px; height:6px; border-radius:50%; background:var(--green); animation:pulse 2s infinite; flex-shrink:0; }
-    #countdown { font-size:11px; color:var(--faint); }
-    #logoutBtn { font-family:inherit; background:transparent; border:1px solid var(--border); color:var(--dim); border-radius:4px; padding:3px 9px; font-size:11px; cursor:pointer; }
-    #logoutBtn:hover { color:var(--text); }
-
-    .content { max-width:820px; margin:0 auto; padding:20px; width:100%; }
-
-    /* STATS */
-    .stats { display:flex; gap:20px; margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid var(--border); }
-    .stat { flex:1; }
-    .statValue { font-size:20px; font-weight:700; color:var(--accent); }
-    .statValue.red { color:var(--red); }
-    .statLabel { font-size:11px; color:var(--dim); }
-
-    /* TABS */
-    .tabBar { display:flex; align-items:center; gap:0; margin-bottom:16px; border-bottom:1px solid var(--border); }
-    .tab { padding:7px 13px; font-size:12px; font-weight:500; font-family:inherit; cursor:pointer; border:none; color:var(--dim); background:transparent; border-bottom:2px solid transparent; margin-bottom:-1px; }
-    .tab.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
-    .tab:hover:not(.active) { color:var(--text); }
-    .csvBtn { margin-left:auto; padding:3px 10px; border-radius:4px; font-size:11px; font-weight:500; font-family:inherit; cursor:pointer; border:1px solid var(--border); color:var(--dim); background:transparent; display:inline-flex; align-items:center; gap:4px; }
-    .csvBtn:hover { color:var(--text); }
-
-    /* FILTER BAR */
-    .filterBar { display:flex; align-items:center; gap:6px; margin-bottom:14px; }
-    .filterInput { padding:5px 9px; border-radius:4px; font-size:12px; font-family:inherit; background:var(--bg); border:1px solid var(--border); color:var(--text); outline:none; }
-    .filterInput:focus { border-color:var(--accent); }
-    .filterInput[type="date"] { color-scheme:var(--date-scheme); }
-    .periodBtns { display:flex; gap:2px; }
-    .periodBtn { padding:3px 9px; border-radius:4px; font-size:11px; font-weight:500; font-family:inherit; cursor:pointer; border:1px solid var(--border); color:var(--dim); background:transparent; }
-    .periodBtn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
-
-    /* LIVE VIEW TOGGLE */
-    #liveViewToggle { display:flex; gap:5px; margin-bottom:12px; }
-    .viewBtn { padding:3px 10px; border-radius:4px; font-size:11px; font-weight:500; font-family:inherit; cursor:pointer; border:1px solid var(--border); color:var(--dim); background:transparent; display:inline-flex; align-items:center; gap:4px; }
-    .viewBtn.active { background:var(--surface); color:var(--text); }
-
-    /* TICKET CARDS */
-    .ticketCard { border:1px solid var(--border); border-radius:5px; padding:10px 14px; display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
-    .ticketCard.collision { border-color:rgba(220,38,38,0.35); }
-    .ticketLeft { display:flex; align-items:center; gap:10px; }
-    .ticketIcon { width:28px; height:28px; border-radius:5px; background:var(--surface); display:flex; align-items:center; justify-content:center; color:var(--accent); flex-shrink:0; }
-    .ticketIcon.col { background:rgba(220,38,38,0.08); color:var(--red); }
-    .ticketName { font-size:13px; font-weight:600; }
-    .ticketMeta { font-size:11px; color:var(--dim); margin-top:1px; }
-    .chips { display:flex; gap:5px; flex-wrap:wrap; justify-content:flex-end; }
-    .chip { padding:2px 9px; border-radius:20px; font-size:11px; font-weight:600; background:var(--surface); color:var(--text); border:1px solid var(--border); }
-    .chip.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
-    .chip-time { font-size:10px; opacity:.6; margin-left:2px; font-weight:400; }
-    .techAvatar { width:28px; height:28px; border-radius:50%; background:var(--accent); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; flex-shrink:0; color:#fff; }
-
-    /* HISTORY CARDS */
-    .histCard { border:1px solid var(--border); border-radius:5px; padding:8px 12px; display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px; }
-    .histLeft { display:flex; align-items:center; gap:8px; color:var(--red); }
-    .histTicket { font-size:12px; font-weight:600; }
-    .histTime { font-size:11px; color:var(--faint); margin-top:1px; }
-    .histChip { padding:2px 7px; border-radius:20px; font-size:11px; font-weight:600; background:var(--surface); color:var(--dim); border:1px solid var(--border); }
-    .histChip.first { background:rgba(37,99,235,0.07); color:var(--accent); border-color:rgba(37,99,235,0.18); }
-
-    /* EMPTY */
-    .empty { text-align:center; padding:40px 0; border:1px dashed var(--border); border-radius:6px; color:var(--dim); }
-    .emptyIcon { margin-bottom:6px; color:var(--green); display:flex; justify-content:center; }
-    .emptyText { font-size:13px; }
-    .emptySub { font-size:11px; color:var(--faint); margin-top:3px; }
-
-    /* CONFIG SECTIONS — separadas por línea, sin tarjetas */
-    .configSection { border-top:1px solid var(--border); padding:14px 0; }
-    .configSection:first-child { border-top:none; padding-top:0; }
-    .configTitle { font-size:13px; font-weight:600; margin-bottom:3px; }
-    .configSub { font-size:11px; color:var(--dim); margin-bottom:10px; line-height:1.5; }
-    .configInput { padding:6px 9px; border-radius:4px; font-size:12px; font-family:inherit; background:var(--bg); border:1px solid var(--border); color:var(--text); outline:none; }
-    .configInput:focus { border-color:var(--accent); }
-    .configInput[type="date"] { color-scheme:var(--date-scheme); }
-    input.configInput, select.configInput { width:100%; }
-    .configBtns { display:flex; gap:5px; margin-top:7px; }
-    .configBtn { padding:5px 12px; border-radius:4px; font-size:12px; font-weight:600; font-family:inherit; cursor:pointer; border:1px solid var(--border); display:inline-flex; align-items:center; gap:4px; background:transparent; color:var(--text); }
-    .configBtn.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
-    .configBtn.primary:hover { opacity:.9; }
-    .configBtn.secondary { color:var(--dim); }
-    .configBtn.secondary:hover { color:var(--text); }
-    .configStatus { font-size:11px; margin-top:5px; min-height:15px; }
-    .configStatus.ok { color:var(--green); }
-    .configStatus.err { color:var(--red); }
-
-    /* ROSTER TABLE */
-    .roster-table { width:100%; border-collapse:collapse; font-size:12px; margin-top:6px; }
-    .roster-table th { text-align:left; font-size:10px; font-weight:700; color:var(--dim); padding:3px 6px; border-bottom:1px solid var(--border); text-transform:uppercase; letter-spacing:.05em; }
-    .roster-table td { padding:5px 6px; border-bottom:1px solid var(--border); }
-    .roster-table tr:last-child td { border-bottom:none; }
-    .roster-badge { display:inline-block; font-size:10px; font-weight:700; padding:1px 5px; border-radius:10px; }
-    .roster-badge.active { background:rgba(22,163,74,.1); color:var(--green); }
-    .roster-badge.inactive { background:var(--surface); color:var(--faint); }
-
-    /* TOGGLE */
-    .toggle { position:relative; display:inline-block; width:34px; height:19px; flex-shrink:0; }
-    .toggle input { opacity:0; width:0; height:0; }
-    .toggle .slider { position:absolute; cursor:pointer; inset:0; background:var(--border); transition:.2s; border-radius:19px; }
-    .toggle .slider:before { position:absolute; content:""; height:13px; width:13px; left:3px; bottom:3px; background:#fff; transition:.2s; border-radius:50%; }
-    .toggle input:checked + .slider { background:var(--accent); }
-    .toggle input:checked + .slider:before { transform:translateX(15px); }
-
-    /* ANALYTICS */
-    .anlSection { border-top:1px solid var(--border); padding:14px 0; }
-    .anlSection:first-child { border-top:none; padding-top:0; }
-    .anlTitle { font-size:13px; font-weight:600; margin-bottom:10px; }
-    .barRow { display:flex; align-items:center; gap:7px; margin-bottom:5px; }
-    .barLabel { width:110px; font-size:11px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex-shrink:0; }
-    .barTrack { flex:1; height:7px; background:var(--surface); border-radius:4px; overflow:hidden; border:1px solid var(--border); }
-    .barFill { height:100%; background:var(--accent); border-radius:4px; transition:width .4s; }
-    .barFill.blue { background:var(--accent); }
-    .barFill.purple { background:#7c3aed; }
-    .barCount { width:22px; text-align:right; font-size:11px; color:var(--dim); flex-shrink:0; }
-    .hourGrid { display:grid; grid-template-columns:repeat(24,1fr); gap:2px; align-items:end; height:52px; }
-    .hourBar { background:rgba(37,99,235,.22); border-radius:2px 2px 0 0; min-height:2px; transition:height .4s; }
-    .hourBar:hover { background:rgba(37,99,235,.5); }
-    .hourLabels { display:grid; grid-template-columns:repeat(24,1fr); gap:2px; margin-top:3px; }
-    .hourLbl { font-size:8px; color:var(--faint); text-align:center; }
-    .dayGrid { display:grid; grid-template-columns:repeat(30,1fr); gap:2px; align-items:end; height:52px; }
-    .dayBar { background:rgba(37,99,235,.22); border-radius:2px 2px 0 0; min-height:2px; transition:height .4s; cursor:default; }
-    .dayBar:hover { background:rgba(37,99,235,.5); }
-    .dayLabels { display:grid; grid-template-columns:repeat(30,1fr); gap:2px; margin-top:3px; }
-    .dayLbl { font-size:7px; color:var(--faint); text-align:center; overflow:hidden; }
-
-    /* MISC */
-    .ticketLink { color:inherit; text-decoration:none; border-bottom:1px dashed var(--border); }
-    .ticketLink:hover { color:var(--accent); border-bottom-color:var(--accent); }
-    .chipLink { color:inherit; text-decoration:none; }
-    .chipLink:hover { opacity:.8; }
-    #apiError { display:none; background:rgba(220,38,38,.06); border:1px solid rgba(220,38,38,.2); border-radius:4px; padding:7px 11px; margin-bottom:12px; font-size:11px; color:var(--red); }
-
-    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.4; } }
+    body { font-family: 'Montserrat', 'Segoe UI', system-ui, sans-serif; font-weight: 400; background: var(--bg-grad); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+    #loginScreen { min-height: 100vh; display: flex; align-items: center; justify-content: center; position: relative; flex: 1; }
+    .loginBox { background: rgba(var(--ink-rgb),0.04); border: 1px solid rgba(var(--ink-rgb),0.08); border-radius: 20px; padding: 40px 36px; width: 320px; text-align: center; }
+    .loginIcon { width: 52px; height: 52px; border-radius: 14px; margin: 0 auto 20px; background: none; display: flex; align-items: center; justify-content: center; }
+    .loginTitle { font-size: 16px; font-weight: 800; margin-bottom: 4px; }
+    .loginSub { font-size: 12px; color: var(--dim); margin-bottom: 28px; }
+    .loginInput { width: 100%; padding: 10px 14px; border-radius: 10px; font-size: 14px; font-family: inherit; background: rgba(var(--ink-rgb),0.06); border: 1px solid rgba(var(--ink-rgb),0.12); color: var(--text); outline: none; margin-bottom: 12px; }
+    .loginInput::placeholder { color: var(--faint); }
+    .loginError { font-size: 12px; color: #ef4444; margin-bottom: 10px; }
+    .loginBtn { width: 100%; padding: 10px; border-radius: 10px; font-size: 14px; font-weight: 600; font-family: inherit; background: var(--accent); color: #fff; border: none; cursor: pointer; }
+    .loginBtn:hover { background: #2f56c9; }
+    #panel { display: none; flex: 1; flex-direction: column; }
+    .header { border-bottom: 1px solid rgba(var(--ink-rgb),0.07); padding: 0 40px; background: rgba(var(--ink-rgb),0.03); position: sticky; top: 0; z-index: 10; }
+    .headerInner { max-width: 900px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 64px; }
+    .logo { display: flex; align-items: center; gap: 12px; }
+    .logoIcon { width: 36px; height: 36px; border-radius: 10px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+    .logoName { font-size: 15px; font-weight: 800; }
+    .logoSub { font-size: 11px; color: var(--dim); margin-top: -2px; }
+    .headerRight { display: flex; align-items: center; gap: 12px; }
+    .liveIndicator { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dim); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 6px #22c55e; animation: pulse 2s infinite; }
+    #countdown { background: rgba(var(--ink-rgb),0.07); border-radius: 6px; padding: 2px 7px; font-size: 11px; color: var(--faint); }
+    #logoutBtn { font-family: inherit; background: rgba(var(--ink-rgb),0.06); border: 1px solid rgba(var(--ink-rgb),0.1); color: var(--dim); border-radius: 8px; padding: 5px 12px; font-size: 12px; cursor: pointer; }
+    #logoutBtn:hover { background: rgba(var(--ink-rgb),0.1); color: var(--text); }
+    /* Theme toggle */
+    .themeSeg { display: inline-flex; background: rgba(var(--ink-rgb),0.08); border-radius: 8px; padding: 2px; gap: 2px; }
+    .themeSeg button { border: none; background: transparent; color: var(--dim); font-size: 11px; font-family: inherit; padding: 4px 10px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; }
+    .themeSeg button.active { background: var(--accent); color: #fff; font-weight: 600; }
+    .content { max-width: 900px; margin: 0 auto; padding: 40px; width: 100%; }
+    .stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 32px; }
+    .stat { background: rgba(var(--ink-rgb),0.04); border: 1px solid rgba(var(--ink-rgb),0.08); border-radius: 16px; padding: 20px 24px; }
+    .statIcon { margin-bottom: 8px; color: var(--accent); }
+    .statValue { font-size: 28px; font-weight: 800; color: var(--accent); }
+    .statLabel { font-size: 12px; font-weight: 600; color: var(--dim); margin-top: 2px; }
+    .tabBar { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+    .tab { padding: 6px 18px; border-radius: 20px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; border: none; color: var(--text); background: rgba(var(--ink-rgb),0.06); display: flex; align-items: center; gap: 6px; }
+    .tab.active { background: var(--accent); color: #fff; }
+    .viewBtn { padding: 5px 14px; border-radius: 16px; font-size: 12px; font-weight: 600; font-family: inherit; cursor: pointer; border: 1px solid rgba(var(--ink-rgb),0.12); color: var(--dim); background: transparent; display: inline-flex; align-items: center; gap: 5px; }
+    .viewBtn.active { background: rgba(var(--ink-rgb),0.1); color: var(--text); border-color: rgba(var(--ink-rgb),0.25); }
+    .techAvatar { width: 42px; height: 42px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; flex-shrink: 0; color: #fff; }
+    .csvBtn { margin-left: auto; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; font-family: inherit; cursor: pointer; border: 1px solid rgba(var(--ink-rgb),0.15); color: var(--dim); background: rgba(var(--ink-rgb),0.05); display: inline-flex; align-items: center; gap: 5px; }
+    .csvBtn:hover { background: rgba(var(--ink-rgb),0.1); color: var(--text); }
+    .filterBar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+    .filterInput { flex: 1; padding: 8px 12px; border-radius: 10px; font-size: 13px; font-family: inherit; background: rgba(var(--ink-rgb),0.05); border: 1px solid rgba(var(--ink-rgb),0.1); color: var(--text); outline: none; }
+    .filterInput::placeholder { color: var(--faint); }
+    .filterInput[type="date"] { color-scheme: var(--date-scheme); }
+    .periodBtns { display: flex; gap: 4px; }
+    .periodBtn { padding: 5px 12px; border-radius: 16px; font-size: 11px; font-weight: 600; font-family: inherit; cursor: pointer; border: 1px solid rgba(var(--ink-rgb),0.12); color: var(--dim); background: transparent; }
+    .periodBtn.active { background: rgba(var(--accent-rgb),0.18); border-color: rgba(var(--accent-rgb),0.4); color: var(--accent); }
+    .ticketCard { background: rgba(var(--ink-rgb),0.04); border: 1px solid rgba(var(--ink-rgb),0.08); border-radius: 16px; padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .ticketCard.collision { border-color: rgba(239,68,68,0.35); }
+    .ticketLeft { display: flex; align-items: center; gap: 16px; }
+    .ticketIcon { width: 42px; height: 42px; border-radius: 12px; background: rgba(var(--ink-rgb),0.06); display: flex; align-items: center; justify-content: center; color: var(--accent); }
+    .ticketIcon.col { background: rgba(239,68,68,0.15); color: #ef4444; }
+    .ticketName { font-size: 14px; font-weight: 600; }
+    .ticketMeta { font-size: 12px; color: var(--dim); margin-top: 2px; }
+    .chips { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .chip { padding: 5px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; background: rgba(var(--ink-rgb),0.1); color: var(--text); }
+    .chip.primary { background: var(--accent); color: #fff; }
+    .chip-time { font-size: 10px; opacity: 0.65; margin-left: 3px; font-weight: 400; }
+    .histCard { background: rgba(var(--ink-rgb),0.03); border: 1px solid rgba(var(--ink-rgb),0.07); border-radius: 12px; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
+    .histLeft { display: flex; align-items: center; gap: 12px; color: #ef4444; }
+    .histTicket { font-size: 13px; font-weight: 600; }
+    .histTime { font-size: 11px; color: var(--faint); margin-top: 2px; }
+    .histChip { padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; background: rgba(var(--ink-rgb),0.08); color: var(--dim); }
+    .histChip.first { background: rgba(var(--accent-rgb),0.2); color: var(--accent); }
+    .empty { text-align: center; padding: 80px 0; background: rgba(var(--ink-rgb),0.02); border: 1px dashed rgba(var(--ink-rgb),0.1); border-radius: 20px; }
+    .emptyIcon { margin-bottom: 12px; color: #22c55e; display: flex; justify-content: center; }
+    .emptyText { font-size: 15px; color: var(--dim); }
+    .emptySub { font-size: 12px; color: var(--faint); margin-top: 4px; }
+    /* Config tab */
+    .configSection { background: rgba(var(--ink-rgb),0.03); border: 1px solid rgba(var(--ink-rgb),0.07); border-radius: 16px; padding: 24px; margin-bottom: 16px; }
+    .configTitle { font-size: 14px; font-weight: 800; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+    .configTitle svg { color: var(--accent); }
+    .configSub { font-size: 12px; color: var(--dim); margin-bottom: 16px; font-weight: 300; }
+    .configInput { width: 100%; padding: 10px 14px; border-radius: 10px; font-size: 13px; font-family: inherit; background: rgba(var(--ink-rgb),0.06); border: 1px solid rgba(var(--ink-rgb),0.12); color: var(--text); outline: none; }
+    .configInput::placeholder { color: var(--faint); }
+    .configBtns { display: flex; gap: 8px; margin-top: 10px; }
+    .configBtn { padding: 8px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; border: none; display: inline-flex; align-items: center; gap: 6px; }
+    .configBtn.primary { background: var(--accent); color: #fff; }
+    .configBtn.primary:hover { background: #2f56c9; }
+    .configBtn.secondary { background: rgba(var(--ink-rgb),0.08); color: var(--dim); border: 1px solid rgba(var(--ink-rgb),0.12); }
+    .configStatus { font-size: 12px; margin-top: 8px; min-height: 18px; }
+    .roster-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 4px; }
+    .roster-table th { text-align: left; font-size: 10px; font-weight: 700; color: var(--dim); padding: 4px 8px; border-bottom: 1px solid var(--border); }
+    .roster-table td { padding: 6px 8px; border-bottom: 1px solid rgba(var(--ink-rgb),0.05); }
+    .roster-table tr:last-child td { border-bottom: none; }
+    .roster-badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 10px; }
+    .roster-badge.active { background: rgba(34,197,94,0.15); color: #22c55e; }
+    .roster-badge.inactive { background: rgba(107,114,128,0.15); color: var(--faint); }
+    .configStatus.ok { color: #22c55e; }
+    .configStatus.err { color: #ef4444; }
+    .toggle { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle .slider { position: absolute; cursor: pointer; inset: 0; background: rgba(var(--ink-rgb),0.15); transition: .3s; border-radius: 22px; }
+    .toggle .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background: #fff; transition: .3s; border-radius: 50%; }
+    .toggle input:checked + .slider { background: var(--accent); }
+    .toggle input:checked + .slider:before { transform: translateX(18px); }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .anlSection { background:rgba(var(--ink-rgb),0.03);border:1px solid rgba(var(--ink-rgb),0.07);border-radius:16px;padding:24px;margin-bottom:16px; }
+    .anlTitle { font-size:14px;font-weight:800;margin-bottom:16px;display:flex;align-items:center;gap:8px; }
+    .anlTitle svg { color: var(--accent); }
+    .barRow { display:flex;align-items:center;gap:10px;margin-bottom:8px; }
+    .barLabel { width:140px;font-size:12px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0; }
+    .barTrack { flex:1;height:10px;background:rgba(var(--ink-rgb),0.06);border-radius:6px;overflow:hidden; }
+    .barFill { height:100%;background:var(--grad-chart);border-radius:6px;transition:width .5s; }
+    .barFill.blue { background:linear-gradient(90deg,#3867E9,#2952cc); }
+    .barFill.purple { background:linear-gradient(90deg,#8C52FF,#6d3fd1); }
+    .barCount { width:28px;text-align:right;font-size:11px;color:var(--dim);flex-shrink:0; }
+    .hourGrid { display:grid;grid-template-columns:repeat(24,1fr);gap:3px;align-items:end;height:64px; }
+    .hourBar { background:rgba(var(--cyan-rgb),0.3);border-radius:2px 2px 0 0;min-height:2px;transition:height .5s; }
+    .hourBar:hover { background:rgba(var(--cyan-rgb),0.7); }
+    .hourLabels { display:grid;grid-template-columns:repeat(24,1fr);gap:3px;margin-top:4px; }
+    .hourLbl { font-size:8px;color:var(--faint);text-align:center; }
+    .ticketLink { color: inherit; text-decoration: none; border-bottom: 1px dashed rgba(var(--ink-rgb),0.3); }
+    .ticketLink:hover { border-bottom-color: var(--cyan); color: var(--cyan); }
+    .chipLink { color: inherit; text-decoration: none; }
+    .chipLink:hover { opacity: 0.8; }
+    #apiError { display:none; background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.3); border-radius: 10px; padding: 10px 16px; margin-bottom: 16px; font-size: 12px; color: #f87171; }
+    .dayGrid { display:grid;grid-template-columns:repeat(30,1fr);gap:3px;align-items:end;height:64px; }
+    .dayBar { background:rgba(var(--accent-rgb),0.3);border-radius:2px 2px 0 0;min-height:2px;transition:height .5s;cursor:default; }
+    .dayBar:hover { background:rgba(var(--accent-rgb),0.7); }
+    .dayLabels { display:grid;grid-template-columns:repeat(30,1fr);gap:3px;margin-top:4px; }
+    .dayLbl { font-size:7px;color:var(--faint);text-align:center;overflow:hidden; }
+    .footer { text-align: center; padding: 18px 20px; font-size: 11px; color: var(--faint); border-top: 1px solid rgba(var(--ink-rgb),0.06); }
+    .footer b { color: var(--accent); font-weight: 800; }
   </style>
 </head>
 <body>
 
 <div id="loginScreen">
-  <div class="themeSeg" id="themeSegLogin">
+  <div class="themeSeg" id="themeSegLogin" style="position:absolute;top:20px;right:20px">
     <button type="button" data-theme-val="auto">Auto</button>
-    <button type="button" data-theme-val="light"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2m-7.07-14.07 1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2m-4.93-7.07-1.41 1.41M6.34 17.66l-1.41 1.41"/></svg></button>
-    <button type="button" data-theme-val="dark"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/></svg></button>
+    <button type="button" data-theme-val="light"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></button>
+    <button type="button" data-theme-val="dark"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/></svg></button>
   </div>
   <div class="loginBox">
-    <div class="loginLogo"><img src="netsus-logo.png" alt="Netsus"></div>
+    <div class="loginIcon"><img src="icon/128.png" style="width:52px;height:52px;border-radius:14px"></div>
     <div class="loginTitle">Panel de Administración</div>
-    <div class="loginSub">Autotask CoView</div>
+    <div class="loginSub">Autotask CoView · Netsus</div>
     <input id="pwdInput" class="loginInput" type="password" placeholder="Contraseña">
-    <div id="loginError" class="loginError">Contraseña incorrecta</div>
+    <div id="loginError" class="loginError" style="display:none">Contraseña incorrecta</div>
     <button class="loginBtn" id="loginBtn">Ingresar</button>
   </div>
 </div>
@@ -198,40 +181,49 @@
 <div id="panel">
   <div class="header">
     <div class="headerInner">
-      <div class="logoName">CoView Admin</div>
+      <div class="logo">
+        <img src="netsus-logo.png" style="height:24px;opacity:0.95">
+        <div style="width:1px;height:28px;background:rgba(var(--ink-rgb),0.12);margin:0 4px"></div>
+        <div>
+          <div class="logoName">Autotask CoView</div>
+          <div class="logoSub">Panel de control</div>
+        </div>
+      </div>
       <div class="headerRight">
         <div class="liveIndicator">
           <div class="dot"></div>
-          <span id="lastUpdate">--:--</span>
+          <span>En vivo · <span id="lastUpdate">--:--</span></span>
           <span id="countdown">10s</span>
         </div>
         <div class="themeSeg" id="themeSeg">
           <button type="button" data-theme-val="auto">Auto</button>
-          <button type="button" data-theme-val="light"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2m-7.07-14.07 1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2m-4.93-7.07-1.41 1.41M6.34 17.66l-1.41 1.41"/></svg></button>
-          <button type="button" data-theme-val="dark"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/></svg></button>
+          <button type="button" data-theme-val="light"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></button>
+          <button type="button" data-theme-val="dark"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/></svg></button>
         </div>
         <button id="logoutBtn">Cerrar sesión</button>
       </div>
     </div>
   </div>
   <div class="content">
-    <div id="apiError">⚠ Sin conexión con la API — <span id="apiErrorTime"></span></div>
+    <div id="apiError">⚠️ Sin conexión con la API — <span id="apiErrorTime"></span></div>
     <div class="stats">
-      <div class="stat"><div class="statValue" id="statTickets">0</div><div class="statLabel">Tickets activos</div></div>
-      <div class="stat"><div class="statValue" id="statUsers">0</div><div class="statLabel">Técnicos ocupados</div></div>
-      <div class="stat"><div class="statValue red" id="statHistory">0</div><div class="statLabel">Colisiones hoy</div></div>
+      <div class="stat"><div class="statIcon"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg></div><div class="statValue" id="statTickets">0</div><div class="statLabel">Tickets activos</div></div>
+      <div class="stat"><div class="statIcon"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="statValue" id="statUsers">0</div><div class="statLabel">Técnicos ocupados</div></div>
+      <div class="stat"><div class="statIcon" style="color:#ef4444"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m10.29 3.86-8.18 14.14A2 2 0 0 0 3.83 21h16.34a2 2 0 0 0 1.72-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></div><div class="statValue" id="statHistory" style="color:#ef4444">0</div><div class="statLabel">Colisiones hoy</div></div>
     </div>
     <div class="tabBar">
-      <button class="tab active" id="tabLive">En vivo</button>
-      <button class="tab" id="tabHistory">Historial</button>
-      <button class="tab" id="tabAnalytics">Análisis</button>
-      <button class="tab" id="tabResources">Recursos</button>
-      <button class="tab" id="tabConfig">Config</button>
-      <button class="csvBtn" id="exportCsvBtn" style="display:none"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3m-4 8 4 4 4-4M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg> CSV</button>
+      <button class="tab active" id="tabLive"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="12" cy="12" r="8"/></svg> En vivo</button>
+      <button class="tab" id="tabHistory"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg> Historial</button>
+      <button class="tab" id="tabAnalytics"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M7 16h8"/><path d="M7 11h12"/><path d="M7 6h3"/></svg> Análisis</button>
+      <button class="tab" id="tabResources"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Recursos</button>
+      <button class="tab" id="tabConfig"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg> Config</button>
+      <button class="csvBtn" id="exportCsvBtn" style="display:none"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m8 11 4 4 4-4"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg> Exportar CSV</button>
     </div>
     <div id="filterBar" class="filterBar" style="display:none">
-      <input id="historySearch" class="filterInput" type="text" placeholder="Filtrar por técnico o ticket..." style="flex:1">
-      <select id="techFilter" class="filterInput" style="max-width:150px"><option value="">Todos los técnicos</option></select>
+      <input id="historySearch" class="filterInput" type="text" placeholder="Filtrar por técnico o ticket...">
+      <select id="techFilter" class="filterInput" style="max-width:160px">
+        <option value="">Todos los técnicos</option>
+      </select>
       <div class="periodBtns">
         <button class="periodBtn active" data-period="all">Todo</button>
         <button class="periodBtn" data-period="week">Semana</button>
@@ -239,102 +231,100 @@
         <button class="periodBtn" data-period="custom">Rango</button>
       </div>
       <div id="dateRangeRow" style="display:none;gap:6px;align-items:center">
-        <input id="dateFrom" type="date" class="filterInput" style="width:118px">
-        <span style="color:var(--faint)">→</span>
-        <input id="dateTo" type="date" class="filterInput" style="width:118px">
+        <input id="dateFrom" type="date" class="filterInput" style="width:130px;padding:5px 8px">
+        <span style="color:var(--faint);font-size:12px">→</span>
+        <input id="dateTo" type="date" class="filterInput" style="width:130px;padding:5px 8px">
       </div>
-      <button class="csvBtn" id="clearHistoryBtn" style="color:var(--red);border-color:rgba(220,38,38,.3)"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Borrar</button>
+      <button class="csvBtn" id="clearHistoryBtn" style="color:#ef4444;border-color:rgba(239,68,68,0.3);margin-left:auto"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Borrar</button>
     </div>
-    <div id="liveViewToggle">
-      <button class="viewBtn active" id="viewByTicket">Por ticket</button>
-      <button class="viewBtn" id="viewByTech">Por técnico</button>
+    <div id="liveViewToggle" style="display:flex;gap:6px;margin-bottom:14px">
+      <button class="viewBtn active" id="viewByTicket"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/></svg> Por ticket</button>
+      <button class="viewBtn" id="viewByTech"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Por técnico</button>
     </div>
     <div id="liveTab"></div>
     <div id="historyTab" style="display:none"></div>
     <div id="analyticsTab" style="display:none"></div>
-
     <div id="resourcesTab" style="display:none">
       <div class="configSection">
-        <div class="configTitle">Roster de técnicos</div>
-        <div class="configSub">Trae los técnicos activos desde Autotask y los guarda en Supabase.</div>
+        <div class="configTitle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Roster de técnicos</div>
+        <div class="configSub">Trae los técnicos activos desde Autotask y los guarda en Supabase. Solo los técnicos en este roster pueden quedar registrados en colisiones, notificaciones y feedback — así ningún nombre inventado o externo se cuela en el historial.</div>
         <div class="configBtns">
           <button class="configBtn primary" id="syncResourcesBtn">Sincronizar desde Autotask</button>
-          <button class="configBtn secondary" id="diagResourcesBtn">Diagnóstico API</button>
+          <button class="configBtn" id="diagResourcesBtn">Diagnóstico API</button>
         </div>
         <div class="configStatus" id="syncResourcesStatus"></div>
-        <pre id="diagResourcesOutput" style="display:none;margin-top:8px;font-size:10px;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:8px;overflow-x:auto;white-space:pre-wrap;color:var(--dim)"></pre>
+        <pre id="diagResourcesOutput" style="display:none;margin-top:8px;font-size:10px;background:rgba(0,0,0,0.3);border-radius:6px;padding:10px;overflow-x:auto;white-space:pre-wrap;color:var(--dim)"></pre>
       </div>
       <div class="configSection">
-        <div class="configTitle">Técnicos activos ahora</div>
-        <div class="configSub">Presencia activa. Se actualiza cada 10 s.</div>
-        <div id="activeTechsAdmin" style="min-height:20px"></div>
+        <div class="configTitle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="3"/><path d="M14 8h2"/><path d="M14 12h4"/><path d="M14 16h4"/><path d="M2 14s0-6 6-6"/><rect width="14" height="14" x="8" y="8" rx="2"/></svg> Técnicos activos ahora</div>
+        <div class="configSub">Técnicos con presencia activa en Autotask en este momento. Se actualiza cada 10 s.</div>
+        <div id="activeTechsAdmin" style="min-height:32px"></div>
       </div>
       <div class="configSection">
-        <div class="configTitle">Roster sincronizado</div>
-        <div class="configSub">Técnicos registrados en Supabase.</div>
-        <div id="rosterList" style="margin-top:6px"></div>
+        <div class="configTitle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Roster sincronizado</div>
+        <div class="configSub">Técnicos registrados en Supabase tras la última sincronización desde Autotask.</div>
+        <div id="rosterList" style="margin-top:8px"></div>
       </div>
     </div>
-
     <div id="configTab" style="display:none">
       <div class="configSection">
-        <div class="configTitle">Notificaciones Teams</div>
-        <div class="configSub">Incoming Webhook del canal de Teams para alertas de colisiones.</div>
+        <div class="configTitle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg> Notificaciones Teams</div>
+        <div class="configSub">Pega aquí el Incoming Webhook de tu canal de Teams para recibir alertas automáticas cuando se detecte una colisión.</div>
         <input id="webhookInput" class="configInput" type="url" placeholder="https://outlook.office.com/webhook/...">
         <div class="configBtns">
-          <button class="configBtn primary" id="saveWebhookBtn">Guardar</button>
+          <button class="configBtn primary" id="saveWebhookBtn">Guardar webhook</button>
           <button class="configBtn secondary" id="testWebhookBtn">Probar</button>
           <button class="configBtn secondary" id="clearWebhookBtn">Borrar</button>
         </div>
         <div class="configStatus" id="webhookStatus"></div>
       </div>
       <div class="configSection">
-        <div class="configTitle">Tiempo de presencia activa</div>
-        <div class="configSub">Segundos sin señal para considerar a un técnico presente (15–300, recomendado: 40).</div>
-        <div style="display:flex;align-items:center;gap:7px">
-          <input id="ttlInput" class="configInput" type="number" min="15" max="300" step="5" placeholder="40" style="width:72px">
-          <span style="color:var(--faint);font-size:11px">s</span>
-          <button class="configBtn primary" id="saveTtlBtn">Guardar</button>
+        <div class="configTitle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg> Tiempo de presencia activa</div>
+        <div class="configSub">Segundos que el servidor considera a un técnico "presente" sin recibir señal. Mínimo 15s, máximo 300s. Recomendado: 40s.</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <input id="ttlInput" class="configInput" type="number" min="15" max="300" step="5" placeholder="40" style="max-width:100px">
+          <span style="font-size:12px;color:var(--faint)">segundos</span>
+          <button class="configBtn primary" id="saveTtlBtn" style="width:auto">Guardar</button>
         </div>
         <div class="configStatus" id="ttlStatus"></div>
       </div>
       <div class="configSection">
-        <div class="configTitle">Colas vigiladas · n1</div>
-        <div class="configSub">IDs de colas de Autotask separados por comas. Vacío = sin notificaciones.</div>
-        <input id="watchQueuesInput" class="configInput" type="text" placeholder="5, 29683371, 29683362">
+        <div class="configTitle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg> Colas vigiladas · n1</div>
+        <div class="configSub">IDs de colas de Autotask separados por comas. Se notificará a todos los técnicos activos cuando llegue un ticket nuevo a alguna de estas colas. Deja vacío para no generar notificaciones de cola.</div>
+        <input id="watchQueuesInput" class="configInput" type="text" placeholder="Ej: 5, 29683371, 29683362">
         <div class="configBtns">
-          <button class="configBtn primary" id="saveWatchQueuesBtn">Guardar</button>
+          <button class="configBtn primary" id="saveWatchQueuesBtn">Guardar colas</button>
         </div>
         <div class="configStatus" id="watchQueuesStatus"></div>
       </div>
       <div class="configSection">
-        <div class="configTitle">URL base de Autotask</div>
-        <div class="configSub">Dominio de tu instancia (ej: <code>https://ww12.autotask.net</code>). Necesario para vínculos en notificaciones.</div>
+        <div class="configTitle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/></svg> URL base de Autotask</div>
+        <div class="configSub">Dominio de tu instancia de Autotask (ej: <code>https://ww12.autotask.net</code>). Se usa para generar los vínculos de ticket en las notificaciones. Sin esto, los tickets no son clicables.</div>
         <input id="autotaskUiBaseInput" class="configInput" type="url" placeholder="https://ww12.autotask.net">
         <div class="configBtns">
-          <button class="configBtn primary" id="saveUiBaseBtn">Guardar</button>
+          <button class="configBtn primary" id="saveUiBaseBtn">Guardar URL</button>
         </div>
         <div class="configStatus" id="uiBaseStatus"></div>
       </div>
       <div class="configSection">
-        <div class="configTitle">Horario laboral</div>
-        <div class="configSub">Las notificaciones solo se envían dentro de este horario (fines de semana excluidos).</div>
-        <label style="display:flex;align-items:center;gap:7px;cursor:pointer;width:fit-content;margin-bottom:10px">
+        <div class="configTitle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/><path d="m16.5 7.5-1 1"/></svg> Horario laboral</div>
+        <div class="configSub">Las notificaciones a Teams solo se envían dentro de este horario. Los fines de semana quedan excluidos automáticamente.</div>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;width:fit-content;margin-bottom:14px">
           <span class="toggle"><input type="checkbox" id="workHoursEnabled"><span class="slider"></span></span>
-          <span>Activar restricción de horario</span>
+          <span style="font-size:13px">Activar restricción de horario</span>
         </label>
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <div style="display:flex;align-items:center;gap:5px">
-            <span style="color:var(--dim)">Desde</span>
-            <input id="workStart" class="configInput" type="number" min="0" max="23" placeholder="8" style="width:56px">
-            <span style="color:var(--faint);font-size:11px">h</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:12px;color:var(--dim)">Desde</span>
+            <input id="workStart" class="configInput" type="number" min="0" max="23" placeholder="8" style="max-width:70px">
+            <span style="font-size:12px;color:var(--faint)">h</span>
           </div>
-          <div style="display:flex;align-items:center;gap:5px">
-            <span style="color:var(--dim)">Hasta</span>
-            <input id="workEnd" class="configInput" type="number" min="0" max="23" placeholder="18" style="width:56px">
-            <span style="color:var(--faint);font-size:11px">h</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:12px;color:var(--dim)">Hasta</span>
+            <input id="workEnd" class="configInput" type="number" min="0" max="23" placeholder="18" style="max-width:70px">
+            <span style="font-size:12px;color:var(--faint)">h</span>
           </div>
-          <select id="workTz" class="configInput" style="width:190px">
+          <select id="workTz" class="configInput" style="max-width:220px">
             <option value="America/Santiago">América/Santiago</option>
             <option value="America/Lima">América/Lima</option>
             <option value="America/Bogota">América/Bogotá</option>
@@ -348,23 +338,23 @@
           </select>
         </div>
         <div class="configBtns">
-          <button class="configBtn primary" id="saveWorkHoursBtn">Guardar</button>
+          <button class="configBtn primary" id="saveWorkHoursBtn">Guardar horario</button>
         </div>
         <div class="configStatus" id="workHoursStatus"></div>
       </div>
       <div class="configSection">
-        <div class="configTitle">Nota automática en Autotask</div>
-        <div class="configSub">Crea una nota en el ticket al detectar o resolver una colisión. <strong>Valida tipo/visibilidad contra tu instancia antes de activar.</strong></div>
-        <label style="display:flex;align-items:center;gap:7px;cursor:pointer;width:fit-content">
+        <div class="configTitle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 8V5c0-1.1.9-2 2-2s2 .9 2 2v3"/><rect width="18" height="12" x="3" y="8" rx="2"/></svg> Nota automática en Autotask</div>
+        <div class="configSub">Cuando se detecta o resuelve una colisión, crea una nota en el ticket con los detalles del evento. <strong>Valida los valores de tipo/visibilidad de nota contra tu instancia de Autotask antes de activar esto en producción</strong> — por defecto la nota queda como interna, no visible al cliente.</div>
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;width:fit-content">
           <span class="toggle"><input type="checkbox" id="autotaskNotesInput"><span class="slider"></span></span>
-          <span>Activar nota automática</span>
+          <span style="font-size:13px">Activar nota automática</span>
         </label>
         <div class="configStatus" id="autotaskNotesStatus"></div>
       </div>
       <div class="configSection">
-        <div class="configTitle">Cambiar contraseña de admin</div>
-        <div class="configSub">Si ADMIN_PASSWORD está en Vercel, este cambio no tiene efecto hasta borrar esa variable.</div>
-        <input id="currentPwdInput" class="configInput" type="password" placeholder="Contraseña actual" style="margin-bottom:5px">
+        <div class="configTitle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Cambiar contraseña de admin</div>
+        <div class="configSub">Cambia la contraseña que protege ambos paneles de administración. Si la variable de entorno ADMIN_PASSWORD está seteada en Vercel, este cambio no tendrá efecto hasta que se borre esa variable.</div>
+        <input id="currentPwdInput" class="configInput" type="password" placeholder="Contraseña actual" style="margin-bottom:8px">
         <input id="newPwdInput" class="configInput" type="password" placeholder="Contraseña nueva">
         <div class="configBtns">
           <button class="configBtn primary" id="changePwdBtn">Cambiar contraseña</button>
@@ -372,20 +362,28 @@
         <div class="configStatus" id="changePwdStatus"></div>
       </div>
       <div class="configSection">
-        <div class="configTitle">Resumen diario a Teams</div>
-        <div class="configSub">Envía un resumen de colisiones al canal configurado. También disponible vía endpoint para n8n.</div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">
-          <button class="configBtn secondary" id="sendYesterdayBtn">Resumen de ayer</button>
-          <button class="configBtn secondary" id="sendTodayBtn">Resumen de hoy</button>
+        <div class="configTitle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M7 16h8"/><path d="M7 11h12"/><path d="M7 6h3"/></svg> Resumen diario a Teams</div>
+        <div class="configSub">Envía un resumen de las colisiones de ayer (o de hoy) al canal de Teams configurado arriba. También puedes llamar este endpoint desde n8n con un trigger programado a las 9:00 AM.</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
+          <button class="configBtn secondary" id="sendYesterdayBtn">Enviar resumen de ayer</button>
+          <button class="configBtn secondary" id="sendTodayBtn">Enviar resumen de hoy</button>
         </div>
-        <code style="font-size:10px;color:var(--faint)">GET /api/presence/daily-summary?send=true&amp;period=yesterday</code>
+        <div class="configSub" style="margin-top:10px;font-family:monospace;background:rgba(var(--ink-rgb),0.04);border-radius:6px;padding:8px;font-size:11px;word-break:break-all">
+          GET /api/presence/daily-summary?send=true&amp;period=yesterday
+        </div>
         <div class="configStatus" id="summaryStatus"></div>
       </div>
-      <div class="configSection" style="padding-bottom:0">
-        <span style="font-size:11px;color:var(--faint)">v1.4.3 · <a href="https://netsus-two.vercel.app" style="color:var(--accent)">netsus-two.vercel.app</a></span>
+      <div class="configSection">
+        <div class="configTitle">ℹ️ Información</div>
+        <div class="configSub">Versión 1.0.0 · Autotask CoView · Netsus</div>
+        <div style="font-size:12px;color:var(--dim);line-height:1.8">
+          API: <a href="https://netsus-two.vercel.app" style="color:var(--accent)" target="_blank">netsus-two.vercel.app</a><br>
+          Política de privacidad: <a href="https://netsus-two.vercel.app/privacy" style="color:var(--accent)" target="_blank">ver política</a>
+        </div>
       </div>
     </div>
   </div>
+  <div class="footer"><b>netsus</b> · Innovación Tecnológica</div>
 </div>
 
 <script src="admin.js"></script>

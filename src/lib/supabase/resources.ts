@@ -5,11 +5,14 @@ export async function syncResourcesFromAutotask(): Promise<{ synced: number; dea
   const active = await activeResources();
   if (!active.length) return { synced: 0, deactivated: 0 };
 
+  // `role` tiene un CHECK constraint en la tabla real (resources_role_check) que el
+  // title libre de Autotask viola — se fija en 'tech', el único valor que usan todas
+  // las filas existentes. La columna no se lee en ninguna parte, solo se escribe.
   const rows = active.map((r) => ({
     autotask_resource_id: r.id,
     name: `${r.firstName} ${r.lastName}`.trim(),
-    email: r.email ?? null,
-    role: r.title ?? null,
+    email: r.email?.trim() || null,
+    role: 'tech',
     active: true,
   }));
 
