@@ -1,8 +1,3 @@
-// Roster de técnicos válidos (tabla `resources` en Supabase), sincronizado desde
-// Autotask. Sirve para verificar que un nombre que llega desde la extensión (colisión,
-// notificación, feedback) corresponde a un técnico real antes de guardarlo — así alguien
-// externo o con un nombre inventado no puede quedar registrado como si fuera del equipo.
-
 import { supabase } from '@/lib/supabase/client';
 import { activeResources } from '@/lib/autotask';
 
@@ -13,38 +8,47 @@ export async function syncResourcesFromAutotask(): Promise<{ synced: number; dea
   const rows = active.map((r) => ({
     autotask_resource_id: r.id,
     name: `${r.firstName} ${r.lastName}`.trim(),
-    email: r.email,
-    role: r.title,
+    email: r.email ?? null,
+    role: r.title ?? null,
     active: true,
   }));
 
-  const { error: upsertError } = await supabase
+  // Fetch existing rows to split into insert vs update
+  const { data: existing, error: fetchErr } = await supabase
     .from('resources')
-    .upsert(rows, { onConflict: 'autotask_resource_id' });
-  if (upsertError) throw upsertError;
+    .select('autotask_resource_id, active');
+  if (fetchErr) throw fetchErr;
 
-  // Cualquier técnico que ya no viene en la lista de activos de Autotask se marca
-  // inactivo (no se borra — conserva el historial que ya tenga asociado).
-  const activeIds = active.map((r) => r.id);
-  let deactivated = 0;
-  if (activeIds.length > 0) {
-    const { data: toDeactivate } = await supabase
+  const existingIds = new Set((existing ?? []).map((r) => r.autotask_resource_id as number));
+  const activeAtIds = new Set(active.map((r) => r.id));
+
+  const toInsert = rows.filter((r) => !existingIds.has(r.autotask_resource_id));
+  const toUpdate = rows.filter((r) => existingIds.has(r.autotask_resource_id));
+
+  if (toInsert.length) {
+    const { error } = await supabase.from('resources').insert(toInsert);
+    if (error) throw error;
+  }
+
+  for (const row of toUpdate) {
+    await supabase
       .from('resources')
-      .update({ active: false })
-      .eq('active', true)
-      .not('autotask_resource_id', 'in', `(${activeIds.join(',')})`)
-      .select('id');
-    deactivated = toDeactivate?.length ?? 0;
+      .update({ name: row.name, email: row.email, role: row.role, active: true })
+      .eq('autotask_resource_id', row.autotask_resource_id);
+  }
+
+  // Deactivate resources no longer in Autotask
+  let deactivated = 0;
+  for (const ex of existing ?? []) {
+    if (ex.autotask_resource_id && !activeAtIds.has(ex.autotask_resource_id) && ex.active) {
+      await supabase.from('resources').update({ active: false }).eq('autotask_resource_id', ex.autotask_resource_id);
+      deactivated++;
+    }
   }
 
   return { synced: rows.length, deactivated };
 }
 
-// Resuelve un nombre libre (detectado en Autotask o escrito a mano) al id (uuid) de su
-// fila en `resources`. null si no coincide con ningún técnico conocido y activo — quien
-// llama decide si eso bloquea el registro (feedback) o solo omite la fila (colisión/
-// notificación). No confundir con resolveResourceIdByName de autotask.ts, que resuelve
-// contra la API de Autotask y devuelve el resourceID numérico, no este uuid.
 export async function lookupResourceId(name: string): Promise<string | null> {
   const clean = name.trim();
   if (!clean) return null;

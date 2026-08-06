@@ -21,7 +21,9 @@
 
     /* LOGIN */
     #loginScreen { min-height:100vh; display:flex; align-items:center; justify-content:center; position:relative; }
-    .loginBox { width:260px; }
+    .loginBox { width:280px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:28px 24px; }
+    .loginLogo { display:flex; align-items:center; gap:10px; margin-bottom:20px; }
+    .loginLogo img { height:22px; opacity:.85; }
     .loginTitle { font-size:14px; font-weight:600; margin-bottom:2px; }
     .loginSub { font-size:11px; color:var(--dim); margin-bottom:16px; }
     .loginInput { width:100%; padding:7px 9px; border:1px solid var(--border); border-radius:5px; font-size:13px; font-family:inherit; background:var(--bg); color:var(--text); outline:none; margin-bottom:7px; }
@@ -184,8 +186,9 @@
     <button type="button" data-theme-val="dark"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/></svg></button>
   </div>
   <div class="loginBox">
+    <div class="loginLogo"><img src="netsus-logo.png" alt="Netsus"></div>
     <div class="loginTitle">Panel de Administración</div>
-    <div class="loginSub">Autotask CoView · Netsus</div>
+    <div class="loginSub">Autotask CoView</div>
     <input id="pwdInput" class="loginInput" type="password" placeholder="Contraseña">
     <div id="loginError" class="loginError">Contraseña incorrecta</div>
     <button class="loginBtn" id="loginBtn">Ingresar</button>
