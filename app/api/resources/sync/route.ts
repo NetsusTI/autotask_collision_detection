@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     const result = await syncResourcesFromAutotask();
     return NextResponse.json({ ran: true, ...result });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+    const msg = e instanceof Error ? e.message : JSON.stringify(e);
     return NextResponse.json({ ran: false, error: 'supabase error', detail: msg }, { status: 502 });
   }
 }
