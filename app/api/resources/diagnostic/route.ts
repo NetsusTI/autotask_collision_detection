@@ -53,10 +53,50 @@ export async function GET(request: NextRequest) {
     noFilterCount = Array.isArray(d2?.items) ? d2.items.length : 0;
   } catch { /* noop */ }
 
+  // 4. Metadata de campos de la entidad Resources — para encontrar el nombre real
+  // del campo de departamento/rol sin adivinar (adivinar un IncludeFields inválido
+  // tira 500 en la query real). Se filtra a los que suenan relevantes.
+  let fieldNames: string[] = [];
+  let relevantFields: unknown[] = [];
+  try {
+    const res3 = await fetch(`${BASE}/Resources/entityInformation/fields`, { headers: headers() });
+    if (res3.ok) {
+      const d3 = await res3.json();
+      const fields = Array.isArray(d3?.fields) ? d3.fields : [];
+      fieldNames = fields.map((f: { name?: string }) => f.name).filter(Boolean);
+      relevantFields = fields.filter((f: { name?: string }) =>
+        /depart|role|type|title|queue|team|group/i.test(f.name ?? ''));
+    }
+  } catch { /* noop */ }
+
+  // 5. Muestra real de esos campos para gente conocida (si el metadata encontró algo).
+  let sampleWithFields: unknown[] = [];
+  const candidateFields = ['id', 'firstName', 'lastName', ...relevantFields.map((f) => (f as { name: string }).name)];
+  if (relevantFields.length) {
+    try {
+      const res4 = await fetch(`${BASE}/Resources/query`, {
+        method: 'POST',
+        headers: headers(),
+        body: JSON.stringify({
+          MaxRecords: 15,
+          IncludeFields: candidateFields,
+          Filter: [{ op: 'eq', field: 'isActive', value: true }],
+        }),
+      });
+      if (res4.ok) {
+        const d4 = await res4.json();
+        sampleWithFields = Array.isArray(d4?.items) ? d4.items : [];
+      }
+    } catch { /* noop */ }
+  }
+
   return NextResponse.json({
     configured: true,
     zone: { status: zoneRes.status ?? 0, ok: zoneRes.ok },
     resourcesQuery: { status: rawStatus, itemsFound: parsedItems.length, rawSnippet: rawBody.slice(0, 500) },
     resourcesNoFilter: { status: noFilterStatus, itemsFound: noFilterCount },
+    allFieldNames: fieldNames,
+    relevantFields: relevantFields,
+    sampleWithFields,
   });
 }
