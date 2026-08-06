@@ -7,12 +7,12 @@ import { redis } from '@/lib/ticket-lock';
 const BASE = 'https://webservices12.autotask.net/ATServicesRest/v1.0';
 
 export function autotaskConfigured(): boolean {
-  return Boolean(process.env.AUTOTASK_USER && process.env.AUTOTASK_SECRET);
+  return Boolean(process.env.AUTOTASK_USER && process.env.AUTOTASK_SECRET && process.env.AUTOTASK_INTEGRATION_CODE);
 }
 
 export function headers(): Record<string, string> {
   return {
-    ApiIntegrationCode: 'CCD-NETSUS',
+    ApiIntegrationCode: process.env.AUTOTASK_INTEGRATION_CODE ?? '',
     UserName: process.env.AUTOTASK_USER ?? '',
     Secret: process.env.AUTOTASK_SECRET ?? '',
     'Content-Type': 'application/json',
