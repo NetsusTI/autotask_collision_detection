@@ -828,8 +828,10 @@
 
   function diagResources() {
     var out = document.getElementById('diagResourcesOutput');
+    var details = document.getElementById('diagResourcesDetails');
     var status = document.getElementById('syncResourcesStatus');
-    out.style.display = '';
+    details.style.display = '';
+    details.open = true; // recién llegó un resultado nuevo, se abre para verlo de inmediato
     out.textContent = 'Consultando API de Autotask...';
     status.className = 'configStatus';
     status.style.color = 'var(--dim)';
