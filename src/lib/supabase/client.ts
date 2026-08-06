@@ -7,8 +7,15 @@ import { createClient } from '@supabase/supabase-js';
 // Redis.fromEnv(), que solo loguea una advertencia) — eso tumbaría el build entero
 // de Next.js si algún entorno (preview, build sin secrets) no tiene las env vars.
 // Con un fallback, el módulo carga igual y solo las llamadas de red fallan en runtime.
+// La página "Data API" del dashboard muestra la URL con `/rest/v1/` al final, pero
+// createClient agrega ese prefijo por su cuenta — pegarla tal cual deja las consultas
+// apuntando a /rest/v1/rest/v1/{tabla}, que PostgREST rechaza con PGRST125.
+function normalizeSupabaseUrl(raw: string): string {
+  return raw.trim().replace(/\/+$/, '').replace(/\/rest\/v1$/, '');
+}
+
 export const supabase = createClient(
-  process.env.SUPABASE_URL || 'https://placeholder.supabase.co',
+  normalizeSupabaseUrl(process.env.SUPABASE_URL || 'https://placeholder.supabase.co'),
   process.env.SUPABASE_SERVICE_ROLE_KEY || 'placeholder',
   { auth: { persistSession: false } },
 );
