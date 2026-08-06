@@ -665,7 +665,7 @@
         status.style.color = '';
         if (!data.ran) {
           status.className = 'configStatus err';
-          status.textContent = '⚠ No se ejecutó (Autotask sin credenciales o error de Supabase)';
+          status.textContent = '⚠ No se ejecutó: ' + (data.detail || data.error || 'sin credenciales o error de Supabase');
         } else {
           status.className = 'configStatus ok';
           status.textContent = '✓ Roster actualizado · ' + data.synced + ' activos' + (data.deactivated ? ', ' + data.deactivated + ' desactivados' : '');
