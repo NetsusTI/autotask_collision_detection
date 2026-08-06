@@ -61,7 +61,8 @@
     .themeSeg button { border: none; background: transparent; color: var(--dim); font-size: 11px; font-family: inherit; padding: 4px 10px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; }
     .themeSeg button.active { background: var(--accent); color: #fff; font-weight: 600; }
     .content { max-width: 900px; margin: 0 auto; padding: 40px; width: 100%; }
-    .stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 32px; }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 32px; }
+    @media (max-width: 640px) { .stats { grid-template-columns: 1fr 1fr; } }
     .stat { background: rgba(var(--ink-rgb),0.04); border: 1px solid rgba(var(--ink-rgb),0.08); border-radius: 16px; padding: 20px 24px; }
     .statIcon { margin-bottom: 8px; color: var(--accent); }
     .statValue { font-size: 28px; font-weight: 800; color: var(--accent); }
@@ -210,12 +211,14 @@
       <div class="stat"><div class="statIcon"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg></div><div class="statValue" id="statTickets">0</div><div class="statLabel">Tickets activos</div></div>
       <div class="stat"><div class="statIcon"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="statValue" id="statUsers">0</div><div class="statLabel">Técnicos ocupados</div></div>
       <div class="stat"><div class="statIcon" style="color:#ef4444"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m10.29 3.86-8.18 14.14A2 2 0 0 0 3.83 21h16.34a2 2 0 0 0 1.72-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></div><div class="statValue" id="statHistory" style="color:#ef4444">0</div><div class="statLabel">Colisiones hoy</div></div>
+      <div class="stat"><div class="statIcon" style="color:#22c55e"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m17 11 2 2 4-4"/></svg></div><div class="statValue" id="statOnline" style="color:#22c55e">0</div><div class="statLabel" id="statOnlineLabel">Técnicos disponibles</div></div>
     </div>
     <div class="tabBar">
       <button class="tab active" id="tabLive"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none"><circle cx="12" cy="12" r="8"/></svg> En vivo</button>
       <button class="tab" id="tabHistory"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg> Historial</button>
       <button class="tab" id="tabAnalytics"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M7 16h8"/><path d="M7 11h12"/><path d="M7 6h3"/></svg> Análisis</button>
       <button class="tab" id="tabResources"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Recursos</button>
+      <button class="tab" id="tabNotif"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg> Notificaciones</button>
       <button class="tab" id="tabConfig"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg> Config</button>
       <button class="csvBtn" id="exportCsvBtn" style="display:none"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m8 11 4 4 4-4"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></svg> Exportar CSV</button>
     </div>
@@ -244,7 +247,19 @@
     <div id="liveTab"></div>
     <div id="historyTab" style="display:none"></div>
     <div id="analyticsTab" style="display:none"></div>
+    <div id="notifTab" style="display:none">
+      <div class="configSection">
+        <div class="configTitle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg> Notificaciones recientes</div>
+        <div class="configSub">Tickets que entraron a las colas vigiladas (n1) y avisos de asignación/SLA/cliente enviados al equipo. El panel revisa las colas cada 10 min aunque nadie tenga la extensión abierta, así ningún ingreso queda sin verse acá.</div>
+        <div id="notifList" style="margin-top:8px"></div>
+      </div>
+    </div>
     <div id="resourcesTab" style="display:none">
+      <div class="configSection">
+        <div class="configTitle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m17 11 2 2 4-4"/></svg> Técnicos disponibles</div>
+        <div class="configSub">Roster activo con quién tiene la extensión abierta ahora mismo (últimas 2h). Distinto de "activos ahora", que solo muestra a quien está dentro de un ticket.</div>
+        <div id="onlineTechsList" style="margin-top:8px"></div>
+      </div>
       <div class="configSection">
         <div class="configTitle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Roster de técnicos</div>
         <div class="configSub">Trae los técnicos activos desde Autotask y los guarda en Supabase. Solo los técnicos en este roster pueden quedar registrados en colisiones, notificaciones y feedback — así ningún nombre inventado o externo se cuela en el historial.</div>

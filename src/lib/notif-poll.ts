@@ -39,8 +39,8 @@ export async function logCentralNotification(entry: CentralLogEntry): Promise<vo
   // Una fila por destinatario (la tabla es por-técnico). Solo se guardan los que
   // resuelven a un técnico real conocido (evita que un nombre inventado quede
   // registrado). Best-effort — si Supabase falla, no bloqueamos el resto del poll.
-  if (entry.targets?.length) {
-    try {
+  try {
+    if (entry.targets?.length) {
       const resolved = await Promise.all(
         entry.targets.map(async (resource_name) => ({ resource_name, resource_id: await lookupResourceId(resource_name) })),
       );
@@ -58,9 +58,25 @@ export async function logCentralNotification(entry: CentralLogEntry): Promise<vo
           read: false,
         }));
       if (rows.length) await supabase.from('notifications').insert(rows);
-    } catch {
-      // silencioso: no queremos que un problema de Supabase tumbe el ciclo de poll
+    } else {
+      // Sin técnicos en línea para recibirla — igual queda una fila "huérfana" para
+      // que el panel admin (Centro de Notificaciones) la vea, aunque nadie la reciba
+      // en su feed. Sin esto, un ticket que entra a la cola fuera de horario (nadie
+      // con la extensión abierta) no queda registro visible en ninguna parte.
+      await supabase.from('notifications').insert([{
+        resource_name: '(sin técnicos en línea)',
+        resource_id: null,
+        type: entry.type,
+        title: entry.title,
+        body: entry.body,
+        ticket_id: entry.ticketId ?? null,
+        ticket_number: entry.ticketNumber ?? null,
+        ticket_url: entry.ticketUrl ?? null,
+        read: false,
+      }]);
     }
+  } catch {
+    // silencioso: no queremos que un problema de Supabase tumbe el ciclo de poll
   }
 }
 
@@ -128,6 +144,12 @@ async function activeResourceIds(now: number): Promise<number[]> {
   return (members ?? []).map(Number).filter((n) => !Number.isNaN(n));
 }
 
+// IDs de recursos con la extensión activa ahora — usado por el panel admin para
+// marcar quién está "en línea" dentro del roster (distinto de "trabajando un ticket").
+export async function activeResourceIdSet(): Promise<Set<number>> {
+  return new Set(await activeResourceIds(Date.now()));
+}
+
 // Cuántos técnicos tienen la extensión activa (resolvieron nombre→resourceID) en la
 // última ventana. Aproximación de "en línea" — usada para el stat "técnicos disponibles".
 export async function activeTeamCount(): Promise<number> {
@@ -148,21 +170,26 @@ export async function drainFeed(rid: number): Promise<FeedItem[]> {
 }
 
 // Empuja un evento a varios recursos, deduplicando por dedupeKey (global) con TTL.
+// resourceIDs puede venir vacío (nadie con la extensión activa ahora mismo) — igual
+// se registra el evento (dedupe + log central) para que quede visible en el panel
+// admin; solo se salta el push a feed por-técnico cuando no hay destinatarios.
 async function pushEvent(resourceIDs: number[], item: FeedItem, seenTtlSec: number): Promise<boolean> {
-  if (!resourceIDs.length) return false;
   const seenKey = `notif:seen:${item.dedupeKey}`;
   const first = await redis.set(seenKey, '1', { ex: seenTtlSec, nx: true });
   if (first !== 'OK') return false; // ya emitido dentro de la ventana
   const payload = JSON.stringify(item);
-  await Promise.all(resourceIDs.map(async (rid) => {
-    const key = `notif:feed:${rid}`;
-    await redis.lpush(key, payload);
-    await redis.ltrim(key, 0, FEED_MAX - 1);
-    await redis.expire(key, FEED_TTL);
-  }));
+  if (resourceIDs.length) {
+    await Promise.all(resourceIDs.map(async (rid) => {
+      const key = `notif:feed:${rid}`;
+      await redis.lpush(key, payload);
+      await redis.ltrim(key, 0, FEED_MAX - 1);
+      await redis.expire(key, FEED_TTL);
+    }));
+  }
 
-  const targets = (await Promise.all(resourceIDs.map((rid) => resolveNameByResourceId(rid))))
-    .filter((n): n is string => n !== null);
+  const targets = resourceIDs.length
+    ? (await Promise.all(resourceIDs.map((rid) => resolveNameByResourceId(rid)))).filter((n): n is string => n !== null)
+    : [];
   await logCentralNotification({
     type: item.type,
     title: item.title,
@@ -221,7 +248,10 @@ export async function runPoll(force = false): Promise<{ ran: boolean; counts?: R
   const resources = await activeResourceIds(now);
 
   // n1 (entrante) + n5 (crítico) en las colas vigiladas → a todos los recursos activos.
-  if (cfg.watchQueues.length && resources.length) {
+  // Se revisa aunque no haya técnicos con la extensión abierta ahora mismo (resources
+  // vacío): pushEvent igual deja el evento en el log central para que el panel admin
+  // lo vea; solo se salta el feed por-técnico si no hay destinatarios.
+  if (cfg.watchQueues.length) {
     const qTickets = await ticketsInQueues(cfg.watchQueues);
     for (const t of qTickets) {
       const label = t.ticketNumber || `#${t.id}`;

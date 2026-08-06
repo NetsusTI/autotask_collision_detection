@@ -161,7 +161,7 @@
 
   function setTab(tab) {
     currentTab = tab;
-    ['live', 'history', 'analytics', 'resources', 'config'].forEach(function (t) {
+    ['live', 'history', 'analytics', 'resources', 'notif', 'config'].forEach(function (t) {
       var btn = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
       if (btn) btn.classList.toggle('active', t === tab);
       var el = document.getElementById(t + 'Tab');
@@ -172,7 +172,8 @@
     document.getElementById('filterBar').style.display = tab === 'history' ? 'flex' : 'none';
     if (tab === 'config') loadConfig();
     if (tab === 'analytics') loadAnalytics();
-    if (tab === 'resources') renderActiveTechsAdmin();
+    if (tab === 'resources') { renderActiveTechsAdmin(); fetchTeamOnline(); loadRoster(); }
+    if (tab === 'notif') loadNotifications();
   }
 
   function updateCountdown() {
@@ -194,10 +195,16 @@
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('panel').style.display = 'block';
     fetchData();
+    fetchTeamOnline();
     secondsLeft = REFRESH_SECS;
     countdownInterval = setInterval(updateCountdown, 1000);
     tickLiveClock();
     setInterval(tickLiveClock, 1000);
+    setInterval(fetchTeamOnline, 10000);
+    // Fuerza el chequeo de colas al abrir el panel y luego cada 10 min — así el
+    // admin ve tickets nuevos aunque ningún técnico tenga la extensión abierta.
+    triggerNotifPoll();
+    setInterval(triggerNotifPoll, 600000);
   }
 
   function showApiError(msg) {
@@ -282,6 +289,86 @@
         '<div style="font-size:11px;color:var(--faint)">' + tickets.join(', ') + '</div>' +
         '</div>';
     }).join('');
+  }
+
+  // Técnicos con la extensión abierta ahora (roster activo + estado en línea).
+  // Actualiza el stat "Técnicos disponibles" y, si el tab Recursos está abierto,
+  // la lista con punto verde/gris por persona.
+  function fetchTeamOnline() {
+    fetch(BASE_URL + '/api/team/online', { headers: adminHeaders() })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var statEl = document.getElementById('statOnline');
+        if (statEl) statEl.textContent = (data.online || 0) + '/' + (data.total || 0);
+        var listEl = document.getElementById('onlineTechsList');
+        if (!listEl) return;
+        var techs = data.techs || [];
+        if (!techs.length) {
+          listEl.innerHTML = '<div style="font-size:12px;color:var(--faint);padding:8px 0">Sin técnicos en el roster. Sincroniza desde Autotask primero.</div>';
+          return;
+        }
+        techs = techs.slice().sort(function (a, b) {
+          if (a.online !== b.online) return a.online ? -1 : 1;
+          return a.name.localeCompare(b.name);
+        });
+        listEl.innerHTML = techs.map(function (t) {
+          var dot = t.online
+            ? '<div style="width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 5px #22c55e;flex-shrink:0"></div>'
+            : '<div style="width:8px;height:8px;border-radius:50%;background:var(--faint);flex-shrink:0"></div>';
+          return '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid rgba(var(--ink-rgb),0.06)">' +
+            dot + '<div style="font-size:13px;font-weight:' + (t.online ? '600' : '400') + ';flex:1;' + (t.online ? '' : 'color:var(--faint)') + '">' + escHtml(t.name) + '</div>' +
+            '<div style="font-size:11px;color:var(--faint)">' + (t.online ? 'En línea' : 'Sin conexión') + '</div>' +
+            '</div>';
+        }).join('');
+      }).catch(function () {});
+  }
+
+  // Fuerza un ciclo del poller n1–n5 en el servidor (revisa colas vigiladas, SLA,
+  // asignaciones) aunque ningún técnico tenga la extensión abierta ahora mismo —
+  // así el panel admin no depende de que alguien esté navegando Autotask para
+  // enterarse de un ticket nuevo. Se llama al abrir el panel y luego cada 10 min.
+  function triggerNotifPoll() {
+    fetch(BASE_URL + '/api/notifications/poll', { headers: adminHeaders() })
+      .then(function () { if (currentTab === 'notif') loadNotifications(); })
+      .catch(function () {});
+  }
+
+  var NOTIF_TYPE_LABEL = {
+    n1_queue: 'Ticket en cola', n2_assign: 'Asignación', n3_client: 'Respuesta cliente',
+    n4_sla: 'SLA', n5_critical: 'Crítico', collision: 'Colisión',
+  };
+
+  function loadNotifications() {
+    var el = document.getElementById('notifList');
+    if (!el) return;
+    el.innerHTML = '<div style="font-size:11px;color:var(--faint)">Cargando...</div>';
+    fetch(BASE_URL + '/api/notifications/log?limit=40', { headers: adminHeaders() })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var events = data.events || [];
+        if (!events.length) {
+          el.innerHTML = '<div style="font-size:12px;color:var(--faint);padding:8px 0">Sin notificaciones registradas todavía.</div>';
+          return;
+        }
+        el.innerHTML = events.map(function (e) {
+          var label = NOTIF_TYPE_LABEL[e.type] || e.type;
+          var targets = (e.targets || []).filter(function (t) { return t !== '(sin técnicos en línea)'; });
+          var who = targets.length ? escHtml(targets.join(', ')) : '<span style="color:var(--faint)">sin técnicos en línea</span>';
+          var when = new Date(e.ts).toLocaleString('es-CL');
+          var ticketPart = e.ticketUrl
+            ? '<a href="' + escHtml(e.ticketUrl) + '" target="_blank" class="ticketLink">' + escHtml(e.ticketNumber || '') + '</a>'
+            : escHtml(e.ticketNumber || '');
+          return '<div style="padding:10px 0;border-bottom:1px solid rgba(var(--ink-rgb),0.06)">' +
+            '<div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline">' +
+            '<span style="font-size:12px;font-weight:600">' + escHtml(label) + (ticketPart ? ' · ' + ticketPart : '') + '</span>' +
+            '<span style="font-size:10px;color:var(--faint);white-space:nowrap">' + when + '</span></div>' +
+            '<div style="font-size:12px;color:var(--dim);margin-top:2px">' + escHtml(e.body || '') + '</div>' +
+            '<div style="font-size:11px;color:var(--faint);margin-top:2px">Para: ' + who + '</div>' +
+            '</div>';
+        }).join('');
+      }).catch(function () {
+        el.innerHTML = '<div style="font-size:11px;color:#ef4444">Error al cargar notificaciones.</div>';
+      });
   }
 
   function renderLive(tickets) {
@@ -827,7 +914,8 @@
   document.getElementById('tabHistory').addEventListener('click', function () { setTab('history'); });
   document.getElementById('tabAnalytics').addEventListener('click', function () { setTab('analytics'); });
   document.getElementById('tabResources').addEventListener('click', function () { setTab('resources'); });
-  document.getElementById('tabConfig').addEventListener('click', function () { setTab('config'); loadRoster(); });
+  document.getElementById('tabNotif').addEventListener('click', function () { setTab('notif'); });
+  document.getElementById('tabConfig').addEventListener('click', function () { setTab('config'); });
   document.getElementById('exportCsvBtn').addEventListener('click', exportCsv);
   document.getElementById('saveTtlBtn').addEventListener('click', saveTtl);
   document.getElementById('syncResourcesBtn').addEventListener('click', syncResources);
