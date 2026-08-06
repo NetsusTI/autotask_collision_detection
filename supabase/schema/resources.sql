@@ -10,11 +10,16 @@ CREATE TABLE IF NOT EXISTS resources (
   email                 text,
   role                  text,
   active                boolean NOT NULL DEFAULT true,
+  excluded              boolean NOT NULL DEFAULT false,
   created_at            timestamptz NOT NULL DEFAULT now()
 );
 
 -- Por si la tabla ya existía desde antes sin estos defaults/constraint (dashboard).
 ALTER TABLE resources ALTER COLUMN created_at SET DEFAULT now();
+-- excluded: marca a alguien que Autotask sí trae como isActive pero que el admin
+-- sacó a mano del roster (marketing, comercial, administración, etc). El sync
+-- respeta esto y no lo reactiva; solo el botón "Reactivar" del panel lo revierte.
+ALTER TABLE resources ADD COLUMN IF NOT EXISTS excluded boolean NOT NULL DEFAULT false;
 DO $$
 BEGIN
   IF NOT EXISTS (

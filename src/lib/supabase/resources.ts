@@ -13,34 +13,37 @@ export async function syncResourcesFromAutotask(): Promise<{ synced: number; dea
     name: `${r.firstName} ${r.lastName}`.trim(),
     email: r.email?.trim() || null,
     role: 'tech',
-    active: true,
   }));
 
-  // Fetch existing rows to split into insert vs update
+  // excluded = el admin sacó a esta persona del roster a mano (marketing, comercial,
+  // administración, etc, que Autotask sí trae como isActive pero no es del equipo
+  // técnico). El sync no debe reactivarla — solo el botón "Reactivar" del panel.
   const { data: existing, error: fetchErr } = await supabase
     .from('resources')
-    .select('autotask_resource_id, active');
+    .select('autotask_resource_id, active, excluded');
   if (fetchErr) throw fetchErr;
 
-  const existingIds = new Set((existing ?? []).map((r) => r.autotask_resource_id as number));
+  const existingById = new Map((existing ?? []).map((r) => [r.autotask_resource_id as number, r]));
   const activeAtIds = new Set(active.map((r) => r.id));
 
-  const toInsert = rows.filter((r) => !existingIds.has(r.autotask_resource_id));
-  const toUpdate = rows.filter((r) => existingIds.has(r.autotask_resource_id));
+  const toInsert = rows.filter((r) => !existingById.has(r.autotask_resource_id));
+  const toUpdate = rows.filter((r) => existingById.has(r.autotask_resource_id));
 
   if (toInsert.length) {
-    const { error } = await supabase.from('resources').insert(toInsert);
+    const { error } = await supabase.from('resources').insert(toInsert.map((r) => ({ ...r, active: true })));
     if (error) throw error;
   }
 
   for (const row of toUpdate) {
+    const ex = existingById.get(row.autotask_resource_id);
+    if (ex?.excluded) continue; // respeta la exclusión manual
     await supabase
       .from('resources')
       .update({ name: row.name, email: row.email, role: row.role, active: true })
       .eq('autotask_resource_id', row.autotask_resource_id);
   }
 
-  // Deactivate resources no longer in Autotask
+  // Desactiva a quien ya no viene isActive desde Autotask.
   let deactivated = 0;
   for (const ex of existing ?? []) {
     if (ex.autotask_resource_id && !activeAtIds.has(ex.autotask_resource_id) && ex.active) {
