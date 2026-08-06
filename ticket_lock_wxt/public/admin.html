@@ -67,8 +67,8 @@
     .statIcon { margin-bottom: 8px; color: var(--accent); }
     .statValue { font-size: 28px; font-weight: 800; color: var(--accent); }
     .statLabel { font-size: 12px; font-weight: 600; color: var(--dim); margin-top: 2px; }
-    .tabBar { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
-    .tab { padding: 6px 18px; border-radius: 20px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; border: none; color: var(--text); background: rgba(var(--ink-rgb),0.06); display: flex; align-items: center; gap: 6px; }
+    .tabBar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 16px; row-gap: 8px; }
+    .tab { padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; border: none; color: var(--text); background: rgba(var(--ink-rgb),0.06); display: flex; align-items: center; gap: 6px; white-space: nowrap; flex-shrink: 0; }
     .tab.active { background: var(--accent); color: #fff; }
     .viewBtn { padding: 5px 14px; border-radius: 16px; font-size: 12px; font-weight: 600; font-family: inherit; cursor: pointer; border: 1px solid rgba(var(--ink-rgb),0.12); color: var(--dim); background: transparent; display: inline-flex; align-items: center; gap: 5px; }
     .viewBtn.active { background: rgba(var(--ink-rgb),0.1); color: var(--text); border-color: rgba(var(--ink-rgb),0.25); }
