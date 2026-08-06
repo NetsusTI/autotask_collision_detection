@@ -15,12 +15,22 @@ export async function GET(request: NextRequest) {
       .from('collision_history')
       .select('id', { count: 'exact', head: true })
       .gte('created_at', weekAgo)
-      .contains('users', [user]),
+      // .contains() con un array JS lo serializa como literal de Postgres ({a,b}),
+      // válido para columnas array nativas pero no para jsonb como `users` — con un
+      // nombre que trae espacio (ej. "Ricardo Illanes") Postgres lo lee como dos
+      // tokens sueltos y tira 22P02 "invalid input syntax for type json". Pasar la
+      // condición ya serializada a JSON evita la conversión automática.
+      .contains('users', JSON.stringify([user])),
     supabase
       .from('collision_history')
       .select('id', { count: 'exact', head: true })
       .gte('created_at', monthAgo)
-      .contains('users', [user]),
+      // .contains() con un array JS lo serializa como literal de Postgres ({a,b}),
+      // válido para columnas array nativas pero no para jsonb como `users` — con un
+      // nombre que trae espacio (ej. "Ricardo Illanes") Postgres lo lee como dos
+      // tokens sueltos y tira 22P02 "invalid input syntax for type json". Pasar la
+      // condición ya serializada a JSON evita la conversión automática.
+      .contains('users', JSON.stringify([user])),
   ]);
 
   return NextResponse.json({
