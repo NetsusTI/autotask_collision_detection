@@ -198,6 +198,21 @@ export interface AutotaskActiveResource {
   title?: string | null;
 }
 
+// Cuentas de servicio/integración/API que Autotask sí marca isActive pero que no
+// corresponden a un técnico humano — no hay un campo confiable en la API REST para
+// distinguirlas estructuralmente (el "Tipo de licencia"/"Nivel de seguridad" que se
+// ve en la UI no viene expuesto en Resources/query), así que se filtran por patrón
+// de nombre/email. No es infalible: para gente real en áreas no técnicas (admin,
+// marketing, comercial) que no calza con ningún patrón acá, usar "Quitar del roster"
+// en el panel admin (tab Recursos → Roster sincronizado).
+const SERVICE_ACCOUNT_PATTERN = /\b(api|integraci[oó]n|proceso|rocketcyber|quickbook|saas\s*alert|accounting\s*hub|power\s*automate|uni\s*view|dark\s*web|\bedr\b|\brmm\b|notificaciones\s*teams|consumo|coview|decambio|webhook|\bbot\b)\b/i;
+
+function isServiceAccount(firstName: string, lastName: string, email: string | null | undefined): boolean {
+  const haystack = `${firstName} ${lastName} ${email ?? ''}`.toLowerCase();
+  if (/^autotask\s+administrador$/i.test(`${firstName} ${lastName}`.trim())) return true;
+  return SERVICE_ACCOUNT_PATTERN.test(haystack);
+}
+
 // Técnicos activos en Autotask — roster fuente de verdad para sincronizar la tabla
 // `resources` de Supabase (validar que un nombre corresponde a un técnico real).
 export async function activeResources(maxRecords = 500): Promise<AutotaskActiveResource[]> {
@@ -208,6 +223,7 @@ export async function activeResources(maxRecords = 500): Promise<AutotaskActiveR
   });
   return resources
     .filter((r) => r.firstName || r.lastName)
+    .filter((r) => !isServiceAccount(r.firstName ?? '', r.lastName ?? '', r.email))
     .map((r) => ({
       id: r.id,
       firstName: r.firstName ?? '',
