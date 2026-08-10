@@ -9,7 +9,7 @@ import { lookupResourceId } from '@/lib/supabase/resources';
 import { clampInt } from '@/lib/num';
 import {
   autotaskConfigured,
-  ticketsInQueues,
+  allOpenTickets,
   ticketsAssignedTo,
   ticketsByIds,
   clientNotesSince,
@@ -114,8 +114,7 @@ async function getJsonNumbers(key: string, fallback: number[]): Promise<number[]
 }
 
 export async function getNotifConfig() {
-  const [watchQueues, criticalPriorities, slaRaw, uiBase, enabledRaw] = await Promise.all([
-    getJsonNumbers('config:watch_queues', []),
+  const [criticalPriorities, slaRaw, uiBase, enabledRaw] = await Promise.all([
     getJsonNumbers('config:critical_priorities', [1]),
     redis.get<string>('config:sla_warn_min'),
     redis.get<string>('config:autotask_ui_base'),
@@ -123,7 +122,6 @@ export async function getNotifConfig() {
   ]);
   const slaWarnMin = clampInt(slaRaw, 5, 1440, 30);
   return {
-    watchQueues,
     criticalPriorities,
     slaWarnMin,
     uiBase: uiBase ?? null,
@@ -247,12 +245,12 @@ export async function runPoll(force = false): Promise<{ ran: boolean; counts?: R
 
   const resources = await activeResourceIds(now);
 
-  // n1 (entrante) + n5 (crítico) en las colas vigiladas → a todos los recursos activos.
+  // n1 (entrante) + n5 (crítico) en TODAS las colas → a todos los recursos activos.
   // Se revisa aunque no haya técnicos con la extensión abierta ahora mismo (resources
   // vacío): pushEvent igual deja el evento en el log central para que el panel admin
   // lo vea; solo se salta el feed por-técnico si no hay destinatarios.
-  if (cfg.watchQueues.length) {
-    const qTickets = await ticketsInQueues(cfg.watchQueues);
+  {
+    const qTickets = await allOpenTickets();
     for (const t of qTickets) {
       const label = t.ticketNumber || `#${t.id}`;
       const createdMs = tParsed(t.createDate);

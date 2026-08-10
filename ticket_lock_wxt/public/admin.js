@@ -615,7 +615,6 @@
         document.getElementById('webhookInput').value = data.teamsWebhook || '';
         document.getElementById('ttlInput').value = data.presenceTtl || 40;
         document.getElementById('autotaskNotesInput').checked = !!data.autotaskNotesEnabled;
-        document.getElementById('watchQueuesInput').value = Array.isArray(data.watchQueues) ? data.watchQueues.join(', ') : (data.watchQueues || '');
         document.getElementById('autotaskUiBaseInput').value = data.autotaskUiBase || '';
         var wh = data.workHours;
         if (wh) {
@@ -664,24 +663,6 @@
       document.getElementById('autotaskNotesInput').checked = !enabled;
       status.className = 'configStatus err';
       status.textContent = err && err.message === 'session' ? '✗ Sesión expirada, vuelve a ingresar' : '✗ Error al guardar';
-    });
-  }
-
-  function saveWatchQueues() {
-    var val = document.getElementById('watchQueuesInput').value.trim();
-    var status = document.getElementById('watchQueuesStatus');
-    fetch(BASE_URL + '/api/config', {
-      method: 'POST',
-      headers: adminHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ watchQueues: val })
-    }).then(function (r) {
-      if (!r.ok) throw new Error(r.status === 403 ? 'session' : 'http');
-      status.className = 'configStatus ok';
-      status.textContent = val ? '✓ Colas guardadas' : '✓ Vacío — sin notificaciones de cola nueva';
-      setTimeout(function () { status.textContent = ''; }, 3000);
-    }).catch(function (err) {
-      status.className = 'configStatus err';
-      status.textContent = err && err.message === 'session' ? '✗ Sesión expirada' : '✗ Error al guardar';
     });
   }
 
@@ -942,7 +923,6 @@
   document.getElementById('testWebhookBtn').addEventListener('click', testWebhook);
   document.getElementById('clearWebhookBtn').addEventListener('click', clearWebhook);
   document.getElementById('autotaskNotesInput').addEventListener('change', saveAutotaskNotes);
-  document.getElementById('saveWatchQueuesBtn').addEventListener('click', saveWatchQueues);
   document.getElementById('saveUiBaseBtn').addEventListener('click', saveUiBase);
   document.getElementById('changePwdBtn').addEventListener('click', changePassword);
 

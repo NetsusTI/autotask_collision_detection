@@ -96,6 +96,16 @@ export async function ticketsInQueues(queueIDs: number[], maxRecords = 200): Pro
   });
 }
 
+// Todos los tickets abiertos, sin filtrar por cola — usado cuando la vigilancia
+// de n1/n5 está en modo automático (todas las colas) en vez de una lista manual.
+export async function allOpenTickets(maxRecords = 500): Promise<AutotaskTicket[]> {
+  return query<AutotaskTicket>('Tickets', {
+    MaxRecords: maxRecords,
+    IncludeFields: TICKET_FIELDS,
+    Filter: [{ op: 'noteq', field: 'status', value: STATUS_COMPLETE }],
+  });
+}
+
 // Tickets abiertos asignados a un conjunto de recursos (para n2 asignación y n4 SLA).
 export async function ticketsAssignedTo(resourceIDs: number[], maxRecords = 300): Promise<AutotaskTicket[]> {
   if (!resourceIDs.length) return [];
