@@ -716,43 +716,7 @@
       });
   }
 
-  var HEALTH_LABELS = { redis: 'Redis (presencia/colas)', supabase: 'Supabase (historial/roster)', autotask: 'API de Autotask' };
-
-  function renderHealth(data) {
-    var el = document.getElementById('healthList');
-    if (!el) return;
-    var rows = ['redis', 'supabase', 'autotask'].map(function (key) {
-      var c = data[key] || {};
-      var color = c.ok ? '#22c55e' : '#ef4444';
-      var label = c.ok ? (c.ms + ' ms') : ('caído' + (c.error ? ' · ' + c.error : ''));
-      return '<div style="display:flex;align-items:center;gap:8px;font-size:12px">' +
-        '<div style="width:8px;height:8px;border-radius:50%;background:' + color + ';flex-shrink:0"></div>' +
-        '<div style="flex:1">' + HEALTH_LABELS[key] + '</div>' +
-        '<div style="color:var(--faint)">' + label + '</div></div>';
-    }).join('');
-    el.innerHTML = rows;
-    var ts = document.getElementById('healthCheckedAt');
-    if (ts) {
-      ts.className = 'configStatus';
-      ts.textContent = 'Última verificación: ' + new Date(data.checkedAt).toLocaleTimeString('es-CL');
-    }
-  }
-
-  function loadHealth() {
-    var el = document.getElementById('healthList');
-    if (el) el.innerHTML = '<div style="font-size:11px;color:var(--faint)">Verificando...</div>';
-    fetch(BASE_URL + '/api/health', { headers: adminHeaders() })
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        if (data && data.redis) renderHealth(data);
-        else if (el) el.innerHTML = '<div style="font-size:11px;color:#ef4444">No se pudo verificar.</div>';
-      }).catch(function () {
-        if (el) el.innerHTML = '<div style="font-size:11px;color:#ef4444">Error de conexión.</div>';
-      });
-  }
-
   function loadConfig() {
-    loadHealth();
     fetch(BASE_URL + '/api/config', { headers: { 'x-api-key': API_KEY } })
       .then(function (r) { return r.json(); })
       .then(function (data) {
@@ -994,7 +958,6 @@
   document.getElementById('syncResourcesBtn').addEventListener('click', syncResources);
   document.getElementById('diagResourcesBtn').addEventListener('click', diagResources);
   document.getElementById('rosterShowInactive').addEventListener('change', renderRoster);
-  document.getElementById('refreshHealthBtn').addEventListener('click', loadHealth);
   document.getElementById('saveWebhookBtn').addEventListener('click', saveWebhook);
   document.getElementById('testWebhookBtn').addEventListener('click', testWebhook);
   document.getElementById('clearWebhookBtn').addEventListener('click', clearWebhook);
