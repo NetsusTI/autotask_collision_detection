@@ -594,6 +594,10 @@ export default defineContentScript({
       apiCall('POST', `/api/presence/${ticketId}`, body, (_status, data) => {
         if (data?.completed === true) {
           setState({ kind: 'completed', ticketLabel: ticketLabel() });
+          // El ticket está en solo lectura — no tiene sentido la advertencia de
+          // "asignado a X" (mismatch), pero el recurso principal sigue siendo
+          // información de contexto útil, así que se muestra igual.
+          setAssignment(null, data?.assignedTo ?? null);
           clearInterval(pollInterval);
           pollInterval = undefined;
           return;

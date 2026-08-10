@@ -170,7 +170,11 @@ export async function POST(
       const closedRaw = await redis.get<string>('config:closed_statuses');
       const closedStatuses: number[] = closedRaw ? JSON.parse(closedRaw) : [AUTOTASK_STATUS_COMPLETE];
       if (closedStatuses.includes(status)) {
-        return NextResponse.json({ ok: false, completed: true, others: [], assignedTo: null, pingedBy: null, quickMsg: null, pastCollisions: 0 });
+        // Aunque el ticket esté completado (solo lectura), el recurso principal sigue
+        // siendo información útil de contexto — antes se devolvía assignedTo: null acá,
+        // así que el sidepanel nunca mostraba "Recurso principal" en tickets cerrados.
+        const assignedTo = await getAutotaskAssignee(String(autotaskTicketId));
+        return NextResponse.json({ ok: false, completed: true, others: [], assignedTo, pingedBy: null, quickMsg: null, pastCollisions: 0 });
       }
     }
   }
