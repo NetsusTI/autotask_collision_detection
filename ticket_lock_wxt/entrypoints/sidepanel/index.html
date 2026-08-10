@@ -28,6 +28,7 @@
       height: 100vh; display: flex; flex-direction: column; overflow: hidden;
     }
     .hdr { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .ftr { display: flex; align-items: center; justify-content: center; padding: 8px; border-top: 1px solid var(--border); flex-shrink: 0; }
     .logo { height: 20px; }
     .hdr-text { flex: 1; min-width: 0; }
     .hdr-title { font-size: 13px; font-weight: 800; }
@@ -173,11 +174,6 @@
       <div class="hdr-title">Autotask CoView</div>
       <div id="hdr-sub" class="hdr-sub">Netsus</div>
     </div>
-    <div class="theme-seg" id="themeSeg">
-      <button type="button" data-theme-val="auto">Auto</button>
-      <button type="button" data-theme-val="light"></button>
-      <button type="button" data-theme-val="dark"></button>
-    </div>
     <button id="dndBtn" class="ico-btn" title="No molestar">
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/><line x1="2" y1="2" x2="22" y2="22"/></svg>
     </button>
@@ -288,6 +284,13 @@
         </button>
       </div>
       <div id="notif-list" class="notif-list"></div>
+    </div>
+  </div>
+  <div class="ftr">
+    <div class="theme-seg" id="themeSeg">
+      <button type="button" data-theme-val="auto">Auto</button>
+      <button type="button" data-theme-val="light"></button>
+      <button type="button" data-theme-val="dark"></button>
     </div>
   </div>
   <script type="module" src="./main.ts"></script>
