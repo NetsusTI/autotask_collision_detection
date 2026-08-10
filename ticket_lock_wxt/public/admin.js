@@ -926,30 +926,6 @@
   document.getElementById('saveUiBaseBtn').addEventListener('click', saveUiBase);
   document.getElementById('changePwdBtn').addEventListener('click', changePassword);
 
-  function sendDailySummary(period) {
-    var statusEl = document.getElementById('summaryStatus');
-    statusEl.textContent = 'Enviando...';
-    statusEl.style.color = 'var(--dim)';
-    fetch(BASE_URL + '/api/presence/daily-summary?send=true&period=' + period, { headers: { 'x-api-key': API_KEY } })
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        if (data.total === 0) {
-          statusEl.textContent = '⚠ Sin colisiones en el período seleccionado';
-          statusEl.style.color = '#f97316';
-        } else {
-          statusEl.textContent = '✓ Resumen enviado · ' + data.total + ' colisiones';
-          statusEl.style.color = '#10b981';
-        }
-        setTimeout(function () { statusEl.textContent = ''; }, 5000);
-      }).catch(function () {
-        statusEl.textContent = '✗ Error al enviar';
-        statusEl.style.color = '#ef4444';
-        setTimeout(function () { statusEl.textContent = ''; }, 4000);
-      });
-  }
-
-  document.getElementById('sendYesterdayBtn').addEventListener('click', function () { sendDailySummary('yesterday'); });
-  document.getElementById('sendTodayBtn').addEventListener('click', function () { sendDailySummary('today'); });
   document.getElementById('saveWorkHoursBtn').addEventListener('click', saveWorkHours);
 
   document.getElementById('historySearch').addEventListener('input', function () {

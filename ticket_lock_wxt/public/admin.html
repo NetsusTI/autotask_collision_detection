@@ -377,18 +377,6 @@
         <div class="configStatus" id="changePwdStatus"></div>
       </div>
       <div class="configSection">
-        <div class="configTitle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M7 16h8"/><path d="M7 11h12"/><path d="M7 6h3"/></svg> Resumen diario a Teams</div>
-        <div class="configSub">Envía un resumen de las colisiones de ayer (o de hoy) al canal de Teams configurado arriba. También puedes llamar este endpoint desde n8n con un trigger programado a las 9:00 AM.</div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
-          <button class="configBtn secondary" id="sendYesterdayBtn">Enviar resumen de ayer</button>
-          <button class="configBtn secondary" id="sendTodayBtn">Enviar resumen de hoy</button>
-        </div>
-        <div class="configSub" style="margin-top:10px;font-family:monospace;background:rgba(var(--ink-rgb),0.04);border-radius:6px;padding:8px;font-size:11px;word-break:break-all">
-          GET /api/presence/daily-summary?send=true&amp;period=yesterday
-        </div>
-        <div class="configStatus" id="summaryStatus"></div>
-      </div>
-      <div class="configSection">
         <div class="configTitle">ℹ️ Información</div>
         <div class="configSub">Versión 1.0.0 · Autotask CoView · Netsus</div>
         <div style="font-size:12px;color:var(--dim);line-height:1.8">
