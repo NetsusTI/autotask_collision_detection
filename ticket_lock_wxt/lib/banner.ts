@@ -36,20 +36,17 @@ function escapeHtml(s: string): string {
 }
 
 // z-index alto (banda superior de int32) para ganarle a lo que sea que use Autotask.
-// Colores planos, sin gradiente — mismo lenguaje visual que el panel admin y el
-// sidepanel. El banner vive inyectado en el DOM de Autotask (fuera del alcance de
-// nuestras variables CSS), así que sus colores van fijos en vez de var(--accent).
-const BASE_STYLE = `position:fixed;z-index:2147483000;font-family:system-ui,-apple-system,sans-serif;font-weight:400;`;
-const CARD = 'border-radius:8px;padding:12px 16px;box-shadow:0 4px 16px rgba(0,0,0,0.18);color:#fff;';
-const ICON_BTN = 'background:rgba(255,255,255,0.15);border:none;border-radius:5px;width:24px;height:24px;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;';
-const BTN = 'background:rgba(255,255,255,0.95);color:#111;border:none;border-radius:5px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-family:inherit;';
-const BTN_GHOST = 'background:rgba(255,255,255,0.12);color:#fff;border:1px solid rgba(255,255,255,0.3);border-radius:5px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-family:inherit;';
-const BTN_GHOST_SM = 'background:rgba(255,255,255,0.12);color:#fff;border:1px solid rgba(255,255,255,0.3);border-radius:5px;padding:3px 8px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;';
+const BASE_STYLE = `position:fixed;z-index:2147483000;font-family:'Montserrat','Segoe UI',system-ui,sans-serif;font-weight:400;`;
+const CARD = 'border-radius:14px;padding:12px 16px;box-shadow:0 8px 24px rgba(0,0,0,0.28);color:#fff;';
+const ICON_BTN = 'background:rgba(255,255,255,0.15);border:none;border-radius:8px;width:26px;height:26px;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;';
+const BTN = 'background:rgba(255,255,255,0.92);color:#111;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-family:inherit;';
+const BTN_GHOST = 'background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.35);border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-family:inherit;';
+const BTN_GHOST_SM = 'background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.35);border-radius:8px;padding:3px 8px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;';
 
 const THEME = {
-  collision: 'background:#dc2626;',
-  paused: 'background:#3867E9;',
-  liberated: 'background:#16a34a;',
+  collision: 'background:linear-gradient(135deg,#991b1b,#dc2626);',
+  paused: 'background:linear-gradient(135deg,#1e3a8a,#3867E9);',
+  liberated: 'background:linear-gradient(135deg,#14532d,#16a34a);',
 };
 
 function ensureRoot(): HTMLElement {
@@ -84,7 +81,7 @@ export function renderBanner(state: TicketState, warnings: TicketWarnings, opts:
   // propuesta lo describe como visible "solo en el ticket", o sea sin colisión).
   if (warnings.assignedTo && state.kind !== 'collision' && !opts.dismissed) {
     pill.style.display = '';
-    pill.innerHTML = `<div style="${CARD}background:#1f2937;display:flex;align-items:center;gap:8px;font-size:12px;">
+    pill.innerHTML = `<div style="${CARD}background:rgba(30,27,46,0.94);display:flex;align-items:center;gap:8px;font-size:12px;">
       ${icon('clipboard-list', { size: 14 })} Asignado a <strong>${escapeHtml(warnings.assignedTo)}</strong>
     </div>`;
   } else {
@@ -105,7 +102,7 @@ export function renderBanner(state: TicketState, warnings: TicketWarnings, opts:
     const iconName = state.kind === 'collision' ? 'alert-triangle' : state.kind === 'paused' ? 'pause' : 'check-circle';
     root.innerHTML = `<button id="netsus-banner-expand" title="Expandir" style="
       width:44px;height:44px;border-radius:50%;border:none;cursor:pointer;margin-left:auto;display:flex;
-      align-items:center;justify-content:center;background:${color};color:#fff;box-shadow:0 4px 14px rgba(0,0,0,0.2);
+      align-items:center;justify-content:center;background:${color};color:#fff;box-shadow:0 8px 20px rgba(0,0,0,0.3);
     ">${icon(iconName, { size: 20 })}</button>`;
     document.getElementById('netsus-banner-expand')?.addEventListener('click', actions.onToggleMinimize);
     return;
