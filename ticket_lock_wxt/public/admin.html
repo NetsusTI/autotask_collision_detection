@@ -21,6 +21,7 @@
       --grad-chart: linear-gradient(90deg, #3867E9, #01BFFA);
       --dim: rgba(255,255,255,0.55);
       --faint: rgba(255,255,255,0.32);
+      --header-bg: #170a33;
     }
     html[data-theme="light"] {
       --ink-rgb: 59,59,59;
@@ -31,6 +32,7 @@
          estos dos tokens quedan con alfa muy alta en modo claro para un contraste marcado */
       --dim: rgba(59,59,59,0.97);
       --faint: rgba(59,59,59,0.85);
+      --header-bg: #f7f7f8;
     }
     body { font-family: 'Montserrat', 'Segoe UI', system-ui, sans-serif; font-weight: 400; background: var(--bg-grad); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
     #loginScreen { min-height: 100vh; display: flex; align-items: center; justify-content: center; position: relative; flex: 1; }
@@ -44,7 +46,7 @@
     .loginBtn { width: 100%; padding: 10px; border-radius: 10px; font-size: 14px; font-weight: 600; font-family: inherit; background: var(--accent); color: #fff; border: none; cursor: pointer; }
     .loginBtn:hover { background: #2f56c9; }
     #panel { display: none; flex: 1; flex-direction: column; }
-    .header { border-bottom: 1px solid rgba(var(--ink-rgb),0.07); padding: 0 40px; background: rgba(var(--ink-rgb),0.03); position: sticky; top: 0; z-index: 10; }
+    .header { border-bottom: 1px solid rgba(var(--ink-rgb),0.1); padding: 0 40px; background: var(--header-bg); position: sticky; top: 0; z-index: 10; }
     .headerInner { max-width: 900px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 64px; }
     .logo { display: flex; align-items: center; gap: 12px; }
     .logoIcon { width: 36px; height: 36px; border-radius: 10px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
