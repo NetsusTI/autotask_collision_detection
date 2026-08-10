@@ -81,8 +81,16 @@ export function renderBanner(state: TicketState, warnings: TicketWarnings, opts:
   // propuesta lo describe como visible "solo en el ticket", o sea sin colisión).
   if (warnings.assignedTo && state.kind !== 'collision' && !opts.dismissed) {
     pill.style.display = '';
-    pill.innerHTML = `<div style="${CARD}background:rgba(30,27,46,0.94);display:flex;align-items:center;gap:8px;font-size:12px;">
-      ${icon('clipboard-list', { size: 14 })} Asignado a <strong>${escapeHtml(warnings.assignedTo)}</strong>
+    // ticketLabel no existe en todos los kinds (idle/paused no lo traen) — se
+    // muestra solo cuando el estado actual lo trae, para dar contexto de a qué
+    // ticket corresponde la asignación sin inventar el dato.
+    const ticketLabel = 'ticketLabel' in state ? state.ticketLabel : null;
+    pill.innerHTML = `<div style="${CARD}background:#1f2937;display:flex;align-items:center;gap:10px;font-size:12px;">
+      ${avatarHtml(warnings.assignedTo, 0, 26)}
+      <div>
+        <div>${icon('clipboard-list', { size: 13 })} Asignado a <strong>${escapeHtml(warnings.assignedTo)}</strong></div>
+        ${ticketLabel ? `<div style="opacity:0.7;font-size:11px;margin-top:2px">${escapeHtml(ticketLabel)}</div>` : ''}
+      </div>
     </div>`;
   } else {
     pill.style.display = 'none';
