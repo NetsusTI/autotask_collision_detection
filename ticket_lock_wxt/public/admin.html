@@ -173,9 +173,30 @@
     <div class="loginIcon"><img src="icon/128.png" style="width:52px;height:52px;border-radius:14px"></div>
     <div class="loginTitle">Panel de Administración</div>
     <div class="loginSub">Autotask CoView · Netsus</div>
-    <input id="pwdInput" class="loginInput" type="password" placeholder="Contraseña">
-    <div id="loginError" class="loginError" style="display:none">Contraseña incorrecta</div>
-    <button class="loginBtn" id="loginBtn">Ingresar</button>
+    <div id="loginStep">
+      <input id="pwdInput" class="loginInput" type="password" placeholder="Contraseña">
+      <div id="loginError" class="loginError" style="display:none">Contraseña incorrecta</div>
+      <button class="loginBtn" id="loginBtn">Ingresar</button>
+      <div style="text-align:center;margin-top:12px">
+        <a href="#" id="forgotPwdLink" style="font-size:12px;color:var(--dim);text-decoration:underline">¿Olvidaste tu contraseña?</a>
+      </div>
+    </div>
+    <div id="forgotStep" style="display:none">
+      <div style="font-size:12px;color:var(--dim);margin-bottom:14px;text-align:left">
+        Se enviará un código de un solo uso al canal de Teams configurado para las alertas. Válido por 10 minutos.
+      </div>
+      <button class="loginBtn" id="sendResetCodeBtn">Enviar código</button>
+      <div id="forgotSendStatus" style="font-size:12px;margin-top:10px;text-align:left"></div>
+      <div id="resetFields" style="display:none;margin-top:14px">
+        <input id="resetCodeInput" class="loginInput" type="text" inputmode="numeric" placeholder="Código de 6 dígitos" maxlength="6">
+        <input id="resetNewPwdInput" class="loginInput" type="password" placeholder="Contraseña nueva">
+        <button class="loginBtn" id="resetPwdBtn">Restablecer contraseña</button>
+      </div>
+      <div id="resetStatus" style="font-size:12px;margin-top:10px;text-align:left"></div>
+      <div style="text-align:center;margin-top:12px">
+        <a href="#" id="backToLoginLink" style="font-size:12px;color:var(--dim);text-decoration:underline">Volver a inicio de sesión</a>
+      </div>
+    </div>
   </div>
 </div>
 

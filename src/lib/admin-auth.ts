@@ -40,3 +40,43 @@ export async function registerAuthFailure(request: NextRequest): Promise<void> {
   const n = await redis.incr(key);
   if (n === 1) await redis.expire(key, RATE_LIMIT_WINDOW);
 }
+
+// --- Recuperación de contraseña ---
+// Sin sistema de usuarios (una sola contraseña compartida para el equipo), así que
+// "olvidé mi contraseña" no puede verificar identidad por email. En su lugar, el
+// código de un solo uso se envía al webhook de Teams ya configurado (el mismo canal
+// donde el equipo ya recibe las alertas de colisión) — quien tenga acceso a ese canal
+// puede reiniciar la contraseña. Si no hay webhook configurado, no hay forma de
+// recuperarla desde el panel: hay que setear ADMIN_PASSWORD o config:admin_password
+// directamente (Vercel/Redis).
+const RESET_CODE_TTL = 600; // 10 min
+const RESET_REQUEST_WINDOW = 600; // 10 min
+const RESET_REQUEST_MAX = 3;
+
+export async function isResetRateLimited(request: NextRequest): Promise<boolean> {
+  const count = await redis.get<number>(`adminreset:req:${clientIp(request)}`);
+  return (count ?? 0) >= RESET_REQUEST_MAX;
+}
+
+export async function registerResetRequest(request: NextRequest): Promise<void> {
+  const key = `adminreset:req:${clientIp(request)}`;
+  const n = await redis.incr(key);
+  if (n === 1) await redis.expire(key, RESET_REQUEST_WINDOW);
+}
+
+function generateResetCode(): string {
+  return String(Math.floor(100000 + Math.random() * 900000)); // 6 dígitos
+}
+
+export async function createResetCode(): Promise<string> {
+  const code = generateResetCode();
+  await redis.set('adminreset:code', code, { ex: RESET_CODE_TTL });
+  return code;
+}
+
+export async function verifyAndConsumeResetCode(code: string): Promise<boolean> {
+  const stored = await redis.get<string>('adminreset:code');
+  if (!stored || stored !== code) return false;
+  await redis.del('adminreset:code');
+  return true;
+}

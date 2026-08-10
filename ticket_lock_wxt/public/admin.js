@@ -139,6 +139,92 @@
     });
   }
 
+  function showForgotStep() {
+    document.getElementById('loginStep').style.display = 'none';
+    document.getElementById('forgotStep').style.display = 'block';
+    document.getElementById('resetFields').style.display = 'none';
+    document.getElementById('forgotSendStatus').textContent = '';
+    document.getElementById('resetStatus').textContent = '';
+    document.getElementById('sendResetCodeBtn').style.display = '';
+  }
+
+  function showLoginStep() {
+    document.getElementById('forgotStep').style.display = 'none';
+    document.getElementById('loginStep').style.display = 'block';
+  }
+
+  function sendResetCode() {
+    var btn = document.getElementById('sendResetCodeBtn');
+    var status = document.getElementById('forgotSendStatus');
+    btn.disabled = true;
+    btn.textContent = 'Enviando...';
+    fetch(BASE_URL + '/api/admin/forgot-password', { method: 'POST' })
+      .then(function (r) { return r.json().catch(function () { return {}; }); })
+      .then(function (data) {
+        if (data && data.sent) {
+          status.style.color = '#22c55e';
+          status.textContent = '✓ Código enviado al canal de Teams. Revísalo e ingrésalo abajo.';
+          document.getElementById('resetFields').style.display = 'block';
+          btn.style.display = 'none';
+        } else if (data && data.reason === 'no_webhook') {
+          status.style.color = '#ef4444';
+          status.textContent = 'No hay un canal de recuperación configurado. Contacta a quien administra Vercel para restablecer la contraseña.';
+          btn.disabled = false;
+          btn.textContent = 'Enviar código';
+        } else {
+          status.style.color = '#ef4444';
+          status.textContent = 'No se pudo enviar el código. Intenta de nuevo en unos minutos.';
+          btn.disabled = false;
+          btn.textContent = 'Enviar código';
+        }
+      }).catch(function () {
+        status.style.color = '#ef4444';
+        status.textContent = 'Error de conexión.';
+        btn.disabled = false;
+        btn.textContent = 'Enviar código';
+      });
+  }
+
+  function submitResetPassword() {
+    var code = document.getElementById('resetCodeInput').value.trim();
+    var newPwd = document.getElementById('resetNewPwdInput').value;
+    var status = document.getElementById('resetStatus');
+    var btn = document.getElementById('resetPwdBtn');
+    if (!code || !newPwd) {
+      status.style.color = '#ef4444';
+      status.textContent = 'Completa el código y la contraseña nueva.';
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = 'Restableciendo...';
+    fetch(BASE_URL + '/api/admin/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: code, newPassword: newPwd }),
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (data) { return { ok: r.ok, data: data }; });
+    }).then(function (res) {
+      if (!res.ok) {
+        status.style.color = '#ef4444';
+        status.textContent = res.data && res.data.error === 'invalid_code' ? 'Código incorrecto o vencido.' : 'Error al restablecer.';
+        btn.disabled = false;
+        btn.textContent = 'Restablecer contraseña';
+        return;
+      }
+      status.style.color = '#22c55e';
+      status.textContent = res.data && res.data.envOverride
+        ? '✓ Guardada, pero ADMIN_PASSWORD sigue seteada en Vercel — no tendrá efecto hasta que la borres.'
+        : '✓ Contraseña actualizada. Ya puedes iniciar sesión.';
+      document.getElementById('resetFields').style.display = 'none';
+      setTimeout(showLoginStep, 2500);
+    }).catch(function () {
+      status.style.color = '#ef4444';
+      status.textContent = 'Error de conexión.';
+      btn.disabled = false;
+      btn.textContent = 'Restablecer contraseña';
+    });
+  }
+
   function doLogout() {
     sessionStorage.removeItem('netsus_admin');
     sessionStorage.removeItem('netsus_admin_token');
@@ -833,6 +919,11 @@
 
   document.getElementById('loginBtn').addEventListener('click', doLogin);
   document.getElementById('pwdInput').addEventListener('keydown', function (e) { if (e.key === 'Enter') doLogin(); });
+  document.getElementById('forgotPwdLink').addEventListener('click', function (e) { e.preventDefault(); showForgotStep(); });
+  document.getElementById('backToLoginLink').addEventListener('click', function (e) { e.preventDefault(); showLoginStep(); });
+  document.getElementById('sendResetCodeBtn').addEventListener('click', sendResetCode);
+  document.getElementById('resetPwdBtn').addEventListener('click', submitResetPassword);
+  document.getElementById('resetNewPwdInput').addEventListener('keydown', function (e) { if (e.key === 'Enter') submitResetPassword(); });
   document.getElementById('logoutBtn').addEventListener('click', doLogout);
   document.getElementById('tabLive').addEventListener('click', function () { setTab('live'); });
   document.getElementById('tabHistory').addEventListener('click', function () { setTab('history'); });
