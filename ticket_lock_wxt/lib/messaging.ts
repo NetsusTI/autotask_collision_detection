@@ -18,6 +18,10 @@ export interface TicketWarnings {
   historyCount: number | null;
   assignedTo: string | null;
   assignedResource: string | null;
+  // Nombre real del status en Autotask (picklist propio de cada instancia — no un
+  // id fijo) y si el recurso principal está presente ahora mismo en el ticket.
+  statusLabel: string | null;
+  assignedPresent: boolean;
 }
 
 export interface StatePayload {

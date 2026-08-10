@@ -302,6 +302,44 @@ export async function getTicketStatus(autotaskId: string): Promise<number | null
   }
 }
 
+// Nombre real de cada status (picklist propio de cada instancia de Autotask — "1"
+// puede ser "Nuevo" en una cuenta y otra cosa en otra, así que no se puede
+// hardcodear). Se trae una sola vez de entityInformation/fields y se cachea 24h,
+// porque los picklists casi no cambian.
+const STATUS_LABEL_CACHE_KEY = 'autotask:status_labels';
+
+async function getStatusLabelMap(): Promise<Record<number, string>> {
+  const cached = await redis.get<string>(STATUS_LABEL_CACHE_KEY);
+  if (cached) {
+    try { return JSON.parse(cached); } catch { /* recae en refetch */ }
+  }
+  if (!autotaskConfigured()) return {};
+  try {
+    const res = await fetch(`${BASE}/Tickets/entityInformation/fields`, { headers: headers() });
+    if (!res.ok) return {};
+    const data = await res.json();
+    const fields: { name?: string; picklistValues?: { value?: string; label?: string }[] }[] = data?.fields ?? [];
+    const statusField = fields.find((f) => f.name === 'status');
+    const map: Record<number, string> = {};
+    for (const pv of statusField?.picklistValues ?? []) {
+      const id = Number(pv.value);
+      if (!Number.isNaN(id) && pv.label) map[id] = pv.label;
+    }
+    await redis.set(STATUS_LABEL_CACHE_KEY, JSON.stringify(map), { ex: 24 * 3600 });
+    return map;
+  } catch {
+    return {};
+  }
+}
+
+// Combina getTicketStatus() con el nombre real del picklist — null si no se pudo
+// resolver cualquiera de los dos (ticket no encontrado, credenciales, etc).
+export async function getTicketStatusLabel(autotaskId: string): Promise<string | null> {
+  const [status, labels] = await Promise.all([getTicketStatus(autotaskId), getStatusLabelMap()]);
+  if (status === null) return null;
+  return labels[status] ?? null;
+}
+
 // Nombre completo de un recurso por su ID — usado junto con getTicketAssignedResourceId.
 export async function getResourceName(resourceId: number): Promise<string | null> {
   if (!autotaskConfigured()) return null;

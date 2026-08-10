@@ -89,10 +89,17 @@ function formatTime(minutes: number): string {
 function renderWarnings(w: TicketWarnings | null) {
   const assigneeEl = document.getElementById('ticket-assignee');
   const assigneeNameEl = document.getElementById('assignee-name');
+  const assigneeStatusEl = document.getElementById('assignee-status');
+  const assigneeActiveEl = document.getElementById('assignee-active');
   if (assigneeEl && assigneeNameEl) {
     if (w?.assignedResource) {
       assigneeNameEl.textContent = w.assignedResource;
       assigneeEl.style.display = 'flex';
+      if (assigneeStatusEl) {
+        if (w.statusLabel) { assigneeStatusEl.textContent = `· ${w.statusLabel}`; assigneeStatusEl.style.display = ''; }
+        else assigneeStatusEl.style.display = 'none';
+      }
+      if (assigneeActiveEl) assigneeActiveEl.style.display = w.assignedPresent ? 'inline-flex' : 'none';
     } else {
       assigneeEl.style.display = 'none';
     }

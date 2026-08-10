@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase/client';
 import { lookupResourceId } from '@/lib/supabase/resources';
 import { dedupeOthers, minutesSince, formatDuration } from '@/lib/collision';
 import { clampInt } from '@/lib/num';
-import { createTicketNote, getTicketAssignedResourceId, getResourceName, getTicketStatus, AUTOTASK_STATUS_COMPLETE } from '@/lib/autotask';
+import { createTicketNote, getTicketAssignedResourceId, getResourceName, getTicketStatus, getTicketStatusLabel, AUTOTASK_STATUS_COMPLETE } from '@/lib/autotask';
 
 const PRESENCE_TTL = 40;
 
@@ -173,8 +173,11 @@ export async function POST(
         // Aunque el ticket esté completado (solo lectura), el recurso principal sigue
         // siendo información útil de contexto — antes se devolvía assignedTo: null acá,
         // así que el sidepanel nunca mostraba "Recurso principal" en tickets cerrados.
-        const assignedTo = await getAutotaskAssignee(String(autotaskTicketId));
-        return NextResponse.json({ ok: false, completed: true, others: [], assignedTo, pingedBy: null, quickMsg: null, pastCollisions: 0 });
+        const [assignedTo, statusLabel] = await Promise.all([
+          getAutotaskAssignee(String(autotaskTicketId)),
+          getTicketStatusLabel(String(autotaskTicketId)),
+        ]);
+        return NextResponse.json({ ok: false, completed: true, others: [], assignedTo, statusLabel, assignedPresent: false, pingedBy: null, quickMsg: null, pastCollisions: 0 });
       }
     }
   }
@@ -315,13 +318,19 @@ export async function POST(
     }
   }
 
-  const [assignedTo, pastCollisionsRaw] = await Promise.all([
+  const [assignedTo, pastCollisionsRaw, statusLabel] = await Promise.all([
     getAutotaskAssignee(autotaskTicketId ? String(autotaskTicketId) : id),
     redis.get<number>(`colcount:${id}`),
+    autotaskTicketId ? getTicketStatusLabel(String(autotaskTicketId)) : Promise.resolve(null),
   ]);
   const pastCollisions = pastCollisionsRaw ?? 0;
+  // El asignado puede estar entre los "otros" presentes ahora mismo — si es así,
+  // no solo sabemos quién es el recurso principal, sino que está trabajándolo.
+  const assignedPresent = assignedTo
+    ? others.some((o) => o.name.trim().toLowerCase() === assignedTo.trim().toLowerCase())
+    : false;
 
-  return NextResponse.json({ ok: true, others, assignedTo: assignedTo ?? null, pingedBy: pingedBy ?? null, quickMsg: quickMsgReceived ?? null, pastCollisions });
+  return NextResponse.json({ ok: true, others, assignedTo: assignedTo ?? null, statusLabel, assignedPresent, pingedBy: pingedBy ?? null, quickMsg: quickMsgReceived ?? null, pastCollisions });
 }
 
 export async function DELETE(

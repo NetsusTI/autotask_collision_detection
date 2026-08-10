@@ -53,7 +53,7 @@ export default defineContentScript({
     // de esta página (el margin-push con CSS no dividía el espacio de verdad en
     // apps con contenedor raíz fixed/vw; el Side Panel nativo de Chrome sí lo hace).
     let currentState: TicketState = { kind: 'idle' };
-    let currentWarnings: TicketWarnings = { offline: false, historyCount: null, assignedTo: null, assignedResource: null };
+    let currentWarnings: TicketWarnings = { offline: false, historyCount: null, assignedTo: null, assignedResource: null, statusLabel: null, assignedPresent: false };
 
     // Estado del banner inyectado en la página (además del side panel) — se resetea
     // por ticket en init(), igual que wasLocked/autoPingFired.
@@ -216,8 +216,8 @@ export default defineContentScript({
       }
     }
     function setHistoryWarning(v: number | null) { currentWarnings = { ...currentWarnings, historyCount: v }; pushState(); }
-    function setAssignment(mismatch: string | null, resource: string | null) {
-      currentWarnings = { ...currentWarnings, assignedTo: mismatch, assignedResource: resource };
+    function setAssignment(mismatch: string | null, resource: string | null, statusLabel: string | null = null, assignedPresent = false) {
+      currentWarnings = { ...currentWarnings, assignedTo: mismatch, assignedResource: resource, statusLabel, assignedPresent };
       pushState();
     }
 
@@ -597,7 +597,7 @@ export default defineContentScript({
           // El ticket está en solo lectura — no tiene sentido la advertencia de
           // "asignado a X" (mismatch), pero el recurso principal sigue siendo
           // información de contexto útil, así que se muestra igual.
-          setAssignment(null, data?.assignedTo ?? null);
+          setAssignment(null, data?.assignedTo ?? null, data?.statusLabel ?? null, false);
           clearInterval(pollInterval);
           pollInterval = undefined;
           return;
@@ -619,7 +619,7 @@ export default defineContentScript({
         }
 
         const mismatchedAssignee = data?.assignedTo && data.assignedTo.trim().toLowerCase() !== user.trim().toLowerCase();
-        setAssignment(mismatchedAssignee ? data.assignedTo : null, data?.assignedTo ?? null);
+        setAssignment(mismatchedAssignee ? data.assignedTo : null, data?.assignedTo ?? null, data?.statusLabel ?? null, Boolean(data?.assignedPresent));
 
         if (data?.pingedBy) {
           const pingMuted = isMuted(typePrefs, 'ping');

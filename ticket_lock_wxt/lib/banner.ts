@@ -85,11 +85,18 @@ export function renderBanner(state: TicketState, warnings: TicketWarnings, opts:
     // muestra solo cuando el estado actual lo trae, para dar contexto de a qué
     // ticket corresponde la asignación sin inventar el dato.
     const ticketLabel = 'ticketLabel' in state ? state.ticketLabel : null;
+    const activeNow = warnings.assignedPresent
+      ? `<span style="display:inline-flex;align-items:center;gap:4px;color:#4ade80"><span style="width:6px;height:6px;border-radius:50%;background:#4ade80;display:inline-block"></span>activo ahora</span>`
+      : '';
     pill.innerHTML = `<div style="${CARD}background:#1f2937;display:flex;align-items:center;gap:10px;font-size:12px;">
       ${avatarHtml(warnings.assignedTo, 0, 26)}
       <div>
         <div>${icon('clipboard-list', { size: 13 })} Asignado a <strong>${escapeHtml(warnings.assignedTo)}</strong></div>
-        ${ticketLabel ? `<div style="opacity:0.7;font-size:11px;margin-top:2px">${escapeHtml(ticketLabel)}</div>` : ''}
+        <div style="opacity:0.7;font-size:11px;margin-top:2px;display:flex;align-items:center;gap:6px">
+          ${ticketLabel ? `<span>${escapeHtml(ticketLabel)}</span>` : ''}
+          ${warnings.statusLabel ? `<span>· ${escapeHtml(warnings.statusLabel)}</span>` : ''}
+          ${activeNow ? `<span style="margin-left:auto">${activeNow}</span>` : ''}
+        </div>
       </div>
     </div>`;
   } else {
