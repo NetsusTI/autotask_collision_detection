@@ -364,7 +364,8 @@ settingsBtn.addEventListener('click', () => {
 
 document.getElementById('soundLabel')!.innerHTML = icon('volume-2', { size: 13 }) + ' Sonido de alerta';
 document.getElementById('renagLabel')!.innerHTML = icon('bell', { size: 13 }) + ' Re-avisar cada';
-document.getElementById('themeLabel')!.innerHTML = icon('palette', { size: 13 }) + ' Tema';
+// El selector de tema se movió al header (ver index.html) — ya no lleva label,
+// se entiende solo por los botones Auto/☀/🌙.
 document.getElementById('prefsSummary')!.innerHTML = icon('bell', { size: 12 }) + ' Tipos de notificación';
 document.querySelector<HTMLButtonElement>('#themeSeg button[data-theme-val="light"]')!.innerHTML = icon('sun', { size: 12 });
 document.querySelector<HTMLButtonElement>('#themeSeg button[data-theme-val="dark"]')!.innerHTML = icon('moon', { size: 12 });
