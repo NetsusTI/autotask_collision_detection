@@ -88,6 +88,7 @@
     'calendar': '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>',
     'clock': '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>',
     'users': '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+    'briefcase': '<rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
   };
   function ic(name, size, color) {
     size = size || 16;
@@ -257,7 +258,7 @@
     document.getElementById('exportCsvBtn').style.display = tab === 'history' ? '' : 'none';
     document.getElementById('filterBar').style.display = tab === 'history' ? 'flex' : 'none';
     if (tab === 'config') loadConfig();
-    if (tab === 'analytics') loadAnalytics();
+    if (tab === 'analytics') { loadAnalytics(); loadWorkload(); }
     if (tab === 'resources') { renderActiveTechsAdmin(); fetchTeamOnline(); loadRoster(); }
     if (tab === 'notif') loadNotifications();
   }
@@ -605,8 +606,29 @@
     URL.revokeObjectURL(url);
   }
 
+  function loadWorkload() {
+    var el = document.getElementById('workloadSection');
+    if (!el) return;
+    fetch(BASE_URL + '/api/team/workload', { headers: adminHeaders() })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data.configured || !data.techs || !data.techs.length) { el.innerHTML = ''; return; }
+        var rows = data.techs.map(function (t) {
+          var avg = t.avgResolutionHours === null ? '—'
+            : t.avgResolutionHours < 1 ? Math.round(t.avgResolutionHours * 60) + ' min'
+            : Math.round(t.avgResolutionHours * 10) / 10 + ' h';
+          return '<tr><td>' + escHtml(t.name) + '</td>' +
+            '<td style="text-align:right">' + t.openTickets + '</td>' +
+            '<td style="text-align:right">' + t.resolvedLast30d + '</td>' +
+            '<td style="text-align:right">' + avg + '</td></tr>';
+        }).join('');
+        el.innerHTML = '<div class="anlSection"><div class="anlTitle">' + ic('briefcase', 15) + ' Carga por técnico</div>' +
+          '<table class="roster-table"><thead><tr><th>Técnico</th><th style="text-align:right">Abiertos</th><th style="text-align:right">Resueltos (30d)</th><th style="text-align:right">Prom. resolución</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+      }).catch(function () { el.innerHTML = ''; });
+  }
+
   function loadAnalytics() {
-    var el = document.getElementById('analyticsTab');
+    var el = document.getElementById('collisionAnalyticsSection');
     el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--faint)">Cargando...</div>';
     fetch(BASE_URL + '/api/presence/analytics', { headers: { 'x-api-key': API_KEY } })
       .then(function (r) { return r.json(); })
@@ -694,7 +716,43 @@
       });
   }
 
+  var HEALTH_LABELS = { redis: 'Redis (presencia/colas)', supabase: 'Supabase (historial/roster)', autotask: 'API de Autotask' };
+
+  function renderHealth(data) {
+    var el = document.getElementById('healthList');
+    if (!el) return;
+    var rows = ['redis', 'supabase', 'autotask'].map(function (key) {
+      var c = data[key] || {};
+      var color = c.ok ? '#22c55e' : '#ef4444';
+      var label = c.ok ? (c.ms + ' ms') : ('caído' + (c.error ? ' · ' + c.error : ''));
+      return '<div style="display:flex;align-items:center;gap:8px;font-size:12px">' +
+        '<div style="width:8px;height:8px;border-radius:50%;background:' + color + ';flex-shrink:0"></div>' +
+        '<div style="flex:1">' + HEALTH_LABELS[key] + '</div>' +
+        '<div style="color:var(--faint)">' + label + '</div></div>';
+    }).join('');
+    el.innerHTML = rows;
+    var ts = document.getElementById('healthCheckedAt');
+    if (ts) {
+      ts.className = 'configStatus';
+      ts.textContent = 'Última verificación: ' + new Date(data.checkedAt).toLocaleTimeString('es-CL');
+    }
+  }
+
+  function loadHealth() {
+    var el = document.getElementById('healthList');
+    if (el) el.innerHTML = '<div style="font-size:11px;color:var(--faint)">Verificando...</div>';
+    fetch(BASE_URL + '/api/health', { headers: adminHeaders() })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data && data.redis) renderHealth(data);
+        else if (el) el.innerHTML = '<div style="font-size:11px;color:#ef4444">No se pudo verificar.</div>';
+      }).catch(function () {
+        if (el) el.innerHTML = '<div style="font-size:11px;color:#ef4444">Error de conexión.</div>';
+      });
+  }
+
   function loadConfig() {
+    loadHealth();
     fetch(BASE_URL + '/api/config', { headers: { 'x-api-key': API_KEY } })
       .then(function (r) { return r.json(); })
       .then(function (data) {
@@ -936,6 +994,7 @@
   document.getElementById('syncResourcesBtn').addEventListener('click', syncResources);
   document.getElementById('diagResourcesBtn').addEventListener('click', diagResources);
   document.getElementById('rosterShowInactive').addEventListener('change', renderRoster);
+  document.getElementById('refreshHealthBtn').addEventListener('click', loadHealth);
   document.getElementById('saveWebhookBtn').addEventListener('click', saveWebhook);
   document.getElementById('testWebhookBtn').addEventListener('click', testWebhook);
   document.getElementById('clearWebhookBtn').addEventListener('click', clearWebhook);

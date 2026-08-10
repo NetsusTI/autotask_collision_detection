@@ -121,6 +121,23 @@ export async function ticketsAssignedTo(resourceIDs: number[], maxRecords = 300)
   });
 }
 
+// Tickets resueltos por un conjunto de recursos desde `sinceIso` — para el panel de
+// carga por técnico (tiempo promedio de resolución reciente, no histórico completo).
+export async function closedTicketsAssignedTo(resourceIDs: number[], sinceIso: string, maxRecords = 500): Promise<AutotaskTicket[]> {
+  if (!resourceIDs.length) return [];
+  return query<AutotaskTicket>('Tickets', {
+    MaxRecords: maxRecords,
+    IncludeFields: TICKET_FIELDS,
+    Filter: [
+      { op: 'and', items: [
+        { op: 'in', field: 'assignedResourceID', value: resourceIDs },
+        { op: 'eq', field: 'status', value: STATUS_COMPLETE },
+        { op: 'gte', field: 'lastActivityDate', value: sinceIso },
+      ] },
+    ],
+  });
+}
+
 // Tickets por lista de IDs (para mapear notas de cliente → ticket/asignado en n3).
 export async function ticketsByIds(ids: number[], maxRecords = 200): Promise<AutotaskTicket[]> {
   if (!ids.length) return [];
