@@ -5,7 +5,7 @@
 
 import { redis } from '@/lib/ticket-lock';
 import { supabase } from '@/lib/supabase/client';
-import { lookupResourceId } from '@/lib/supabase/resources';
+import { lookupResourceId, resourceNamesByIds } from '@/lib/supabase/resources';
 import { clampInt } from '@/lib/num';
 import {
   autotaskConfigured,
@@ -251,13 +251,24 @@ export async function runPoll(force = false): Promise<{ ran: boolean; counts?: R
   // lo vea; solo se salta el feed por-técnico si no hay destinatarios.
   {
     const qTickets = await allOpenTickets();
+    // Nombres de los asignados de los tickets nuevos, en una sola query — evita
+    // una llamada a Supabase por ticket dentro del loop de abajo.
+    const newTickets = qTickets.filter((t) => {
+      const createdMs = tParsed(t.createDate);
+      return createdMs !== null && createdMs >= arrivalCutoff;
+    });
+    const assigneeIds = newTickets.map((t) => t.assignedResourceID).filter((id): id is number => id != null);
+    const assigneeNames = await resourceNamesByIds(assigneeIds);
+
     for (const t of qTickets) {
       const label = t.ticketNumber || `#${t.id}`;
       const createdMs = tParsed(t.createDate);
       if (createdMs !== null && createdMs >= arrivalCutoff) {
+        const assigneeName = t.assignedResourceID != null ? assigneeNames.get(t.assignedResourceID) : undefined;
+        const assigneeSuffix = ` — ${assigneeName ? `asignado a ${assigneeName}` : 'sin asignar'}`;
         const ok = await pushEvent(resources, {
           type: 'n1_queue', title: 'Nuevo ticket en la cola',
-          body: `${label}${t.title ? ' · ' + t.title : ''} entró en la cola`,
+          body: `${label}${t.title ? ' · ' + t.title : ''} entró en la cola${assigneeSuffix}`,
           ticketId: String(t.id), ticketNumber: t.ticketNumber, ticketUrl: uiUrl(t.id),
           dedupeKey: `n1:${t.id}`, ts: now,
         }, 6 * 3600);

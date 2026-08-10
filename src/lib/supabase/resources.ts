@@ -67,3 +67,21 @@ export async function lookupResourceId(name: string): Promise<string | null> {
     .maybeSingle();
   return data?.id ?? null;
 }
+
+// Nombres de varios recursos a la vez por su autotask_resource_id — una sola query
+// en vez de una por ticket (usado por el poller n1 al anunciar a quién quedó
+// asignado un ticket nuevo). No dispara ninguna llamada a Autotask; si el recurso
+// no está en el roster sincronizado, simplemente no aparece en el mapa devuelto.
+export async function resourceNamesByIds(ids: number[]): Promise<Map<number, string>> {
+  const uniqueIds = [...new Set(ids)];
+  if (!uniqueIds.length) return new Map();
+  const { data } = await supabase
+    .from('resources')
+    .select('autotask_resource_id, name')
+    .in('autotask_resource_id', uniqueIds);
+  const map = new Map<number, string>();
+  for (const row of data ?? []) {
+    if (row.autotask_resource_id !== null) map.set(row.autotask_resource_id, row.name);
+  }
+  return map;
+}
