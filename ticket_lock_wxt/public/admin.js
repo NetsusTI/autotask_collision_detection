@@ -614,8 +614,6 @@
       .then(function (data) {
         document.getElementById('webhookInput').value = data.teamsWebhook || '';
         document.getElementById('ttlInput').value = data.presenceTtl || 40;
-        document.getElementById('autotaskNotesInput').checked = !!data.autotaskNotesEnabled;
-        document.getElementById('autotaskUiBaseInput').value = data.autotaskUiBase || '';
         var wh = data.workHours;
         if (wh) {
           document.getElementById('workHoursEnabled').checked = !!wh.enabled;
@@ -644,78 +642,6 @@
     }).catch(function (err) {
       status.className = 'configStatus err';
       status.textContent = err && err.message === 'session' ? '✗ Sesión expirada' : '✗ Error al guardar';
-    });
-  }
-
-  function saveAutotaskNotes() {
-    var enabled = document.getElementById('autotaskNotesInput').checked;
-    var status = document.getElementById('autotaskNotesStatus');
-    fetch(BASE_URL + '/api/config', {
-      method: 'POST',
-      headers: adminHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ autotaskNotesEnabled: enabled })
-    }).then(function (r) {
-      if (!r.ok) throw new Error(r.status === 403 ? 'session' : 'http');
-      status.className = 'configStatus ok';
-      status.textContent = enabled ? '✓ Nota automática activada' : '✓ Nota automática desactivada';
-      setTimeout(function () { status.textContent = ''; }, 3000);
-    }).catch(function (err) {
-      document.getElementById('autotaskNotesInput').checked = !enabled;
-      status.className = 'configStatus err';
-      status.textContent = err && err.message === 'session' ? '✗ Sesión expirada, vuelve a ingresar' : '✗ Error al guardar';
-    });
-  }
-
-  function saveUiBase() {
-    var val = document.getElementById('autotaskUiBaseInput').value.trim();
-    var status = document.getElementById('uiBaseStatus');
-    fetch(BASE_URL + '/api/config', {
-      method: 'POST',
-      headers: adminHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ autotaskUiBase: val })
-    }).then(function (r) {
-      if (!r.ok) throw new Error(r.status === 403 ? 'session' : 'http');
-      status.className = 'configStatus ok';
-      status.textContent = val ? '✓ URL guardada' : '✓ URL borrada';
-      setTimeout(function () { status.textContent = ''; }, 3000);
-    }).catch(function (err) {
-      status.className = 'configStatus err';
-      status.textContent = err && err.message === 'session' ? '✗ Sesión expirada' : '✗ Error al guardar';
-    });
-  }
-
-  function changePassword() {
-    var current = document.getElementById('currentPwdInput').value;
-    var next = document.getElementById('newPwdInput').value;
-    var status = document.getElementById('changePwdStatus');
-    if (!current || !next) {
-      status.className = 'configStatus err';
-      status.textContent = 'Completa ambos campos';
-      return;
-    }
-    fetch(BASE_URL + '/api/admin/change-password', {
-      method: 'POST',
-      headers: adminHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ currentPassword: current, newPassword: next })
-    }).then(function (r) {
-      return r.json().catch(function () { return {}; }).then(function (data) { return { ok: r.ok, status: r.status, data: data }; });
-    }).then(function (res) {
-      if (!res.ok) {
-        status.className = 'configStatus err';
-        status.textContent = res.status === 403 && res.data && res.data.error !== 'wrong_password'
-          ? 'Sesión expirada, vuelve a ingresar'
-          : (res.data && res.data.error === 'wrong_password' ? 'Contraseña actual incorrecta' : 'Error al cambiar la contraseña');
-        return;
-      }
-      document.getElementById('currentPwdInput').value = '';
-      document.getElementById('newPwdInput').value = '';
-      status.className = 'configStatus ok';
-      status.textContent = res.data && res.data.envOverride
-        ? '✓ Guardada, pero ADMIN_PASSWORD sigue seteada en Vercel — no tendrá efecto hasta que la borres'
-        : '✓ Contraseña actualizada';
-    }).catch(function () {
-      status.className = 'configStatus err';
-      status.textContent = 'Error de conexión';
     });
   }
 
@@ -922,9 +848,6 @@
   document.getElementById('saveWebhookBtn').addEventListener('click', saveWebhook);
   document.getElementById('testWebhookBtn').addEventListener('click', testWebhook);
   document.getElementById('clearWebhookBtn').addEventListener('click', clearWebhook);
-  document.getElementById('autotaskNotesInput').addEventListener('change', saveAutotaskNotes);
-  document.getElementById('saveUiBaseBtn').addEventListener('click', saveUiBase);
-  document.getElementById('changePwdBtn').addEventListener('click', changePassword);
 
   document.getElementById('saveWorkHoursBtn').addEventListener('click', saveWorkHours);
 
