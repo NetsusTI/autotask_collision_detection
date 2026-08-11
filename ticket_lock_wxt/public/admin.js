@@ -515,7 +515,6 @@
     var details = document.getElementById('diagFeedbackDetails');
     var status = document.getElementById('diagFeedbackStatus');
     details.style.display = '';
-    details.open = true;
     out.textContent = 'Probando envío de correo (token + sendMail)...';
     status.className = 'configStatus';
     status.style.color = 'var(--dim)';
