@@ -482,13 +482,32 @@
           return '<div style="padding:10px 0;border-bottom:1px solid rgba(var(--ink-rgb),0.06)">' +
             '<div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline">' +
             '<span style="font-size:12px;font-weight:600">' + escHtml(f.resource_name) + ' · <span style="color:var(--accent)">' + escHtml(label) + '</span></span>' +
-            '<span style="font-size:10px;color:var(--faint);white-space:nowrap">' + when + '</span></div>' +
+            '<span style="display:flex;align-items:center;gap:8px;flex-shrink:0">' +
+            '<span style="font-size:10px;color:var(--faint);white-space:nowrap">' + when + '</span>' +
+            '<button class="fbDeleteBtn" data-id="' + f.id + '" title="Borrar" style="background:transparent;border:none;color:var(--faint);cursor:pointer;padding:2px;display:flex">' +
+            '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>' +
+            '</button></span></div>' +
             '<div style="font-size:12px;color:var(--dim);margin-top:3px;white-space:pre-wrap">' + escHtml(f.message) + '</div>' +
             '</div>';
         }).join('');
+        Array.prototype.forEach.call(el.querySelectorAll('.fbDeleteBtn'), function (btn) {
+          btn.addEventListener('click', function () { deleteFeedback(btn.dataset.id); });
+        });
       }).catch(function (err) {
         el.innerHTML = '<div style="font-size:11px;color:#ef4444">' + (err && err.message === 'session' ? 'Sesión expirada, vuelve a ingresar' : 'Error al cargar feedback') + '</div>';
       });
+  }
+
+  function deleteFeedback(id) {
+    fetch(BASE_URL + '/api/feedback?id=' + encodeURIComponent(id), { method: 'DELETE', headers: adminHeaders() })
+      .then(function (r) { if (!r.ok) throw new Error('http'); return loadFeedback(); })
+      .catch(function () {});
+  }
+
+  function deleteAllFeedback() {
+    fetch(BASE_URL + '/api/feedback?all=true', { method: 'DELETE', headers: adminHeaders() })
+      .then(function (r) { if (!r.ok) throw new Error('http'); return loadFeedback(); })
+      .catch(function () {});
   }
 
   function diagFeedback() {
@@ -1016,6 +1035,10 @@
   document.getElementById('tabNotif').addEventListener('click', function () { setTab('notif'); });
   document.getElementById('tabFeedback').addEventListener('click', function () { setTab('feedback'); });
   document.getElementById('diagFeedbackBtn').addEventListener('click', diagFeedback);
+  document.getElementById('clearFeedbackBtn').addEventListener('click', function () {
+    if (!confirm('¿Borrar todo el feedback recibido? Esta acción no se puede deshacer.')) return;
+    deleteAllFeedback();
+  });
   document.getElementById('tabConfig').addEventListener('click', function () { setTab('config'); });
   document.getElementById('exportCsvBtn').addEventListener('click', exportCsv);
   document.getElementById('saveTtlBtn').addEventListener('click', saveTtl);

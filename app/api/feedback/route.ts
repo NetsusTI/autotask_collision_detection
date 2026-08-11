@@ -79,3 +79,26 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({ items: data, total: count ?? data.length, offset, limit });
 }
+
+// DELETE /api/feedback?id=<uuid>  → borra una fila puntual.
+// DELETE /api/feedback?all=true   → borra todo el historial de feedback.
+export async function DELETE(request: NextRequest) {
+  if (!checkApiKey(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  if (!(await checkAdminSession(request))) return NextResponse.json({ error: 'admin session required' }, { status: 403 });
+
+  const url = request.nextUrl;
+  const id = url.searchParams.get('id');
+  const all = url.searchParams.get('all') === 'true';
+
+  if (all) {
+    // neq con un uuid imposible = "todas las filas" (Supabase no tiene un delete-all directo sin filtro).
+    const { error } = await supabase.from('feedback').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    if (error) return NextResponse.json({ error: 'supabase error' }, { status: 502 });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (!id) return NextResponse.json({ error: 'missing id' }, { status: 400 });
+  const { error } = await supabase.from('feedback').delete().eq('id', id);
+  if (error) return NextResponse.json({ error: 'supabase error' }, { status: 502 });
+  return NextResponse.json({ ok: true });
+}
