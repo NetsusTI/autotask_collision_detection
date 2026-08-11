@@ -198,10 +198,15 @@
       </div>
     </div>
     <div id="nameWarning" class="name-warning" style="display:none">Nombre no detectado — escríbelo manualmente</div>
-    <label class="settings-label">Cambiar nombre manualmente</label>
-    <input id="nameInput" class="settings-panel-input" type="text" placeholder="Ej: Ricardo Illanes" />
-    <button class="btn block" id="saveBtn">Guardar</button>
-    <div id="saveStatus" class="save-status"></div>
+    <details class="prefs-details" id="nameDetails" style="border-top:none;padding-top:0;margin-top:0">
+      <summary style="font-size:11px;color:var(--dim);cursor:pointer;list-style:none;padding:6px 0;display:flex;align-items:center;gap:5px">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        Cambiar nombre manualmente
+      </summary>
+      <input id="nameInput" class="settings-panel-input" type="text" placeholder="Ej: Ricardo Illanes" style="margin-top:6px" />
+      <button class="btn block" id="saveBtn">Guardar</button>
+      <div id="saveStatus" class="save-status"></div>
+    </details>
 
     <div class="settings-row">
       <span id="soundLabel">Sonido de alerta</span>

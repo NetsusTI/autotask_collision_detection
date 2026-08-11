@@ -406,6 +406,9 @@ chrome.storage.local.get(['netsus_user', 'netsus_user_auto', 'netsus_sound'], ({
     autoLabelEl.textContent = 'Abre un ticket para detectar automáticamente';
     avatarEl.textContent = '?';
     nameWarningEl.style.display = 'block';
+    // Sin nombre detectado, el técnico SÍ necesita ver el campo — no tiene sentido
+    // dejarlo colapsado detrás de "Cambiar nombre manualmente" en este caso.
+    document.getElementById('nameDetails')?.setAttribute('open', '');
   }
   soundToggleEl.checked = netsus_sound !== 'off';
 });
