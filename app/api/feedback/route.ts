@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkApiKey } from '@/lib/ticket-lock';
+import { checkAdminSession } from '@/lib/admin-auth';
 import { supabase, type FeedbackType } from '@/lib/supabase/client';
 import { lookupResourceId } from '@/lib/supabase/resources';
 
@@ -29,6 +30,9 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   if (!checkApiKey(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  // Lectura de feedback es una acción administrativa — mismo criterio que roster/
+  // config/historial: el x-api-key embebido en la extensión pública no alcanza solo.
+  if (!(await checkAdminSession(request))) return NextResponse.json({ error: 'admin session required' }, { status: 403 });
   const url = request.nextUrl;
   const offset = parseInt(url.searchParams.get('offset') ?? '0');
   const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '50'), 100);

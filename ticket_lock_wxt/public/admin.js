@@ -248,7 +248,7 @@
 
   function setTab(tab) {
     currentTab = tab;
-    ['live', 'history', 'analytics', 'resources', 'notif', 'config'].forEach(function (t) {
+    ['live', 'history', 'analytics', 'resources', 'notif', 'feedback', 'config'].forEach(function (t) {
       var btn = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
       if (btn) btn.classList.toggle('active', t === tab);
       var el = document.getElementById(t + 'Tab');
@@ -261,6 +261,7 @@
     if (tab === 'analytics') { loadAnalytics(); loadWorkload(); }
     if (tab === 'resources') { renderActiveTechsAdmin(); fetchTeamOnline(); loadRoster(); }
     if (tab === 'notif') loadNotifications();
+    if (tab === 'feedback') loadFeedback();
   }
 
   function updateCountdown() {
@@ -455,6 +456,38 @@
         }).join('');
       }).catch(function () {
         el.innerHTML = '<div style="font-size:11px;color:#ef4444">Error al cargar notificaciones.</div>';
+      });
+  }
+
+  var FEEDBACK_TYPE_LABEL = { mejorar: 'Mejorar algo', agregar: 'Agregar algo', quitar: 'Quitar algo', otro: 'Otro' };
+
+  function loadFeedback() {
+    var el = document.getElementById('feedbackList');
+    if (!el) return;
+    el.innerHTML = '<div style="font-size:11px;color:var(--faint)">Cargando...</div>';
+    fetch(BASE_URL + '/api/feedback?limit=50', { headers: adminHeaders() })
+      .then(function (r) {
+        if (r.status === 403) throw new Error('session');
+        return r.json();
+      })
+      .then(function (data) {
+        var items = data.items || [];
+        if (!items.length) {
+          el.innerHTML = '<div style="font-size:12px;color:var(--faint);padding:8px 0">Sin feedback recibido todavía.</div>';
+          return;
+        }
+        el.innerHTML = items.map(function (f) {
+          var label = FEEDBACK_TYPE_LABEL[f.type] || f.type;
+          var when = new Date(f.created_at).toLocaleString('es-CL');
+          return '<div style="padding:10px 0;border-bottom:1px solid rgba(var(--ink-rgb),0.06)">' +
+            '<div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline">' +
+            '<span style="font-size:12px;font-weight:600">' + escHtml(f.resource_name) + ' · <span style="color:var(--accent)">' + escHtml(label) + '</span></span>' +
+            '<span style="font-size:10px;color:var(--faint);white-space:nowrap">' + when + '</span></div>' +
+            '<div style="font-size:12px;color:var(--dim);margin-top:3px;white-space:pre-wrap">' + escHtml(f.message) + '</div>' +
+            '</div>';
+        }).join('');
+      }).catch(function (err) {
+        el.innerHTML = '<div style="font-size:11px;color:#ef4444">' + (err && err.message === 'session' ? 'Sesión expirada, vuelve a ingresar' : 'Error al cargar feedback') + '</div>';
       });
   }
 
@@ -952,6 +985,7 @@
   document.getElementById('tabAnalytics').addEventListener('click', function () { setTab('analytics'); });
   document.getElementById('tabResources').addEventListener('click', function () { setTab('resources'); });
   document.getElementById('tabNotif').addEventListener('click', function () { setTab('notif'); });
+  document.getElementById('tabFeedback').addEventListener('click', function () { setTab('feedback'); });
   document.getElementById('tabConfig').addEventListener('click', function () { setTab('config'); });
   document.getElementById('exportCsvBtn').addEventListener('click', exportCsv);
   document.getElementById('saveTtlBtn').addEventListener('click', saveTtl);
