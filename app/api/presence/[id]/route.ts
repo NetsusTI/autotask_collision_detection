@@ -7,6 +7,7 @@ import { dedupeOthers, minutesSince, formatDuration } from '@/lib/collision';
 import { clampInt } from '@/lib/num';
 import { createTicketNote, getTicketAssignedResourceId, getResourceName, getTicketStatus, getTicketStatusLabel, AUTOTASK_STATUS_COMPLETE } from '@/lib/autotask';
 import { isValidTicketId, sanitizeUser } from '@/lib/sanitize';
+import { logError } from '@/lib/error-log';
 
 const PRESENCE_TTL = 40;
 
@@ -356,8 +357,11 @@ export async function POST(
             .map((r) => ({ collision_id: supaRow.id, resource_id: r.resource_id }));
           if (participantRows.length) await supabase.from('collision_participants').insert(participantRows);
         }
-      } catch {
-        // silencioso: Redis ya tiene el registro
+      } catch (e) {
+        // Redis ya tiene el registro (la colisión se detecta igual) — pero si esto
+        // falla seguido, el historial/analytics del panel admin queda incompleto
+        // en silencio. Se deja rastro sin bloquear el resto del flujo.
+        logError('presence:collision-insert', e, `ticket=${id}`);
       }
       if (await isWithinWorkHours()) sendTeamsWebhook(ticketDisplay, allInCollision, storedUrl);
       logCentralNotification({
@@ -450,8 +454,8 @@ export async function DELETE(
                 duration_ms: duration,
               });
             }
-          } catch {
-            // silencioso: Redis ya tiene el registro
+          } catch (e) {
+            logError('presence:collision-resolve', e, `ticket=${id}`);
           }
           // Notify Teams that the collision was resolved
           const colUsers: string[] = colUsersRaw ? JSON.parse(colUsersRaw) : [user];

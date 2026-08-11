@@ -392,6 +392,17 @@
         <div class="configStatus" id="workHoursStatus"></div>
       </div>
       <div class="configSection">
+        <div class="configTitle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m10.29 3.86-8.18 14.14A2 2 0 0 0 3.83 21h16.34a2 2 0 0 0 1.72-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Errores del sistema</div>
+        <div class="configSub">Fallos silenciosos (correo, registro de colisiones en Supabase) que normalmente no rompen nada visible pero antes no dejaban rastro. Se actualiza al abrir.</div>
+        <details id="errorLogDetails">
+          <summary style="cursor:pointer;font-size:11px;color:var(--dim)">Ver últimos errores</summary>
+          <div id="errorLogList" style="margin-top:8px"></div>
+          <div class="configBtns">
+            <button class="configBtn secondary" id="clearErrorLogBtn" style="color:#ef4444;border-color:rgba(239,68,68,0.3)">Borrar historial</button>
+          </div>
+        </details>
+      </div>
+      <div class="configSection">
         <div class="configTitle">ℹ️ Información</div>
         <div class="configSub">Versión 1.0.0 · Autotask CoView · Netsus</div>
         <div style="font-size:12px;color:var(--dim);line-height:1.8">

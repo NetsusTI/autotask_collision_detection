@@ -4,6 +4,7 @@
 // proyecto usa para Autotask y los webhooks de Teams.
 
 import { redis } from '@/lib/ticket-lock';
+import { logError } from '@/lib/error-log';
 
 const TOKEN_CACHE_KEY = 'msgraph:token';
 
@@ -40,16 +41,24 @@ async function getAccessToken(): Promise<string | null> {
         grant_type: 'client_credentials',
       }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      logError('graph-mail:token', new Error(`HTTP ${res.status}`), body.slice(0, 500));
+      return null;
+    }
     const data = await res.json();
     const token: string | undefined = data?.access_token;
     const expiresIn: number = data?.expires_in ?? 3600;
-    if (!token) return null;
+    if (!token) {
+      logError('graph-mail:token', new Error('respuesta sin access_token'));
+      return null;
+    }
     // Cachea un poco por debajo del vencimiento real para no usar un token a punto
     // de expirar en un request que está por salir.
     await redis.set(TOKEN_CACHE_KEY, token, { ex: Math.max(60, expiresIn - 120) });
     return token;
-  } catch {
+  } catch (e) {
+    logError('graph-mail:token', e);
     return null;
   }
 }
@@ -79,8 +88,13 @@ export async function sendGraphMail(to: string[], subject: string, htmlBody: str
         saveToSentItems: false,
       }),
     });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      logError('graph-mail:send', new Error(`HTTP ${res.status} enviando desde ${sender}`), body.slice(0, 500));
+    }
     return res.ok;
-  } catch {
+  } catch (e) {
+    logError('graph-mail:send', e, `sender=${sender}`);
     return false;
   }
 }

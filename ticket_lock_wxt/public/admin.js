@@ -810,7 +810,35 @@
       });
   }
 
+  function loadErrorLog() {
+    var el = document.getElementById('errorLogList');
+    if (!el) return;
+    el.innerHTML = '<div style="font-size:11px;color:var(--faint)">Cargando...</div>';
+    fetch(BASE_URL + '/api/errors?limit=30', { headers: adminHeaders() })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var items = data.items || [];
+        if (!items.length) {
+          el.innerHTML = '<div style="font-size:12px;color:var(--faint);padding:8px 0">Sin errores registrados.</div>';
+          return;
+        }
+        el.innerHTML = items.map(function (e) {
+          var when = new Date(e.created_at).toLocaleString('es-CL');
+          return '<div style="padding:8px 0;border-bottom:1px solid rgba(var(--ink-rgb),0.06)">' +
+            '<div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline">' +
+            '<span style="font-size:11px;font-weight:600;color:#ef4444">' + escHtml(e.source) + '</span>' +
+            '<span style="font-size:10px;color:var(--faint);white-space:nowrap">' + when + '</span></div>' +
+            '<div style="font-size:12px;color:var(--dim);margin-top:2px">' + escHtml(e.message) + '</div>' +
+            (e.detail ? '<pre style="font-size:10px;color:var(--faint);margin-top:4px;white-space:pre-wrap;overflow-x:auto">' + escHtml(e.detail) + '</pre>' : '') +
+            '</div>';
+        }).join('');
+      }).catch(function () {
+        el.innerHTML = '<div style="font-size:11px;color:#ef4444">Error al cargar el registro.</div>';
+      });
+  }
+
   function loadConfig() {
+    loadErrorLog();
     fetch(BASE_URL + '/api/config', { headers: { 'x-api-key': API_KEY } })
       .then(function (r) { return r.json(); })
       .then(function (data) {
@@ -1053,6 +1081,12 @@
     deleteAllFeedback();
   });
   document.getElementById('tabConfig').addEventListener('click', function () { setTab('config'); });
+  document.getElementById('clearErrorLogBtn').addEventListener('click', function () {
+    if (!confirm('¿Borrar el historial de errores registrados?')) return;
+    fetch(BASE_URL + '/api/errors?all=true', { method: 'DELETE', headers: adminHeaders() })
+      .then(function (r) { if (!r.ok) throw new Error('http'); return loadErrorLog(); })
+      .catch(function () {});
+  });
   document.getElementById('exportCsvBtn').addEventListener('click', exportCsv);
   document.getElementById('saveTtlBtn').addEventListener('click', saveTtl);
   document.getElementById('syncResourcesBtn').addEventListener('click', syncResources);
