@@ -16,6 +16,10 @@ export function graphMailConfigured(): boolean {
   );
 }
 
+export function defaultSender(): string | undefined {
+  return process.env.MS_GRAPH_SENDER_EMAIL;
+}
+
 async function getAccessToken(): Promise<string | null> {
   const cached = await redis.get<string>(TOKEN_CACHE_KEY);
   if (cached) return cached;
@@ -50,13 +54,15 @@ async function getAccessToken(): Promise<string | null> {
   }
 }
 
-// Envía un correo desde MS_GRAPH_SENDER_EMAIL vía Graph. Nunca lanza — devuelve
-// false ante cualquier error (config faltante, token, envío), mismo contrato que
-// createTicketNote/sendTeamsWebhook: se llama fire-and-forget, un fallo acá no
-// puede tumbar la respuesta HTTP de quien lo dispara.
-export async function sendGraphMail(to: string[], subject: string, htmlBody: string): Promise<boolean> {
+// Envía un correo vía Graph, desde `from` si se especifica (debe ser un buzón real
+// del tenant — Mail.Send de aplicación permite enviar "como" cualquier usuario de
+// la organización) o desde MS_GRAPH_SENDER_EMAIL como respaldo. Nunca lanza —
+// devuelve false ante cualquier error (config faltante, token, envío), mismo
+// contrato que createTicketNote/sendTeamsWebhook: se llama fire-and-forget, un
+// fallo acá no puede tumbar la respuesta HTTP de quien lo dispara.
+export async function sendGraphMail(to: string[], subject: string, htmlBody: string, from?: string | null): Promise<boolean> {
   if (!graphMailConfigured() || !to.length) return false;
-  const sender = process.env.MS_GRAPH_SENDER_EMAIL!;
+  const sender = from || process.env.MS_GRAPH_SENDER_EMAIL!;
   try {
     const token = await getAccessToken();
     if (!token) return false;

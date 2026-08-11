@@ -68,6 +68,22 @@ export async function lookupResourceId(name: string): Promise<string | null> {
   return data?.id ?? null;
 }
 
+// Igual que lookupResourceId pero trae también el email — usado por /api/feedback
+// para mandar el correo "de parte de" quien realmente escribió el feedback (tomado
+// del roster sincronizado desde Autotask) en vez de un buzón fijo.
+export async function lookupResourceIdAndEmail(name: string): Promise<{ id: string; email: string | null } | null> {
+  const clean = name.trim();
+  if (!clean) return null;
+  const { data } = await supabase
+    .from('resources')
+    .select('id, email')
+    .eq('active', true)
+    .ilike('name', clean)
+    .limit(1)
+    .maybeSingle();
+  return data ? { id: data.id, email: data.email } : null;
+}
+
 // Nombres de varios recursos a la vez por su autotask_resource_id — una sola query
 // en vez de una por ticket (usado por el poller n1 al anunciar a quién quedó
 // asignado un ticket nuevo). No dispara ninguna llamada a Autotask; si el recurso

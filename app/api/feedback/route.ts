@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { checkApiKey } from '@/lib/ticket-lock';
 import { checkAdminSession } from '@/lib/admin-auth';
 import { supabase, type FeedbackType } from '@/lib/supabase/client';
-import { lookupResourceId } from '@/lib/supabase/resources';
+import { lookupResourceIdAndEmail } from '@/lib/supabase/resources';
 import { sendGraphMail } from '@/lib/graph-mail';
 
 const VALID_TYPES: FeedbackType[] = ['mejorar', 'agregar', 'quitar', 'otro'];
@@ -18,7 +18,12 @@ function escapeHtml(s: string): string {
 // tumbar la respuesta de /api/feedback. FEEDBACK_EMAIL_TO acepta varios correos
 // separados por coma; si no está seteada, simplemente no se manda nada (el
 // feedback igual queda guardado y visible en el panel admin).
-function notifyFeedbackByEmail(resource_name: string, type: FeedbackType, message: string) {
+//
+// El remitente es el correo real del técnico (tomado del roster sincronizado
+// desde Autotask) para que el correo llegue "de parte de" quien realmente lo
+// escribió — no de un buzón fijo. Si ese técnico no tiene email en el roster,
+// cae de respaldo a MS_GRAPH_SENDER_EMAIL para no perder el aviso.
+function notifyFeedbackByEmail(resource_name: string, senderEmail: string | null, type: FeedbackType, message: string) {
   const toRaw = process.env.FEEDBACK_EMAIL_TO;
   if (!toRaw) return;
   const to = toRaw.split(',').map((s) => s.trim()).filter(Boolean);
@@ -28,6 +33,7 @@ function notifyFeedbackByEmail(resource_name: string, type: FeedbackType, messag
     `Feedback CoView — ${TYPE_LABEL[type]} · ${resource_name}`,
     `<p><strong>${escapeHtml(resource_name)}</strong> envió feedback (${escapeHtml(TYPE_LABEL[type])}):</p>
      <p style="white-space:pre-wrap;background:#f5f5f5;padding:12px;border-radius:6px">${escapeHtml(message)}</p>`,
+    senderEmail,
   );
 }
 
@@ -44,13 +50,13 @@ export async function POST(request: NextRequest) {
   // El feedback no tiene respaldo en Redis (a diferencia de colisiones/notificaciones),
   // así que si el nombre no corresponde a un técnico conocido, se rechaza directamente
   // en vez de guardarlo sin dueño verificado.
-  const resource_id = await lookupResourceId(resource_name);
-  if (!resource_id) return NextResponse.json({ error: 'unknown resource' }, { status: 403 });
+  const resource = await lookupResourceIdAndEmail(resource_name);
+  if (!resource) return NextResponse.json({ error: 'unknown resource' }, { status: 403 });
 
-  const { error } = await supabase.from('feedback').insert({ resource_name, resource_id, type: fbType, message: msg });
+  const { error } = await supabase.from('feedback').insert({ resource_name, resource_id: resource.id, type: fbType, message: msg });
   if (error) return NextResponse.json({ error: 'supabase error' }, { status: 502 });
 
-  notifyFeedbackByEmail(resource_name, fbType, msg);
+  notifyFeedbackByEmail(resource_name, resource.email, fbType, msg);
 
   return NextResponse.json({ ok: true });
 }
