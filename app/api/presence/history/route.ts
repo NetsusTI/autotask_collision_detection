@@ -18,11 +18,12 @@ export async function GET(request: NextRequest) {
   if (!tech) {
     const { data, count, error } = await supabase
       .from('collision_history')
-      .select('ticket_id, ticket_number, users, created_at', { count: 'exact' })
+      .select('id, ticket_id, ticket_number, users, created_at', { count: 'exact' })
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
     if (error || !data) return NextResponse.json({ events: [], total: 0, offset, limit });
     const events = data.map((row) => ({
+      id: row.id,
       ts: new Date(row.created_at).getTime(),
       ticketId: row.ticket_id,
       ticketNumber: row.ticket_number,
@@ -33,12 +34,13 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await supabase
     .from('collision_history')
-    .select('ticket_id, ticket_number, users, created_at')
+    .select('id, ticket_id, ticket_number, users, created_at')
     .order('created_at', { ascending: false })
     .limit(SCAN_WINDOW);
   if (error || !data) return NextResponse.json({ events: [], total: 0, offset, limit });
 
   const all = data.map((row) => ({
+    id: row.id,
     ts: new Date(row.created_at).getTime(),
     ticketId: row.ticket_id,
     ticketNumber: row.ticket_number,
@@ -51,11 +53,21 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ events, total, offset, limit });
 }
 
+// DELETE ?id=<uuid>       → borra una fila puntual (ej. limpiar un registro de
+//                           prueba) sin tocar el resto del historial real.
+// DELETE (sin parámetros) → borra TODO el historial — irreversible.
 export async function DELETE(request: NextRequest) {
   if (!checkApiKey(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  // Borra TODO el historial de colisiones — irreversible, exige la sesión de
-  // /api/admin/auth además del x-api-key (ver nota en /api/config).
+  // Acción administrativa — exige la sesión de /api/admin/auth además del
+  // x-api-key (ver nota en /api/config).
   if (!(await checkAdminSession(request))) return NextResponse.json({ error: 'admin session required' }, { status: 403 });
+
+  const id = request.nextUrl.searchParams.get('id');
+  if (id) {
+    await supabase.from('collision_history').delete().eq('id', id);
+    return NextResponse.json({ ok: true });
+  }
+
   await supabase.from('collision_history').delete().not('id', 'is', null);
   return NextResponse.json({ ok: true });
 }

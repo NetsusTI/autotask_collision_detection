@@ -662,9 +662,13 @@
       return '<div class="histCard"><div class="histLeft">' + ic('alert-triangle', 16) +
         '<div><div class="histTicket">' + escHtml(e.ticketNumber || '#' + e.ticketId) + '</div>' +
         '<div class="histTime">' + new Date(e.ts).toLocaleString('es-CL') + '</div></div></div>' +
+        '<div style="display:flex;align-items:center;gap:8px">' +
         '<div class="chips">' + e.users.map(function (u, i) {
           return '<span class="histChip ' + (i === 0 ? 'first' : '') + '">' + escHtml(userName(u)) + '</span>';
-        }).join('') + '</div></div>';
+        }).join('') + '</div>' +
+        '<button class="histDeleteBtn" data-id="' + escHtml(e.id) + '" title="Borrar este registro" style="background:transparent;border:none;color:var(--faint);cursor:pointer;padding:2px;display:flex;flex-shrink:0">' +
+        '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>' +
+        '</button></div></div>';
     }).join('');
     var hasMore = historyOffset < historyTotal && historyPeriod === 'all' && !historyFilter;
     el.innerHTML = cards + (hasMore
@@ -673,6 +677,15 @@
     if (hasMore) {
       document.getElementById('loadMoreBtn').addEventListener('click', function () { fetchHistory(true); });
     }
+    Array.prototype.forEach.call(el.querySelectorAll('.histDeleteBtn'), function (btn) {
+      btn.addEventListener('click', function () {
+        if (!confirm('¿Borrar este registro del historial? No se puede deshacer.')) return;
+        var id = btn.getAttribute('data-id');
+        fetch(BASE_URL + '/api/presence/history?id=' + encodeURIComponent(id), { method: 'DELETE', headers: adminHeaders() })
+          .then(function (r) { if (!r.ok) throw new Error('http'); return fetchHistory(false); })
+          .catch(function () { alert('Error al borrar el registro'); });
+      });
+    });
   }
 
   function exportCsv() {
