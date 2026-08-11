@@ -491,6 +491,35 @@
       });
   }
 
+  function diagFeedback() {
+    var out = document.getElementById('diagFeedbackOutput');
+    var details = document.getElementById('diagFeedbackDetails');
+    var status = document.getElementById('diagFeedbackStatus');
+    details.style.display = '';
+    details.open = true;
+    out.textContent = 'Probando envío de correo (token + sendMail)...';
+    status.className = 'configStatus';
+    status.style.color = 'var(--dim)';
+    status.textContent = '';
+    fetch(BASE_URL + '/api/feedback/diagnostic', { headers: adminHeaders() })
+      .then(function (r) {
+        if (r.status === 403) throw new Error('session');
+        return r.json();
+      })
+      .then(function (data) {
+        out.textContent = JSON.stringify(data, null, 2);
+        if (data.send && data.send.ok) {
+          status.className = 'configStatus ok';
+          status.textContent = '✓ Correo de prueba enviado — revisa la bandeja.';
+        } else {
+          status.className = 'configStatus err';
+          status.textContent = '✗ No se pudo enviar — ver detalle abajo.';
+        }
+      }).catch(function (err) {
+        out.textContent = err && err.message === 'session' ? 'Sesión expirada, vuelve a ingresar' : 'Error al consultar diagnóstico';
+      });
+  }
+
   function renderLive(tickets) {
     if (liveView === 'tech') { renderLiveByTech(tickets); return; }
     var allUsers = tickets.reduce(function (a, t) {
@@ -986,6 +1015,7 @@
   document.getElementById('tabResources').addEventListener('click', function () { setTab('resources'); });
   document.getElementById('tabNotif').addEventListener('click', function () { setTab('notif'); });
   document.getElementById('tabFeedback').addEventListener('click', function () { setTab('feedback'); });
+  document.getElementById('diagFeedbackBtn').addEventListener('click', diagFeedback);
   document.getElementById('tabConfig').addEventListener('click', function () { setTab('config'); });
   document.getElementById('exportCsvBtn').addEventListener('click', exportCsv);
   document.getElementById('saveTtlBtn').addEventListener('click', saveTtl);

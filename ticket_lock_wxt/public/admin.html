@@ -285,7 +285,15 @@
       <div class="configSection">
         <div class="configTitle"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Feedback del equipo</div>
         <div class="configSub">Sugerencias enviadas desde el botón "Enviar feedback" del sidepanel de cada técnico.</div>
-        <div id="feedbackList" style="margin-top:8px"></div>
+        <div class="configBtns">
+          <button class="configBtn secondary" id="diagFeedbackBtn">Diagnóstico correo</button>
+        </div>
+        <div class="configStatus" id="diagFeedbackStatus"></div>
+        <details id="diagFeedbackDetails" style="display:none;margin-top:8px">
+          <summary style="cursor:pointer;font-size:11px;color:var(--dim)">Ver resultado del diagnóstico</summary>
+          <pre id="diagFeedbackOutput" style="margin-top:6px;font-size:10px;background:rgba(0,0,0,0.3);border-radius:6px;padding:10px;overflow:auto;max-height:320px;white-space:pre-wrap;color:var(--dim)"></pre>
+        </details>
+        <div id="feedbackList" style="margin-top:16px"></div>
       </div>
     </div>
     <div id="resourcesTab" style="display:none">
