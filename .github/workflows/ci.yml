@@ -18,7 +18,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 22, no 20: @upstash/redis espera un WebSocket global nativo, que
+          # Node solo trae desde la 22 — con Node 20 el import de src/lib/
+          # ticket-lock.ts (y todo lo que lo importa, como notif-poll.ts)
+          # tira "Node.js detected but native WebSocket not found." al vuelo.
+          node-version: 22
           cache: npm
       - run: npm ci
       - name: Type-check
@@ -36,7 +40,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 22, no 20: @upstash/redis espera un WebSocket global nativo, que
+          # Node solo trae desde la 22 — con Node 20 el import de src/lib/
+          # ticket-lock.ts (y todo lo que lo importa, como notif-poll.ts)
+          # tira "Node.js detected but native WebSocket not found." al vuelo.
+          node-version: 22
           cache: npm
           cache-dependency-path: ticket_lock_wxt/package-lock.json
       - run: npm ci
