@@ -434,6 +434,7 @@
   var NOTIF_TYPE_LABEL = {
     n1_queue: 'Ticket en cola', n2_assign: 'Asignación', n3_client: 'Respuesta cliente',
     n4_sla: 'SLA', n5_critical: 'Crítico', collision: 'Colisión',
+    identity_mismatch: '⚠ Nombre no reconocido',
   };
 
   function loadNotifications() {
@@ -456,12 +457,15 @@
           var ticketPart = e.ticketUrl
             ? '<a href="' + escHtml(e.ticketUrl) + '" target="_blank" class="ticketLink">' + escHtml(e.ticketNumber || '') + '</a>'
             : escHtml(e.ticketNumber || '');
+          // "Para: sin técnicos en línea" no aplica acá — este evento no es una
+          // notificación dirigida a nadie, es un aviso de auditoría.
+          var whoLine = e.type === 'identity_mismatch' ? '' : '<div style="font-size:11px;color:var(--faint);margin-top:2px">Para: ' + who + '</div>';
           return '<div style="padding:10px 0;border-bottom:1px solid rgba(var(--ink-rgb),0.06)">' +
             '<div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline">' +
             '<span style="font-size:12px;font-weight:600">' + escHtml(label) + (ticketPart ? ' · ' + ticketPart : '') + '</span>' +
             '<span style="font-size:10px;color:var(--faint);white-space:nowrap">' + when + '</span></div>' +
             '<div style="font-size:12px;color:var(--dim);margin-top:2px">' + escHtml(e.body || '') + '</div>' +
-            '<div style="font-size:11px;color:var(--faint);margin-top:2px">Para: ' + who + '</div>' +
+            whoLine +
             '</div>';
         }).join('');
       }).catch(function () {

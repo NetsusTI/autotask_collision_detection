@@ -6,6 +6,7 @@ import { lookupResourceId } from '@/lib/supabase/resources';
 import { dedupeOthers, minutesSince, formatDuration } from '@/lib/collision';
 import { clampInt } from '@/lib/num';
 import { createTicketNote, getTicketAssignedResourceId, getResourceName, getTicketStatus, getTicketStatusLabel, AUTOTASK_STATUS_COMPLETE } from '@/lib/autotask';
+import { isValidTicketId, sanitizeUser } from '@/lib/sanitize';
 
 const PRESENCE_TTL = 40;
 
@@ -15,29 +16,6 @@ function presenceKey(ticketId: string, user: string) {
 
 function extractUser(key: string, ticketId: string) {
   return key.replace(`ticketpresence:${ticketId}:`, '');
-}
-
-// El `id` de la URL termina metido crudo en patrones glob de redis.keys()
-// (`ticketpresence:${id}:*`) — sin esta validación, un id con '*' o ':' amplía el
-// patrón y puede mezclar presencia de otros tickets. Se acepta lo que realmente
-// puede llegar como ticket id (número de ticket de Autotask o el id numérico
-// interno), nunca caracteres de control de Redis.
-function isValidTicketId(id: string): boolean {
-  return /^[A-Za-z0-9._-]{1,100}$/.test(id);
-}
-
-// `user` llega tal cual del cliente y termina: (a) como parte de una key de Redis,
-// (b) insertado en Supabase (collision_history.users), y (c) renderizado en el
-// panel admin. Antes no se validaba nada, lo que permitía HTML/script arbitrario
-// en el nombre y que quedara guardado permanentemente. No se intenta "limpiar" el
-// HTML (whack-a-mole) — se restringe directamente a lo que un nombre real puede
-// contener, y se trunca a un largo razonable.
-function sanitizeUser(raw: unknown): string | null {
-  if (typeof raw !== 'string') return null;
-  const trimmed = raw.trim().slice(0, 60);
-  if (!trimmed) return null;
-  if (!/^[\p{L}\p{N} .,'()\-]+$/u.test(trimmed)) return null;
-  return trimmed;
 }
 
 async function getAutotaskAssignee(ticketId: string): Promise<string | null> {
@@ -78,6 +56,31 @@ async function isWithinWorkHours(): Promise<boolean> {
     const isWeekend = dayName === 'Sat' || dayName === 'Sun';
     return !isWeekend && hour >= start && hour < end;
   } catch { return true; }
+}
+
+// Traza no-bloqueante de un nombre que no matchea el roster sincronizado — ver
+// comentario junto al call site. Fire-and-forget (no se hace `await` sobre esto
+// en el caller): un problema acá nunca debe demorar ni romper la respuesta de
+// presencia real.
+async function flagUnknownIdentity(ticketId: string, user: string, ticketNumber: string | null): Promise<void> {
+  try {
+    const dedupeKey = `identitycheck:${ticketId}:${user}`;
+    const seen = await redis.get<string>(dedupeKey);
+    if (seen) return;
+    const resourceId = await lookupResourceId(user);
+    if (resourceId !== null) return; // coincide con un técnico activo del roster
+    await redis.set(dedupeKey, '1', { ex: 6 * 3600 });
+    logCentralNotification({
+      type: 'identity_mismatch',
+      title: 'Nombre no reconocido en el roster',
+      body: `"${user}" registró presencia en ${ticketNumber ?? `#${ticketId}`} pero no coincide con ningún técnico activo del roster sincronizado.`,
+      ticketId,
+      ticketNumber: ticketNumber ?? undefined,
+      ts: Date.now(),
+    });
+  } catch {
+    // best-effort, nunca debe afectar el flujo real de presencia
+  }
 }
 
 // El MessageCard de Teams se manda con markdown:true — si ticketTitle/ticketNumber
@@ -209,6 +212,13 @@ export async function POST(
   // rechaza acá en vez de dejarlo colarse en el resto del sistema.
   const user = sanitizeUser(body.user);
   if (!user) return NextResponse.json({ error: 'invalid user' }, { status: 400 });
+  // El sistema no autentica identidad — "quién eres" es un string self-reportado
+  // (auto-detectado desde Autotask, o tipeado a mano). Bloquear duro contra el
+  // roster acá dejaría a un técnico real con un nombre mal tipeado SIN detección
+  // de colisión, en silencio (peor que el riesgo que se busca mitigar) — así que
+  // esto solo deja traza para el admin, no rechaza la presencia. Fire-and-forget,
+  // deduplicado 6h para no repetir el aviso en cada poll de 30s.
+  flagUnknownIdentity(id, user, ticketNumber ?? null);
 
   if (autotaskTicketId) {
     const status = await getTicketStatus(String(autotaskTicketId));
