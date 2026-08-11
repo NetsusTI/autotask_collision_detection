@@ -857,6 +857,7 @@
       .then(function (data) {
         document.getElementById('webhookInput').value = data.teamsWebhook || '';
         document.getElementById('ttlInput').value = data.presenceTtl || 40;
+        document.getElementById('autotaskUiBaseInput').value = data.autotaskUiBase || '';
         var wh = data.workHours;
         if (wh) {
           document.getElementById('workHoursEnabled').checked = !!wh.enabled;
@@ -998,6 +999,24 @@
       });
   }
 
+  function saveUiBase() {
+    var val = document.getElementById('autotaskUiBaseInput').value.trim();
+    var status = document.getElementById('uiBaseStatus');
+    fetch(BASE_URL + '/api/config', {
+      method: 'POST',
+      headers: adminHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ autotaskUiBase: val })
+    }).then(function (r) {
+      if (!r.ok) throw new Error(r.status === 403 ? 'session' : 'http');
+      status.className = 'configStatus ok';
+      status.textContent = val ? '✓ URL guardada' : '✓ URL borrada';
+      setTimeout(function () { status.textContent = ''; }, 3000);
+    }).catch(function (err) {
+      status.className = 'configStatus err';
+      status.textContent = err && err.message === 'session' ? '✗ Sesión expirada' : '✗ Error al guardar';
+    });
+  }
+
   function saveTtl() {
     var val = parseInt(document.getElementById('ttlInput').value) || 40;
     val = Math.max(15, Math.min(300, val));
@@ -1102,6 +1121,7 @@
   });
   document.getElementById('exportCsvBtn').addEventListener('click', exportCsv);
   document.getElementById('saveTtlBtn').addEventListener('click', saveTtl);
+  document.getElementById('saveUiBaseBtn').addEventListener('click', saveUiBase);
   document.getElementById('syncResourcesBtn').addEventListener('click', syncResources);
   document.getElementById('diagResourcesBtn').addEventListener('click', diagResources);
   document.getElementById('rosterShowInactive').addEventListener('change', renderRoster);
