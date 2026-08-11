@@ -119,6 +119,14 @@
     .stat-chip { flex: 1; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; text-align: center; }
     .stat-num { font-size: 16px; font-weight: 800; color: var(--accent); }
     .stat-lbl { font-size: 9px; color: var(--dim); margin-top: 1px; }
+    /* --- Acciones rápidas (Panel Admin / feedback) --- */
+    .quick-actions { display: flex; gap: 10px; padding: 10px 16px; flex-shrink: 0; border-top: 1px solid var(--border); }
+    .quick-actions button {
+      flex: 1; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px;
+      padding: 8px 6px; text-align: center; font-size: 11px; font-weight: 600; font-family: inherit;
+      color: var(--text); cursor: pointer;
+    }
+    .quick-actions button:hover { background: var(--hover); }
     /* --- Mensajes rápidos --- */
     .quick-msgs { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; margin-bottom: 6px; }
 
@@ -235,20 +243,6 @@
         <div id="typePrefsList"></div>
       </details>
     </details>
-    <button class="btn ghost block" id="adminBtn">Panel Admin</button>
-    <button class="btn ghost block" id="feedbackBtn">Enviar feedback</button>
-    <div id="feedbackForm" style="display:none;margin-top:10px">
-      <label class="settings-label">¿Qué nos quieres decir?</label>
-      <div class="feedback-type-seg" id="feedbackTypeSeg">
-        <button type="button" data-fb-type="mejorar" class="active">Mejorar algo</button>
-        <button type="button" data-fb-type="agregar">Agregar algo</button>
-        <button type="button" data-fb-type="quitar">Quitar algo</button>
-        <button type="button" data-fb-type="otro">Otro</button>
-      </div>
-      <textarea id="feedbackMessage" class="settings-panel-input" rows="3" placeholder="Cuéntanos qué mejorarías, agregarías o quitarías..."></textarea>
-      <button class="btn block" id="feedbackSubmit">Enviar</button>
-      <div id="feedbackStatus" class="save-status"></div>
-    </div>
   </div>
 
   <div id="app">
@@ -292,6 +286,22 @@
       </div>
       <div id="notif-list" class="notif-list"></div>
     </div>
+  </div>
+  <div class="quick-actions">
+    <button id="adminBtn">Panel Admin</button>
+    <button id="feedbackBtn">Enviar feedback</button>
+  </div>
+  <div id="feedbackForm" style="display:none;padding:0 16px 10px">
+    <label class="settings-label">¿Qué nos quieres decir?</label>
+    <div class="feedback-type-seg" id="feedbackTypeSeg">
+      <button type="button" data-fb-type="mejorar" class="active">Mejorar algo</button>
+      <button type="button" data-fb-type="agregar">Agregar algo</button>
+      <button type="button" data-fb-type="quitar">Quitar algo</button>
+      <button type="button" data-fb-type="otro">Otro</button>
+    </div>
+    <textarea id="feedbackMessage" class="settings-panel-input" rows="3" placeholder="Cuéntanos qué mejorarías, agregarías o quitarías..."></textarea>
+    <button class="btn block" id="feedbackSubmit">Enviar</button>
+    <div id="feedbackStatus" class="save-status"></div>
   </div>
   <div class="ftr">
     <div class="theme-seg" id="themeSeg">
