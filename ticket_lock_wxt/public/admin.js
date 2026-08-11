@@ -98,7 +98,10 @@
   function userName(u) { return typeof u === 'string' ? u : u.name; }
   function userMinutes(u) { return typeof u === 'string' ? 0 : (u.minutes || 0); }
   function userLabel(u) {
-    var name = userName(u);
+    // El nombre viene del cliente (self-reportado) y termina renderizado sin más
+    // tratamiento — escapar acá es la última línea de defensa aunque el server ya
+    // valide el formato en /api/presence/[id].
+    var name = escHtml(userName(u));
     var min = userMinutes(u);
     return name + (min > 0 ? '<span class="chip-time">· ' + min + 'm</span>' : '');
   }
@@ -196,6 +199,11 @@
       status.textContent = 'Completa el código y la contraseña nueva.';
       return;
     }
+    if (newPwd.length < 8) {
+      status.style.color = '#ef4444';
+      status.textContent = 'La contraseña nueva debe tener al menos 8 caracteres.';
+      return;
+    }
     btn.disabled = true;
     btn.textContent = 'Restableciendo...';
     fetch(BASE_URL + '/api/admin/reset-password', {
@@ -207,7 +215,9 @@
     }).then(function (res) {
       if (!res.ok) {
         status.style.color = '#ef4444';
-        status.textContent = res.data && res.data.error === 'invalid_code' ? 'Código incorrecto o vencido.' : 'Error al restablecer.';
+        status.textContent = res.data && res.data.error === 'invalid_code' ? 'Código incorrecto o vencido.'
+          : res.data && res.data.error === 'weak_password' ? 'La contraseña nueva debe tener al menos 8 caracteres.'
+          : 'Error al restablecer.';
         btn.disabled = false;
         btn.textContent = 'Restablecer contraseña';
         return;
@@ -373,8 +383,8 @@
       var tickets = techMap[name];
       return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(var(--ink-rgb),0.06)">' +
         '<div style="width:8px;height:8px;border-radius:50%;background:#22c55e;box-shadow:0 0 5px #22c55e;flex-shrink:0"></div>' +
-        '<div style="font-size:13px;font-weight:600;flex:1">' + name + '</div>' +
-        '<div style="font-size:11px;color:var(--faint)">' + tickets.join(', ') + '</div>' +
+        '<div style="font-size:13px;font-weight:600;flex:1">' + escHtml(name) + '</div>' +
+        '<div style="font-size:11px;color:var(--faint)">' + escHtml(tickets.join(', ')) + '</div>' +
         '</div>';
     }).join('');
   }
@@ -588,14 +598,14 @@
       var hasCollision = tks.some(function (t) { return t.collision; });
       return '<div class="ticketCard ' + (hasCollision ? 'collision' : '') + '">' +
         '<div class="ticketLeft">' +
-        '<div class="techAvatar">' + initials(name) + '</div>' +
-        '<div><div class="ticketName">' + name + '</div>' +
+        '<div class="techAvatar">' + escHtml(initials(name)) + '</div>' +
+        '<div><div class="ticketName">' + escHtml(name) + '</div>' +
         '<div class="ticketMeta">' + tks.length + ' ticket' + (tks.length > 1 ? 's' : '') + ' abierto' + (tks.length > 1 ? 's' : '') + (hasCollision ? ' · <span style="color:#ef4444">' + ic('alert-triangle', 11) + ' colisión</span>' : '') + '</div></div>' +
         '</div><div class="chips">' +
         tks.map(function (t) {
           var chip = t.url
-            ? '<a href="' + t.url + '" target="_blank" class="chip ' + (t.collision ? 'primary' : '') + ' chipLink">' + t.number + (t.minutes > 0 ? '<span class="chip-time">· ' + t.minutes + 'm</span>' : '') + '</a>'
-            : '<span class="chip ' + (t.collision ? 'primary' : '') + '">' + t.number + (t.minutes > 0 ? '<span class="chip-time">· ' + t.minutes + 'm</span>' : '') + '</span>';
+            ? '<a href="' + escHtml(t.url) + '" target="_blank" class="chip ' + (t.collision ? 'primary' : '') + ' chipLink">' + escHtml(t.number) + (t.minutes > 0 ? '<span class="chip-time">· ' + t.minutes + 'm</span>' : '') + '</a>'
+            : '<span class="chip ' + (t.collision ? 'primary' : '') + '">' + escHtml(t.number) + (t.minutes > 0 ? '<span class="chip-time">· ' + t.minutes + 'm</span>' : '') + '</span>';
           return chip;
         }).join('') +
         '</div></div>';
@@ -646,10 +656,10 @@
     }
     var cards = history.map(function (e) {
       return '<div class="histCard"><div class="histLeft">' + ic('alert-triangle', 16) +
-        '<div><div class="histTicket">' + (e.ticketNumber || '#' + e.ticketId) + '</div>' +
+        '<div><div class="histTicket">' + escHtml(e.ticketNumber || '#' + e.ticketId) + '</div>' +
         '<div class="histTime">' + new Date(e.ts).toLocaleString('es-CL') + '</div></div></div>' +
         '<div class="chips">' + e.users.map(function (u, i) {
-          return '<span class="histChip ' + (i === 0 ? 'first' : '') + '">' + userName(u) + '</span>';
+          return '<span class="histChip ' + (i === 0 ? 'first' : '') + '">' + escHtml(userName(u)) + '</span>';
         }).join('') + '</div></div>';
     }).join('');
     var hasMore = historyOffset < historyTotal && historyPeriod === 'all' && !historyFilter;

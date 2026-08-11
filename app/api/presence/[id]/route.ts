@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { checkApiKey, redis } from '@/lib/ticket-lock';
+import { checkApiKey, redis, ACTIVE_TICKETS_KEY } from '@/lib/ticket-lock';
 import { logCentralNotification } from '@/lib/notif-poll';
 import { supabase } from '@/lib/supabase/client';
 import { lookupResourceId } from '@/lib/supabase/resources';
@@ -15,6 +15,29 @@ function presenceKey(ticketId: string, user: string) {
 
 function extractUser(key: string, ticketId: string) {
   return key.replace(`ticketpresence:${ticketId}:`, '');
+}
+
+// El `id` de la URL termina metido crudo en patrones glob de redis.keys()
+// (`ticketpresence:${id}:*`) — sin esta validación, un id con '*' o ':' amplía el
+// patrón y puede mezclar presencia de otros tickets. Se acepta lo que realmente
+// puede llegar como ticket id (número de ticket de Autotask o el id numérico
+// interno), nunca caracteres de control de Redis.
+function isValidTicketId(id: string): boolean {
+  return /^[A-Za-z0-9._-]{1,100}$/.test(id);
+}
+
+// `user` llega tal cual del cliente y termina: (a) como parte de una key de Redis,
+// (b) insertado en Supabase (collision_history.users), y (c) renderizado en el
+// panel admin. Antes no se validaba nada, lo que permitía HTML/script arbitrario
+// en el nombre y que quedara guardado permanentemente. No se intenta "limpiar" el
+// HTML (whack-a-mole) — se restringe directamente a lo que un nombre real puede
+// contener, y se trunca a un largo razonable.
+function sanitizeUser(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim().slice(0, 60);
+  if (!trimmed) return null;
+  if (!/^[\p{L}\p{N} .,'()\-]+$/u.test(trimmed)) return null;
+  return trimmed;
 }
 
 async function getAutotaskAssignee(ticketId: string): Promise<string | null> {
@@ -57,6 +80,15 @@ async function isWithinWorkHours(): Promise<boolean> {
   } catch { return true; }
 }
 
+// El MessageCard de Teams se manda con markdown:true — si ticketTitle/ticketNumber
+// (vienen de Autotask, a veces copiados de un correo de cliente) o un nombre de
+// técnico traen sintaxis Markdown, Teams lo renderiza como link/negrita real
+// dentro de la alerta oficial. Se escapan los caracteres que Markdown interpreta
+// antes de meterlos en cualquier campo del MessageCard.
+function escapeTeamsMarkdown(s: string): string {
+  return s.replace(/([\\`*_{}[\]()#+\-.!<>|])/g, '\\$1');
+}
+
 function postWebhook(webhookUrl: string, body: object) {
   fetch(webhookUrl, {
     method: 'POST',
@@ -65,10 +97,12 @@ function postWebhook(webhookUrl: string, body: object) {
   }).catch(() => {});
 }
 
-async function sendTeamsWebhook(ticketDisplay: string, users: string[], ticketUrl?: string | null) {
+async function sendTeamsWebhook(ticketDisplayRaw: string, usersRaw: string[], ticketUrl?: string | null) {
   const webhookUrl = await getWebhookUrl();
   if (!webhookUrl) return;
 
+  const ticketDisplay = escapeTeamsMarkdown(ticketDisplayRaw);
+  const users = usersRaw.map(escapeTeamsMarkdown);
   const first = users[0];
   const rest = users.slice(1);
   postWebhook(webhookUrl, {
@@ -92,10 +126,13 @@ async function sendTeamsWebhook(ticketDisplay: string, users: string[], ticketUr
   });
 }
 
-async function sendPingWebhook(ticketDisplay: string, from: string, targets: string[], ticketUrl?: string | null) {
+async function sendPingWebhook(ticketDisplayRaw: string, fromRaw: string, targetsRaw: string[], ticketUrl?: string | null) {
   const webhookUrl = await getWebhookUrl();
   if (!webhookUrl) return;
 
+  const ticketDisplay = escapeTeamsMarkdown(ticketDisplayRaw);
+  const from = escapeTeamsMarkdown(fromRaw);
+  const targets = targetsRaw.map(escapeTeamsMarkdown);
   postWebhook(webhookUrl, {
     '@type': 'MessageCard',
     '@context': 'http://schema.org/extensions',
@@ -116,10 +153,12 @@ async function sendPingWebhook(ticketDisplay: string, from: string, targets: str
   });
 }
 
-async function sendResolutionWebhook(ticketDisplay: string, users: string[], durationMs: number, ticketUrl?: string | null) {
+async function sendResolutionWebhook(ticketDisplayRaw: string, usersRaw: string[], durationMs: number, ticketUrl?: string | null) {
   const webhookUrl = await getWebhookUrl();
   if (!webhookUrl) return;
 
+  const ticketDisplay = escapeTeamsMarkdown(ticketDisplayRaw);
+  const users = usersRaw.map(escapeTeamsMarkdown);
   const durStr = formatDuration(durationMs);
 
   postWebhook(webhookUrl, {
@@ -149,6 +188,7 @@ export async function GET(
 ) {
   if (!checkApiKey(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   const { id } = await params;
+  if (!isValidTicketId(id)) return NextResponse.json({ error: 'invalid ticket id' }, { status: 400 });
   const keys = await redis.keys(`ticketpresence:${id}:*`);
   const users = keys.map(k => extractUser(k, id));
   return NextResponse.json({ users });
@@ -160,7 +200,15 @@ export async function POST(
 ) {
   if (!checkApiKey(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   const { id } = await params;
-  const { user, ticketNumber, ticketTitle, ticketUrl, ping, quickMsg, autotaskTicketId } = await request.json().catch(() => ({ user: 'Desconocido', ticketNumber: null, ticketTitle: null, ticketUrl: null, ping: null, quickMsg: null, autotaskTicketId: null }));
+  if (!isValidTicketId(id)) return NextResponse.json({ error: 'invalid ticket id' }, { status: 400 });
+  const body = await request.json().catch(() => ({ user: 'Desconocido', ticketNumber: null, ticketTitle: null, ticketUrl: null, ping: null, quickMsg: null, autotaskTicketId: null }));
+  const { ticketNumber, ticketTitle, ticketUrl, ping, quickMsg, autotaskTicketId } = body;
+  // Nunca confiar en el nombre tal cual llega — termina en keys de Redis, en
+  // Supabase (collision_history.users) y renderizado sin escapar en el panel
+  // admin. Un nombre inválido (vacío, con HTML/script, demasiado largo) se
+  // rechaza acá en vez de dejarlo colarse en el resto del sistema.
+  const user = sanitizeUser(body.user);
+  if (!user) return NextResponse.json({ error: 'invalid user' }, { status: 400 });
 
   if (autotaskTicketId) {
     const status = await getTicketStatus(String(autotaskTicketId));
@@ -185,6 +233,10 @@ export async function POST(
   const configTtl = await redis.get<string>('config:presence_ttl');
   const ttl = clampInt(configTtl, 15, 300, PRESENCE_TTL);
   await redis.set(presenceKey(id, user), '1', { ex: ttl });
+  // Refresca el score en cada poll — así el índice sabe que este ticket sigue
+  // "vivo" sin depender de que nunca se llame DELETE (ej. el técnico cierra la
+  // pestaña sin liberar).
+  await redis.zadd(ACTIVE_TICKETS_KEY, { score: Date.now(), member: id });
   // nx: solo se fija la primera vez (conserva el momento real de llegada). El expire
   // aparte renueva el TTL en cada poll para que no venza a los 5 min y "reinicie" el
   // conteo de "quién llegó primero" en colisiones más largas que eso.
@@ -197,28 +249,34 @@ export async function POST(
   // nota de resolución en el ticket numérico correcto.
   if (autotaskTicketId) await redis.set(`autotaskid:${id}`, String(autotaskTicketId), { ex: 300 });
 
-  if (Array.isArray(ping) && ping.length) {
+  // Mismo criterio que `user`: los targets de ping son nombres de otros técnicos
+  // que también terminan en keys de Redis y en el body de la notificación.
+  const safePingTargets = Array.isArray(ping)
+    ? (ping as unknown[]).map(sanitizeUser).filter((n): n is string => n !== null)
+    : [];
+
+  if (safePingTargets.length) {
     // Server-side rate limit: one ping per user per ticket every 30 seconds
     const pingRateKey = `pingrate:${id}:${user}`;
     const rateLimited = await redis.get(pingRateKey);
     if (!rateLimited) {
       await redis.set(pingRateKey, '1', { ex: 30 });
-      const pingOps = ping.map((target: string) => redis.set(`ping:${id}:${target}`, user, { ex: 60 }));
+      const pingOps = safePingTargets.map((target) => redis.set(`ping:${id}:${target}`, user, { ex: 60 }));
       const qmsgOps = quickMsg
-        ? ping.map((target: string) => redis.set(`quickmsg:${id}:${target}`, String(quickMsg).slice(0, 100), { ex: 120 }))
+        ? safePingTargets.map((target) => redis.set(`quickmsg:${id}:${target}`, String(quickMsg).slice(0, 100), { ex: 120 }))
         : [];
       await Promise.all([...pingOps, ...qmsgOps]);
       const storedTicketNumber = ticketNumber ?? await redis.get<string>(`ticketnumber:${id}`);
       const storedUrl = ticketUrl ?? await redis.get<string>(`ticketurl:${id}`);
-      sendPingWebhook(storedTicketNumber ?? `#${id}`, user, ping, storedUrl);
+      sendPingWebhook(storedTicketNumber ?? `#${id}`, user, safePingTargets, storedUrl);
       logCentralNotification({
         type: 'ping',
         title: `${user} espera respuesta`,
-        body: `Avisó a ${ping.join(', ')} en ${storedTicketNumber ?? `#${id}`}`,
+        body: `Avisó a ${safePingTargets.join(', ')} en ${storedTicketNumber ?? `#${id}`}`,
         ticketId: id,
         ticketNumber: storedTicketNumber ?? undefined,
         ticketUrl: storedUrl ?? undefined,
-        targets: ping,
+        targets: safePingTargets,
         ts: Date.now(),
       });
     }
@@ -249,11 +307,14 @@ export async function POST(
 
   if (others.length > 0) {
     const colKey = `colactive:${id}:${user}`;
-    const alreadyLogged = await redis.get(colKey);
-    if (!alreadyLogged) {
+    // nx: true hace que esto sea el check-y-marca atómico — antes era un
+    // GET seguido de un SET separado (check-then-act), así que dos requests
+    // casi simultáneas para el mismo (ticket, user) podían leer "no marcado"
+    // ambas y duplicar el webhook de Teams / la fila en collision_history.
+    const firstToMark = await redis.set(colKey, '1', { ex: PRESENCE_TTL * 3, nx: true });
+    if (firstToMark === 'OK') {
       const allInCollision = [user, ...otherNames];
       await Promise.all([
-        redis.set(colKey, '1', { ex: PRESENCE_TTL * 3 }),
         redis.incr(`colcount:${id}`).then(() => redis.expire(`colcount:${id}`, 180 * 24 * 3600)),
         redis.set(`colstart:${id}`, Date.now().toString(), { ex: 600, nx: true }),
         redis.set(`colusers:${id}`, JSON.stringify(allInCollision), { ex: 600 }),
@@ -339,12 +400,14 @@ export async function DELETE(
 ) {
   if (!checkApiKey(request)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   const { id } = await params;
+  if (!isValidTicketId(id)) return NextResponse.json({ error: 'invalid ticket id' }, { status: 400 });
   const { user } = await request.json().catch(() => ({ user: '' }));
-  if (user) {
+  if (typeof user === 'string' && user.trim()) {
     await redis.del(presenceKey(id, user));
     await redis.del(`ticketentry:${id}:${user}`);
 
     const remaining = await redis.keys(`ticketpresence:${id}:*`);
+    if (remaining.length === 0) await redis.zrem(ACTIVE_TICKETS_KEY, id);
     if (remaining.length < 2) {
       const [startTs, colUsersRaw, ticketNumber, ticketTitle, ticketUrl] = await Promise.all([
         redis.get<string>(`colstart:${id}`),

@@ -8,6 +8,9 @@ export async function POST(request: NextRequest) {
 
   const { currentPassword, newPassword } = await request.json().catch(() => ({}));
   if (!currentPassword || !newPassword) return NextResponse.json({ error: 'missing fields' }, { status: 400 });
+  if (typeof newPassword !== 'string' || newPassword.length < 8) {
+    return NextResponse.json({ error: 'weak_password' }, { status: 400 });
+  }
 
   const envPwd = process.env.ADMIN_PASSWORD;
   const redisPwd = envPwd ? null : await redis.get<string>('config:admin_password');

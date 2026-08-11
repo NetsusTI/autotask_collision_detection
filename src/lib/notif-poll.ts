@@ -297,11 +297,20 @@ export async function runPoll(force = false): Promise<{ ran: boolean; counts?: R
       byResource.set(t.assignedResourceID, arr);
     }
 
-    for (const rid of resources) {
+    // Antes era un for..of con awaits secuenciales — cada recurso hacía varios
+    // round-trips a Redis uno detrás del otro. Con equipos grandes esto podía
+    // acercarse (o superar) el TTL de 50s del lock del poller, dejando que un
+    // segundo ciclo arrancara en paralelo con el primero. Promise.all no cambia
+    // el resultado (JS no tiene carreras reales en los contadores porque nunca
+    // hay dos callbacks corriendo literalmente al mismo tiempo), solo evita que
+    // el ciclo entero espere a cada recurso en serie.
+    const perResourceCounts = await Promise.all(resources.map(async (rid) => {
       const mine = byResource.get(rid) ?? [];
       const knownKey = `notif:known_assigned:${rid}`;
       const known = new Set((await redis.smembers(knownKey)).map(String));
       const currentIds = mine.map((t) => String(t.id));
+      let n2 = 0;
+      let n4 = 0;
 
       // Primera vez que vemos a este recurso: sembrar sin notificar (evita avalancha inicial).
       const seeded = known.size > 0 || (await redis.get<string>(`notif:seeded:${rid}`)) === '1';
@@ -314,7 +323,7 @@ export async function runPoll(force = false): Promise<{ ran: boolean; counts?: R
             ticketId: String(t.id), ticketNumber: t.ticketNumber, ticketUrl: uiUrl(t.id),
             dedupeKey: `n2:${rid}:${t.id}`, ts: now,
           }, 24 * 3600);
-          if (ok) counts.n2++;
+          if (ok) n2++;
         }
       }
       // Actualiza el set conocido.
@@ -335,9 +344,14 @@ export async function runPoll(force = false): Promise<{ ran: boolean; counts?: R
             ticketId: String(t.id), ticketNumber: t.ticketNumber, ticketUrl: uiUrl(t.id),
             dedupeKey: `n4:${t.id}:${e.kind}`, ts: now,
           }, 6 * 3600);
-          if (ok) counts.n4++;
+          if (ok) n4++;
         }
       }
+      return { n2, n4 };
+    }));
+    for (const c of perResourceCounts) {
+      counts.n2 += c.n2;
+      counts.n4 += c.n4;
     }
   }
 

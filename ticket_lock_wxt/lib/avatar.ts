@@ -12,6 +12,12 @@ export function avatarColor(idx: number): string {
   return COLORS[idx % COLORS.length];
 }
 
+// Las iniciales quedan truncadas a 2 caracteres, así que un tag completo no cabe —
+// pero igual se escapa por si esos 1-2 caracteres son '<' u otro carácter especial.
+function escapeHtmlChar(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+}
+
 export function avatarHtml(name: string, idx: number, size = 32): string {
   const fontSize = Math.round(size * 0.34);
   return `<div style="
@@ -19,5 +25,5 @@ export function avatarHtml(name: string, idx: number, size = 32): string {
     background:${avatarColor(idx)};border:2px solid rgba(0,0,0,0.2);
     display:flex;align-items:center;justify-content:center;
     font-size:${fontSize}px;font-weight:800;color:#fff;
-  ">${avatarInitials(name)}</div>`;
+  ">${escapeHtmlChar(avatarInitials(name))}</div>`;
 }

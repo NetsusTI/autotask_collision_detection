@@ -9,6 +9,9 @@ export async function POST(request: NextRequest) {
 
   const { code, newPassword } = await request.json().catch(() => ({}));
   if (!code || !newPassword) return NextResponse.json({ error: 'missing fields' }, { status: 400 });
+  if (typeof newPassword !== 'string' || newPassword.length < 8) {
+    return NextResponse.json({ error: 'weak_password' }, { status: 400 });
+  }
 
   const valid = await verifyAndConsumeResetCode(String(code).trim());
   if (!valid) {
