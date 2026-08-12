@@ -12,8 +12,10 @@ const DEFAULT_BASE_URL = 'https://netsus-two.vercel.app';
 const DEFAULT_API_KEY = '-_-ErJy9v64XRiDbpuPFZ3uLs4nVFmXm';
 // Ver comentario en el registro de la alarma de "asignaciones" más abajo: es la
 // única llamada de este archivo que pega a Autotask sin caché y escala 1:1 con
-// la cantidad de técnicos — el punto más barato para bajar cuota de API.
-const ASSIGN_CHECK_INTERVAL_MS = 3 * 60 * 1000;
+// la cantidad de técnicos — el punto más barato para bajar cuota de API. Con
+// n2_assign (src/lib/notif-poll.ts) ya cubriendo el mismo evento por un canal
+// compartido/barato, esta corrida es más que nada respaldo — 10 min es holgado.
+const ASSIGN_CHECK_INTERVAL_MS = 10 * 60 * 1000;
 
 let apiOnline = true;
 
@@ -312,10 +314,10 @@ export default defineBackground(() => {
     checkNewAssignments();
     // Cada corrida es 1 llamada real a Autotask (Tickets/query) sin caché, por
     // técnico — a diferencia del resto del polling, que está cacheado o
-    // compartido entre todo el equipo. A 60s eran 60 llamadas/hora por técnico,
-    // el ítem que más escala con el tamaño del equipo dentro de toda la cuota
-    // que usa la extensión. A 3 min queda en 20/hora — sigue avisando la
-    // asignación nueva en minutos, no al instante, pero a una fracción del costo.
+    // compartido entre todo el equipo. A 60s eran 60 llamadas/hora por técnico;
+    // a 10 min quedan en 6/hora. La asignación nueva igual se avisa casi al
+    // instante por n2_assign (canal compartido, ver notif-poll.ts) — esta
+    // corrida es más un respaldo que la vía principal, así que el margen es holgado.
     setInterval(checkNewAssignments, ASSIGN_CHECK_INTERVAL_MS);
   });
 
