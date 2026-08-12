@@ -11,7 +11,9 @@ export default defineConfig({
     name: 'Autotask CoView',
     // Subir esta versión en cada build permite confirmar de un vistazo, en
     // chrome://extensions, si Chrome está corriendo el build nuevo o uno viejo.
-    version: '1.4.3',
+    // Además: en Chrome/Edge esta es la versión que decide si hay auto-update —
+    // ver release/README.md. Sin subirla, un release nuevo no se propaga solo.
+    version: '1.5.0',
     description: 'Detecta colisiones entre técnicos trabajando en el mismo ticket de Autotask',
     // 'alarms' es imprescindible: sin él chrome.alarms queda undefined y la llamada
     // a chrome.alarms.create() del keep-alive tira un TypeError síncrono que mata al
@@ -34,6 +36,16 @@ export default defineConfig({
         },
       },
     } : {}),
+    // Chrome/Edge: clave pública fija (release/coview-signing-key.pem, fuera del
+    // repo) para que el ID de la extensión sea siempre el mismo entre builds, y
+    // update_url para que el navegador la revise solo — ver release/README.md
+    // para el paso único de política (ExtensionInstallForcelist) que activa esto
+    // en cada máquina. Sin ese "key" el ID cambiaría en cada paquete y la política
+    // apuntaría a una extensión distinta cada vez.
+    ...(browser === 'firefox' ? {} : {
+      key: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsXxZZ2FEgTDUS5Rl7cBBbRnvxVJPdznSYLl8o2hHB/++SWqCcG/5b1UF7mtD5bYRlxpzagEaUIgTyupnexjqDf1gfahYAUEPRcMt8dAG6wH0JH/UzOOEfuUq9DmOb851p7CkCxgabznFy77//X7veQ9zg/FDfuJxQx2l5wWsynJqEFaDdBLE8UaZjnhnTVgdCAc+WqkVTfl4veEYLfeNVvXnX2hyGRM8pKTXMujzxbAgmdDnmthLt9F6nBI8acXk9jpyZ02HUfRLHbKmLbbZZL6H9LW0D9eg+S7lCk+P8uSwhF+hlohgXbaALcxR+a1X/WLamvXAFWqf3Hwx4upA4QIDAQAB',
+      update_url: 'https://netsus-two.vercel.app/extension/updates.xml',
+    }),
   }),
   // El aviso de "data_collection_permissions" solo aplica a extensiones nuevas que
   // se publican en addons.mozilla.org — esta build es para carga interna del equipo
