@@ -12,6 +12,7 @@ import { getTypePrefs, isMuted, subscribePrefs, type TypePrefs } from '@/lib/pre
 import type { OtherUser, TicketState, TicketWarnings, PanelToContentMessage } from '@/lib/messaging';
 import { renderBanner, removeBanner } from '@/lib/banner';
 import { renderInsightWidget, removeInsightWidget } from '@/lib/insight-widget';
+import { showNotifToast } from '@/lib/notif-toast';
 
 export default defineContentScript({
   matches: ['https://*.autotask.net/*'],
@@ -54,6 +55,14 @@ export default defineContentScript({
     // Espejo local del buzón — alimenta la tarjeta embebida (lib/insight-widget.ts).
     // Se mantiene al día vía subscribeNotifs() (chrome.storage.onChanged), sin polling propio.
     let recentNotifs: AppNotification[] = [];
+    // ids ya vistos por ESTA instancia — null hasta el primer fetch, para no
+    // toastear todo el historial al cargar la página, solo lo que llega después.
+    let knownNotifIds: Set<string> | null = null;
+    // Tipos que llegan por el poller del background (entrypoints/background.ts,
+    // fuera del ciclo de vida de un ticket) y por eso no tienen ya un aviso propio
+    // en pantalla — a diferencia de collision/ping/liberation, que si el técnico
+    // está en ESE ticket ya se ven en el banner/lock de esa misma vista.
+    const TOASTABLE_TYPES = new Set(['n1_queue', 'n2_assign', 'n3_client', 'n4_sla', 'n5_critical']);
 
     // Estado enviado al side panel por mensajes — el panel ya no vive en el DOM
     // de esta página (el margin-push con CSS no dividía el espacio de verdad en
@@ -394,6 +403,36 @@ export default defineContentScript({
       safeChrome(() =>
         addNotif(n).catch((err) => { if (isContextError(err)) handleContextInvalidated(); }),
       );
+    }
+
+    // Toast en pantalla para notificaciones recién llegadas mientras el técnico
+    // no está en el ticket que las originó (ej. viendo un tablero) — el diff
+    // contra knownNotifIds evita repetir avisos ya vistos por esta pestaña.
+    async function toastNewArrivals(list: AppNotification[]) {
+      if (!knownNotifIds) return; // línea base todavía no cargada
+      const fresh = list.filter((n) => !knownNotifIds!.has(n.id) && TOASTABLE_TYPES.has(n.type));
+      for (const n of list) knownNotifIds.add(n.id);
+      if (!fresh.length) return;
+      // safeChrome() no sirve acá: chrome.storage.local.get(cb) siempre "devuelve"
+      // undefined (API de callback), así que su valor de retorno no puede usarse
+      // para decidir si ya resolvimos la promesa — se replica el mismo guard a mano.
+      const dnd = await new Promise<boolean>((resolve) => {
+        if (!extensionAlive()) { resolve(false); return; }
+        try {
+          chrome.storage.local.get(['netsus_dnd_until'], (data: any) => {
+            resolve(typeof data.netsus_dnd_until === 'number' && data.netsus_dnd_until > Date.now());
+          });
+        } catch (err) {
+          if (isContextError(err)) handleContextInvalidated();
+          resolve(false);
+        }
+      });
+      if (dnd) return;
+      for (const n of fresh) {
+        if (isMuted(typePrefs, n.type)) continue;
+        showNotifToast(n);
+        playSoundForSeverity(n.severity);
+      }
     }
 
     const SEVERITY_SOUND: Record<Severity, 'alert' | 'free' | 'ping' | 'new_entry'> = {
@@ -750,10 +789,15 @@ export default defineContentScript({
 
     // Alimenta la tarjeta embebida (lib/insight-widget.ts) sin polling propio —
     // reusa el mismo buzón que ya escribe saveNotif() más arriba.
-    safeChrome(() => getNotifs().then((list) => { recentNotifs = list; pushState(); }).catch(() => {}));
+    safeChrome(() => getNotifs().then((list) => {
+      recentNotifs = list;
+      knownNotifIds = new Set(list.map((n) => n.id)); // línea base — no toastear el historial
+      pushState();
+    }).catch(() => {}));
     safeChrome(() => subscribeNotifs((list) => {
       if (stopped) return; // ver nota en SUPERSEDE_EVENT: no repintar una instancia ya apagada
       recentNotifs = list;
+      void toastNewArrivals(list);
       pushState();
     }));
 
