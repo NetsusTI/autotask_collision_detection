@@ -4,11 +4,14 @@ import {
   dueForRenag,
   getRenagMinutes,
   bumpNag,
+  subscribe as subscribeNotifs,
   type Severity,
+  type AppNotification,
 } from '@/lib/notifications';
 import { getTypePrefs, isMuted, subscribePrefs, type TypePrefs } from '@/lib/prefs';
 import type { OtherUser, TicketState, TicketWarnings, PanelToContentMessage } from '@/lib/messaging';
 import { renderBanner, removeBanner } from '@/lib/banner';
+import { renderInsightWidget, removeInsightWidget } from '@/lib/insight-widget';
 
 export default defineContentScript({
   matches: ['https://*.autotask.net/*'],
@@ -48,6 +51,9 @@ export default defineContentScript({
 
     let renagTimer: number | undefined;
     let typePrefs: TypePrefs = {};
+    // Espejo local del buzón — alimenta la tarjeta embebida (lib/insight-widget.ts).
+    // Se mantiene al día vía subscribeNotifs() (chrome.storage.onChanged), sin polling propio.
+    let recentNotifs: AppNotification[] = [];
 
     // Estado enviado al side panel por mensajes — el panel ya no vive en el DOM
     // de esta página (el margin-push con CSS no dividía el espacio de verdad en
@@ -103,6 +109,7 @@ export default defineContentScript({
       urlObserver?.disconnect();
       unlockUI();
       removeBanner();
+      removeInsightWidget();
     }
 
     function handleContextInvalidated() {
@@ -190,10 +197,24 @@ export default defineContentScript({
         );
         lastStateSentAt = now;
       }
+      // Tarjeta embebida en la columna nativa de Autotask (Organización/Contacto,
+      // Resumen de tiempo, Elemento de configuración, ...) — se intenta primero;
+      // si Autotask todavía no montó esa columna (o esta vista no la trae),
+      // insertedInPage queda false y el pill flotante de banner.ts sigue de respaldo.
+      const insertedInPage = renderInsightWidget(
+        currentState,
+        currentWarnings,
+        recentNotifs,
+        {
+          onPing: () => triggerPing(),
+          onFinish: triggerFinish,
+          onCancelPause: () => { clearTimeout(pauseTimeout); resumeAfterPause(); },
+        },
+      );
       renderBanner(
         currentState,
         currentWarnings,
-        { minimized: bannerMinimized, dismissed: bannerDismissed },
+        { minimized: bannerMinimized, dismissed: bannerDismissed, assignedElsewhere: insertedInPage },
         {
           onPing: triggerPing,
           onFinish: triggerFinish,
@@ -666,6 +687,7 @@ export default defineContentScript({
       bannerMinimized = false;
       bannerDismissed = false;
       removeBanner();
+      removeInsightWidget();
       setHistoryWarning(null);
       setAssignment(null, null);
 
@@ -725,6 +747,15 @@ export default defineContentScript({
 
     safeChrome(() => getTypePrefs().then((p) => { typePrefs = p; }).catch(() => {}));
     safeChrome(() => subscribePrefs(({ typePrefs: tp }) => { if (tp) typePrefs = tp; }));
+
+    // Alimenta la tarjeta embebida (lib/insight-widget.ts) sin polling propio —
+    // reusa el mismo buzón que ya escribe saveNotif() más arriba.
+    safeChrome(() => getNotifs().then((list) => { recentNotifs = list; pushState(); }).catch(() => {}));
+    safeChrome(() => subscribeNotifs((list) => {
+      if (stopped) return; // ver nota en SUPERSEDE_EVENT: no repintar una instancia ya apagada
+      recentNotifs = list;
+      pushState();
+    }));
 
     // Heartbeat: marca esta pestaña como "viva" para que el background solo haga el
     // re-nag de respaldo (OS) cuando no hay ninguna pestaña de Autotask abierta.

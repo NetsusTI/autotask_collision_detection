@@ -19,6 +19,10 @@ export interface BannerActions {
 export interface BannerOpts {
   minimized: boolean;
   dismissed: boolean;
+  // true cuando lib/insight-widget.ts ya está mostrando el aviso de asignación
+  // embebido en la columna nativa de Autotask — el pill flotante de abajo
+  // sobra en ese caso (mismo dato dos veces en pantalla).
+  assignedElsewhere?: boolean;
 }
 
 const BANNER_ID = 'netsus-banner';
@@ -79,7 +83,7 @@ export function renderBanner(state: TicketState, warnings: TicketWarnings, opts:
 
   // Banner inferior de asignación — independiente del estado principal (la
   // propuesta lo describe como visible "solo en el ticket", o sea sin colisión).
-  if (warnings.assignedTo && state.kind !== 'collision' && !opts.dismissed) {
+  if (warnings.assignedTo && state.kind !== 'collision' && !opts.dismissed && !opts.assignedElsewhere) {
     pill.style.display = '';
     // ticketLabel no existe en todos los kinds (idle/paused no lo traen) — se
     // muestra solo cuando el estado actual lo trae, para dar contexto de a qué
