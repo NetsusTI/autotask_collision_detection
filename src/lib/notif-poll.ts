@@ -94,7 +94,7 @@ export interface FeedItem {
 }
 
 const LOCK_KEY = 'notif:poll_lock';
-const LOCK_TTL = 50;              // s — un ciclo por ventana
+const LOCK_TTL_DEFAULT = 50;      // s — un ciclo por ventana
 const LASTPOLL_KEY = 'notif:lastpoll';
 const ACTIVE_KEY = 'team:resources';   // ZSET member=resourceID, score=lastSeenMs
 const ACTIVE_WINDOW_MS = 2 * 3600 * 1000;
@@ -171,7 +171,11 @@ export async function drainFeed(rid: number): Promise<FeedItem[]> {
 // resourceIDs puede venir vacío (nadie con la extensión activa ahora mismo) — igual
 // se registra el evento (dedupe + log central) para que quede visible en el panel
 // admin; solo se salta el push a feed por-técnico cuando no hay destinatarios.
-async function pushEvent(resourceIDs: number[], item: FeedItem, seenTtlSec: number): Promise<boolean> {
+// Exportado para que app/api/webhooks/autotask/route.ts pueda empujar n1/n2/n5 con el
+// MISMO dedupe (notif:seen:<dedupeKey>) que usa el poll de abajo — así el webhook (más
+// rápido) y la reconciliación periódica de runPoll() nunca duplican un aviso, sin
+// necesidad de coordinarse entre sí más que compartiendo el formato de dedupeKey.
+export async function pushEvent(resourceIDs: number[], item: FeedItem, seenTtlSec: number): Promise<boolean> {
   const seenKey = `notif:seen:${item.dedupeKey}`;
   const first = await redis.set(seenKey, '1', { ex: seenTtlSec, nx: true });
   if (first !== 'OK') return false; // ya emitido dentro de la ventana
@@ -226,10 +230,16 @@ export function slaEvents(t: AutotaskTicket, warnMin: number, now: number): { ki
 export async function runPoll(force = false): Promise<{ ran: boolean; counts?: Record<string, number> }> {
   if (!autotaskConfigured()) return { ran: false };
 
+  // Dial preparado para cuando el webhook de Autotask (app/api/webhooks/autotask/)
+  // lleve un tiempo confiable en producción — hoy sigue en 50s por defecto (sin
+  // cambio de comportamiento) hasta que se suba a mano desde el panel admin.
+  const lockTtlRaw = await redis.get<string>('config:notif_poll_interval_sec');
+  const lockTtl = clampInt(lockTtlRaw, 30, 3600, LOCK_TTL_DEFAULT);
+
   if (force) {
-    await redis.set(LOCK_KEY, '1', { ex: LOCK_TTL });
+    await redis.set(LOCK_KEY, '1', { ex: lockTtl });
   } else {
-    const got = await redis.set(LOCK_KEY, '1', { ex: LOCK_TTL, nx: true });
+    const got = await redis.set(LOCK_KEY, '1', { ex: lockTtl, nx: true });
     if (got !== 'OK') return { ran: false }; // otro ciclo en curso
   }
 

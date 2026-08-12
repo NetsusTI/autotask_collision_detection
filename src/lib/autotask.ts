@@ -4,7 +4,10 @@
 
 import { redis } from '@/lib/ticket-lock';
 
-const BASE = 'https://webservices12.autotask.net/ATServicesRest/v1.0';
+// Exportado: app/api/webhooks/autotask/register/route.ts lo necesita para hablarle
+// directo a TicketWebhooks/TicketWebhookFields (entidades que el resto de este archivo
+// no cubre, `query()` solo sabe de Tickets/TicketNotes/Resources).
+export const BASE = 'https://webservices12.autotask.net/ATServicesRest/v1.0';
 
 export function autotaskConfigured(): boolean {
   return Boolean(process.env.AUTOTASK_USER && process.env.AUTOTASK_SECRET && process.env.AUTOTASK_INTEGRATION_CODE);
@@ -300,6 +303,68 @@ export async function getTicketStatus(autotaskId: string): Promise<number | null
   } catch {
     return null;
   }
+}
+
+// Aplica un cambio empujado por el webhook de Autotask (ver app/api/webhooks/autotask/
+// route.ts) directamente a las mismas keys/TTLs que ya mantienen getTicketStatus() de
+// acá arriba y getAutotaskAssignee() en app/api/presence/[id]/route.ts — así esa ruta
+// no necesita ningún cambio: simplemente encuentra la caché caliente más seguido.
+//
+// `known.*` son valores que el caller pudo extraer con confianza del payload (ver
+// extractFieldValue() en autotask-webhook.ts) — esos se escriben directo. Para un campo
+// que Autotask marcó como cambiado pero cuyo valor no se pudo extraer del payload (el
+// formato exacto de "Fields" no está 100% documentado), `invalidateIfUnknown` borra esa
+// key de caché en vez de arriesgarse a dejarla con un valor viejo/incorrecto — el
+// próximo GET la re-consulta a Autotask (mismo fallback de siempre, solo que ahora
+// dispara antes en vez de esperar el TTL completo).
+//
+// A propósito NO llama a Autotask para resolver el nombre del recurso asignado (sería
+// ir contra el propósito de la migración) — si resolveNameByResourceId() no lo tiene
+// en caché, se invalida en vez de adivinar.
+export interface WebhookTicketFields {
+  id: number;
+  status: number | null;
+  assignedResourceID: number | null;
+  priority: number | null;
+}
+
+export async function applyWebhookTicketUpdate(
+  id: number,
+  known: { status?: number | null; assignedResourceID?: number | null; priority?: number | null },
+  invalidateIfUnknown: { status?: boolean; assignedResourceID?: boolean } = {},
+): Promise<WebhookTicketFields> {
+  const ops: Promise<unknown>[] = [];
+  const statusKey = `ticketstatus:${id}`;
+  const assignedKey = `ticketassigned:${id}`;
+
+  if (known.status !== undefined) {
+    ops.push(redis.set(statusKey, known.status === null ? '' : String(known.status), { ex: 90 }));
+  } else if (invalidateIfUnknown.status) {
+    ops.push(redis.del(statusKey));
+  }
+
+  if (known.assignedResourceID !== undefined) {
+    if (known.assignedResourceID === null) {
+      ops.push(redis.del(assignedKey)); // se desasignó
+    } else {
+      // resolveNameByResourceId (arriba en este archivo) es solo Redis — nunca llama a
+      // Autotask. Si no lo tiene, se invalida en vez de dejar el nombre anterior.
+      const name = await resolveNameByResourceId(known.assignedResourceID);
+      if (name !== null) ops.push(redis.set(assignedKey, name, { ex: 300 }));
+      else ops.push(redis.del(assignedKey));
+    }
+  } else if (invalidateIfUnknown.assignedResourceID) {
+    ops.push(redis.del(assignedKey));
+  }
+
+  await Promise.all(ops);
+
+  return {
+    id,
+    status: known.status ?? null,
+    assignedResourceID: known.assignedResourceID ?? null,
+    priority: known.priority ?? null,
+  };
 }
 
 // Nombre real de cada status (picklist propio de cada instancia de Autotask — "1"

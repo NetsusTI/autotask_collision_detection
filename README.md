@@ -188,6 +188,34 @@ forma oportunista cuando un técnico hace poll de su feed
 | n4 (`n4_sla`) | SLA de primera respuesta o resolución por vencer/vencido. |
 | n5 (`n5_critical`) | Ticket con prioridad crítica (`config:critical_priorities`) en una cola vigilada. |
 
+## Webhook de Autotask (Tickets) — camino rápido aditivo
+
+`app/api/webhooks/autotask/route.ts` recibe callouts de la entidad `TicketWebhooks`
+de Autotask (create/update de tickets) y los usa para: (a) calentar la caché de
+`ticketstatus:{id}`/`ticketassigned:{id}` que ya lee `/api/presence/[id]`, y (b) empujar
+n1/n2/n5 casi al instante en vez de esperar el ciclo del poller. **Es aditivo, no un
+reemplazo**: `runPoll()` sigue corriendo sin cambios como red de seguridad (un webhook no
+tiene la misma garantía de reintento/entrega que el polling con TTL-refetch), y ambos
+caminos comparten el mismo `notif:seen:{dedupeKey}` para no duplicar avisos.
+
+- Auth: firma `HMAC-SHA1` en el header `X-Hook-Signature: sha1=<base64>`, verificada
+  contra `AUTOTASK_WEBHOOK_SECRET` (`src/lib/autotask-webhook.ts`) — es el único endpoint
+  de este proyecto sin `x-api-key`/sesión admin, porque quien llama es Autotask.
+- El formato exacto de los valores dentro del payload no está confirmado por la
+  documentación pública de Autotask — `extractFieldValue`/`extractFieldString` intentan
+  varias formas conocidas; si no logran leer un campo que Autotask marcó como cambiado,
+  se invalida esa key de caché (en vez de arriesgar un valor incorrecto) y se deja un
+  registro en `error_log` (`source: 'webhook:autotask:unparsed-field'`) para ajustar el
+  parser con un payload real.
+- Registro (una vez, manual, admin): `POST /api/webhooks/autotask/register` — crea el
+  webhook en Autotask y suscribe los campos de interés (`status`, `assignedResourceID`,
+  `priority`, `ticketNumber`, `title`); la respuesta detalla campo por campo si la
+  suscripción funcionó (el mapeo nombre→FieldID tampoco está bien documentado en
+  público, así que es best-effort y no bloquea el registro del webhook principal).
+- `config:notif_poll_interval_sec` — dial preparado (default 50s = sin cambio) para
+  bajar la frecuencia de `runPoll()` más adelante, una vez que el webhook se haya
+  observado confiable en producción. No se usa automáticamente.
+
 ## Seguridad
 
 - **`x-api-key`** (`TICKET_LOCK_API_KEY`) — embebido en la extensión pública;
@@ -221,6 +249,8 @@ forma oportunista cuando un técnico hace poll de su feed
 | `/api/config` | GET, POST | GET: `x-api-key` · POST: + admin | Leer/escribir configuración runtime. |
 | `/api/admin/auth` | POST | ninguno (login) | Valida contraseña y emite sesión de admin. |
 | `/api/admin/change-password` | POST | `x-api-key` + admin | Cambia la contraseña de admin (Redis). |
+| `/api/webhooks/autotask` | POST | firma HMAC (`X-Hook-Signature`) | Recibe los callouts de Autotask — sin `x-api-key`. |
+| `/api/webhooks/autotask/register` | POST | `x-api-key` + admin | Registra/idempotente el webhook en Autotask (acción manual, una vez). |
 
 ## Claves de Redis
 
@@ -244,6 +274,9 @@ forma oportunista cuando un técnico hace poll de su feed
 | `notif:feed:{resourceId}` | 24h, máx 50 | Feed pendiente por técnico. |
 | `notif:seen:{dedupeKey}` | 6h/24h según tipo | Dedupe de eventos ya emitidos. |
 | `resource:byname:{nombre}` / `resource:byid:{id}` | 7 días | Cache nombre↔resourceID de Autotask. |
+| `config:autotask_webhook_id` | sin TTL | ID del webhook de Tickets registrado en Autotask. |
+| `config:notif_poll_interval_sec` | sin TTL | Override del TTL del lock de `runPoll()` (default 50s si no está seteado). |
+| `webhookcfg:*` | 1h–24h | Dedupe de logs de configuración/parseo del webhook (evita inundar `error_log`). |
 
 ## Tablas de Supabase
 
@@ -265,6 +298,7 @@ forma oportunista cuando un técnico hace poll de su feed
 | `AUTOTASK_USER` / `AUTOTASK_SECRET` | `src/lib/autotask.ts` | Autenticación contra la API REST de Autotask. |
 | `ADMIN_PASSWORD` | `app/api/admin/auth`, `app/api/admin/change-password` | Contraseña de admin fija por entorno (prioridad sobre la guardada en Redis). |
 | `CRON_SECRET` | `app/api/notifications/poll`, `app/api/presence/daily-summary` | Secreto para el cron de Vercel (alternativa al `x-api-key`). |
+| `AUTOTASK_WEBHOOK_SECRET` | `app/api/webhooks/autotask/*` | Secreto compartido con Autotask para verificar la firma HMAC del webhook — generarlo (`openssl rand -hex 32`) y setearlo ANTES de llamar a `/register`. |
 
 ## Desarrollo local
 
