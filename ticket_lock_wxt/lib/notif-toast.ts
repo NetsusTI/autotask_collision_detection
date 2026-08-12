@@ -21,7 +21,11 @@ function ensureStack(): HTMLElement {
   if (!stack) {
     stack = document.createElement('div');
     stack.id = STACK_ID;
-    stack.style.cssText = 'position:fixed;z-index:2147483000;top:16px;right:16px;display:flex;flex-direction:column;gap:8px;max-width:340px;font-family:\'Montserrat\',\'Segoe UI\',system-ui,sans-serif;';
+    // abajo-izquierda, apilando hacia arriba (column-reverse) — el más nuevo
+    // queda pegado al borde inferior. A la izquierda (no derecha) para no
+    // superponerse con el pill de asignación de lib/banner.ts, que vive en
+    // bottom:16px;right:16px dentro de un ticket.
+    stack.style.cssText = 'position:fixed;z-index:2147483000;bottom:16px;left:16px;display:flex;flex-direction:column-reverse;gap:8px;max-width:340px;font-family:\'Montserrat\',\'Segoe UI\',system-ui,sans-serif;';
     document.body.appendChild(stack);
   }
   return stack;
@@ -47,7 +51,7 @@ export function showNotifToast(n: AppNotification, onOpen?: () => void): void {
   const dismiss = () => {
     card.style.transition = 'opacity .2s, transform .2s';
     card.style.opacity = '0';
-    card.style.transform = 'translateX(20px)';
+    card.style.transform = 'translateX(-20px)';
     setTimeout(() => card.remove(), 200);
   };
   card.querySelector('button')?.addEventListener('click', (e) => { e.stopPropagation(); dismiss(); });
@@ -61,7 +65,7 @@ export function showNotifToast(n: AppNotification, onOpen?: () => void): void {
   if (!document.getElementById('netsus-toast-style')) {
     const style = document.createElement('style');
     style.id = 'netsus-toast-style';
-    style.textContent = '@keyframes netsus-toast-in { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:translateX(0); } }';
+    style.textContent = '@keyframes netsus-toast-in { from { opacity:0; transform:translateX(-20px); } to { opacity:1; transform:translateX(0); } }';
     document.head.appendChild(style);
   }
 }
