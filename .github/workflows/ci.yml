@@ -16,6 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 11 }
       - uses: actions/setup-node@v4
         with:
           # 22, no 20: @upstash/redis espera un WebSocket global nativo, que
@@ -23,21 +25,23 @@ jobs:
           # ticket-lock.ts (y todo lo que lo importa, como notif-poll.ts)
           # tira "Node.js detected but native WebSocket not found." al vuelo.
           node-version: 22
-          cache: npm
-      - run: npm ci
+          cache: pnpm
+      # Instala TODO el workspace (root + ticket_lock_wxt) desde un solo
+      # pnpm-lock.yaml en la raíz — por eso el install corre acá, no dentro
+      # de cada paquete.
+      - run: pnpm install --frozen-lockfile
       - name: Type-check
-        run: npx tsc --noEmit
+        run: pnpm exec tsc --noEmit
       - name: Tests
-        run: npx vitest run
+        run: pnpm exec vitest run
 
   extension:
     name: Extensión (type-check + build)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ticket_lock_wxt
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 11 }
       - uses: actions/setup-node@v4
         with:
           # 22, no 20: @upstash/redis espera un WebSocket global nativo, que
@@ -45,13 +49,61 @@ jobs:
           # ticket-lock.ts (y todo lo que lo importa, como notif-poll.ts)
           # tira "Node.js detected but native WebSocket not found." al vuelo.
           node-version: 22
-          cache: npm
-          cache-dependency-path: ticket_lock_wxt/package-lock.json
-      - run: npm ci
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - name: Type-check
-        run: npm run compile
+        working-directory: ticket_lock_wxt
+        run: pnpm run compile
       - name: Build (Chrome/Edge/Firefox)
+        working-directory: ticket_lock_wxt
         run: |
-          npm run build
-          npm run build:edge
-          npm run build:firefox
+          pnpm run build
+          pnpm run build:edge
+          pnpm run build:firefox
+
+  publish-extension:
+    name: Publicar extensión en las stores (Chrome/Edge/Firefox)
+    # Solo en tags v* (ej. v1.6.0) — un release explícito, no cada push a main.
+    # Requiere las credenciales de las 3 stores como secrets del repo — ver
+    # ticket_lock_wxt/release/README-stores.md, sección 6. Sin esos secrets
+    # este job falla al llegar a "wxt submit"; no bloquea el resto del CI.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: extension
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 11 }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build + zip (Chrome/Edge/Firefox)
+        working-directory: ticket_lock_wxt
+        run: |
+          pnpm run build && pnpm run zip
+          pnpm run build:edge && pnpm run zip:edge
+          pnpm run build:firefox && pnpm run zip:firefox
+      - name: Submit a las 3 stores
+        working-directory: ticket_lock_wxt
+        # Ver README-stores.md antes de habilitar: hay que confirmar los flags
+        # exactos de "wxt submit" contra la versión de wxt instalada
+        # (pnpm exec wxt submit --help / pnpm exec wxt submit init).
+        run: pnpm exec wxt submit
+          --chrome-zip .output/*-chrome.zip
+          --edge-zip .output/*-edge.zip
+          --firefox-zip .output/*-firefox.zip
+          --firefox-sources-zip .output/*-sources.zip
+        env:
+          CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+          CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+          EDGE_PRODUCT_ID: ${{ secrets.EDGE_PRODUCT_ID }}
+          EDGE_CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}
+          EDGE_CLIENT_SECRET: ${{ secrets.EDGE_CLIENT_SECRET }}
+          EDGE_ACCESS_TOKEN_URL: ${{ secrets.EDGE_ACCESS_TOKEN_URL }}
+          FIREFOX_EXTENSION_ID: ${{ secrets.FIREFOX_EXTENSION_ID }}
+          FIREFOX_JWT_ISSUER: ${{ secrets.FIREFOX_JWT_ISSUER }}
+          FIREFOX_JWT_SECRET: ${{ secrets.FIREFOX_JWT_SECRET }}

@@ -1,0 +1,9 @@
+packages:
+  - "."
+  - "ticket_lock_wxt"
+
+allowBuilds:
+  esbuild: true
+  sharp: true
+  spawn-sync: true
+  unrs-resolver: true

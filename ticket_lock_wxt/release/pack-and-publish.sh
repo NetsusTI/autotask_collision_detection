@@ -23,12 +23,12 @@ if [ ! -f "$KEY" ]; then
 fi
 
 echo "== Type-check =="
-npm run compile
+pnpm run compile
 
 echo "== Build (chrome/edge/firefox) =="
-npm run build
-npm run build:edge
-npm run build:firefox
+pnpm run build
+pnpm run build:edge
+pnpm run build:firefox
 
 echo "== Empaquetado firmado (Chrome/Edge comparten el mismo manifest+key → un solo .crx) =="
 "$CHROME" --pack-extension="$(pwd)/.output/chrome-mv3" --pack-extension-key="$(pwd)/$KEY"
@@ -48,9 +48,9 @@ cat > "$PUBLIC_DIR/updates.xml" << EOF
 EOF
 
 echo "== Zips para instalación manual / Firefox =="
-npm run zip
-npm run zip:edge
-npm run zip:firefox
+pnpm run zip
+pnpm run zip:edge
+pnpm run zip:firefox
 
 echo
 echo "Listo. Falta:"
